@@ -39,7 +39,6 @@ enum ClaudeProviderError: Error, LocalizedError {
 final class ClaudeProvider: LLMProvider {
     private let apiURL = URL(string: "https://api.anthropic.com/v1/messages")!
     private let model = "claude-sonnet-4-20250514"
-    private let screenshotMediaType = "image/webp"
 
     var apiKey: String? {
         Keychain.load(key: "claude_api_key")
@@ -91,7 +90,7 @@ final class ClaudeProvider: LLMProvider {
                 "type": "image",
                 "source": [
                     "type": "base64",
-                    "media_type": screenshotMediaType,
+                    "media_type": detectMediaType(from: imageData),
                     "data": base64
                 ] as [String: String]
             ])

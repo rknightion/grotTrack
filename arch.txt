@@ -256,9 +256,14 @@ Provider Architecture:
   └─────────┘ └──────────┘ └────────────┘
 
 ADR: Hand-rolled URLSession was chosen over SwiftAnthropic SDK to
-maintain zero external dependencies. The API surface is narrow (one
+minimize external dependencies. The API surface is narrow (one
 endpoint, three prompt variations) and the protocol isolates the
 concrete implementation for future swapping.
+
+ADR: libwebp (via SDWebImage/libwebp-Xcode SPM package) is used for
+WebP encoding. macOS ImageIO supports WebP decoding but not reliably
+encoding — CGImageDestinationCreateWithData fails on many systems.
+libwebp guarantees consistent WebP output across all macOS versions.
 
 Trigger: Hourly automatic (after aggregation, if API key configured
 and block not yet classified) OR on-demand "Analyze with AI" button
@@ -585,7 +590,9 @@ Browser tab access          Chrome Extension +   No Automation permission needed
 Menu bar style              MenuBarExtra         Native SwiftUI, no AppKit needed
 App visibility              LSUIElement=true      Menu bar only, no Dock icon
 Credential storage          Keychain             OS-level security
-Launch at login             SMAppService         Modern API, no helper app
+Launch at login             SMAppService         Modern API, no helper app;
+                                                 auto-enabled on first launch
+Start tracking on launch   UserDefaults flag     Opt-in auto-start monitoring
 Screenshot retention        7 days full, 30 thumb Balances evidence vs storage
 App exclusions              Bundle ID list       Precise, no ambiguity
 Export formats              JSON + CSV           Machine-readable + spreadsheet

@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import UserNotifications
 import AppKit
+import ServiceManagement
 
 @Observable
 @MainActor
@@ -52,6 +53,17 @@ final class AppCoordinator {
         let status = chromeInstaller.checkInstallation()
         if status == .notInstalled {
             try? chromeInstaller.installNativeHost()
+        }
+
+        // Auto-enable launch at login on first run
+        if !UserDefaults.standard.bool(forKey: "hasConfiguredLaunchAtLogin") {
+            do {
+                try SMAppService.mainApp.register()
+                UserDefaults.standard.set(true, forKey: "launchAtLogin")
+            } catch {
+                print("Failed to auto-register launch at login: \(error.localizedDescription)")
+            }
+            UserDefaults.standard.set(true, forKey: "hasConfiguredLaunchAtLogin")
         }
 
         // Request notification permission
@@ -335,6 +347,11 @@ struct GrotTrackApp: App {
                     coordinator.modelContext = container.mainContext
                     await coordinator.bootstrap()
 
+                    // Auto-start tracking if user opted in
+                    if UserDefaults.standard.bool(forKey: "startTrackingOnLaunch") {
+                        coordinator.startTracking()
+                    }
+
                     // Storage cleanup on launch
                     let screenshotRetention = UserDefaults.standard.integer(forKey: "screenshotRetentionDays")
                     let thumbnailRetention = UserDefaults.standard.integer(forKey: "thumbnailRetentionDays")
@@ -355,17 +372,17 @@ struct GrotTrackApp: App {
         .menuBarExtraStyle(.window)
         .modelContainer(container)
 
-        Window("GrotTrack Timeline", id: "timeline") {
+        Window("GrotTrack Activity", id: "timeline") {
             TimelineView(llmProvider: coordinator.llmProvider)
         }
         .modelContainer(container)
-        .defaultSize(width: 800, height: 600)
+        .defaultSize(width: 900, height: 700)
 
-        Window("Daily Report", id: "report") {
+        Window("AI Report", id: "report") {
             DailyReportView(llmProvider: coordinator.llmProvider)
         }
         .modelContainer(container)
-        .defaultSize(width: 900, height: 700)
+        .defaultSize(width: 800, height: 600)
 
         Window("Customers", id: "customers") {
             CustomerListView(llmProvider: coordinator.llmProvider)

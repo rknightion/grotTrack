@@ -6,6 +6,11 @@ options:
   xcodeVersion: "16.0"
   createIntermediateGroups: true
 
+packages:
+  libwebp:
+    url: https://github.com/SDWebImage/libwebp-Xcode.git
+    from: "1.5.0"
+
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -24,6 +29,7 @@ targets:
       - target: GrotTrackNativeHost
         copy:
           destination: executables
+      - package: libwebp
     settings:
       base:
         INFOPLIST_FILE: GrotTrack/Info.plist

@@ -138,6 +138,12 @@ jobs:
           cache: 'npm'
           cache-dependency-path: grot-track-extension/package-lock.json
 
+      - name: Install icon dependencies
+        run: npm ci
+
+      - name: Generate icons
+        run: node scripts/generate-icons.mjs
+
       - name: Build Chrome Extension
         run: |
           cd grot-track-extension
@@ -151,3 +157,58 @@ jobs:
           files: |
             GrotTrack.zip
             grot-track-extension/.output/*.zip
+
+  publish-extension:
+    name: Publish Chrome Extension
+    needs: [release-please, build-release]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: grot-track-extension/package-lock.json
+
+      - name: Install icon dependencies
+        run: npm ci
+
+      - name: Generate icons
+        run: node scripts/generate-icons.mjs
+
+      - name: Build extension zip
+        working-directory: grot-track-extension
+        run: |
+          npm ci
+          npx wxt zip
+
+      - name: Upload to Chrome Web Store
+        working-directory: grot-track-extension
+        env:
+          EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+        run: |
+          npx chrome-webstore-upload-cli@3 upload \
+            --source .output/*.zip \
+            --extension-id "$EXTENSION_ID" \
+            --client-id "$CLIENT_ID" \
+            --client-secret "$CLIENT_SECRET" \
+            --refresh-token "$REFRESH_TOKEN"
+
+      - name: Publish on Chrome Web Store
+        working-directory: grot-track-extension
+        env:
+          EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+        run: |
+          npx chrome-webstore-upload-cli@3 publish \
+            --extension-id "$EXTENSION_ID" \
+            --client-id "$CLIENT_ID" \
+            --client-secret "$CLIENT_SECRET" \
+            --refresh-token "$REFRESH_TOKEN"
