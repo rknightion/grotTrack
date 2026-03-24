@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-swift:
     name: Build & Test macOS App
@@ -16,32 +20,70 @@ jobs:
       - name: Select Xcode 16
         run: sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
+      - name: Cache Homebrew bottles
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/Homebrew/downloads
+          key: brew-xcodegen-swiftlint-v1
+
+      - name: Install tools
+        run: brew install xcodegen swiftlint
 
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Build
-        run: |
-          xcodebuild build \
-            -project GrotTrack.xcodeproj \
-            -scheme GrotTrack \
-            -destination 'platform=macOS' \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_ALLOWED=NO
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: deriveddata-${{ hashFiles('**/*.swift', 'project.yml') }}
+          restore-keys: |
+            deriveddata-
 
-      - name: Test
+      - name: Lint
+        run: swiftlint lint --reporter github-actions-logging
+        continue-on-error: true
+
+      - name: Build for Testing
         run: |
-          xcodebuild test \
+          xcodebuild build-for-testing \
             -project GrotTrack.xcodeproj \
             -scheme GrotTrackTests \
             -destination 'platform=macOS' \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_ALLOWED=NO
 
+      - name: Run Tests
+        run: |
+          xcodebuild test-without-building \
+            -project GrotTrack.xcodeproj \
+            -scheme GrotTrackTests \
+            -destination 'platform=macOS' \
+            -resultBundlePath TestResults.xcresult \
+            -enableCodeCoverage YES \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Coverage Summary
+        if: always()
+        run: |
+          if [ -d TestResults.xcresult ]; then
+            xcrun xccov view --report --json TestResults.xcresult > coverage.json
+            COVERAGE=$(python3 -c "
+          import json, sys
+          with open('coverage.json') as f:
+              data = json.load(f)
+          for target in data.get('targets', []):
+              if 'GrotTrack' in target['name'] and '.app' in target['name']:
+                  print(f\"{target['lineCoverage'] * 100:.1f}\")
+                  sys.exit(0)
+          print('N/A')
+          ")
+            echo "### Code Coverage: ${COVERAGE}%" >> $GITHUB_STEP_SUMMARY
+          fi
+
   build-extension:
-    name: Build Chrome Extension
+    name: Build & Check Chrome Extension
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -57,6 +99,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Prepare WXT types
+        run: npx wxt prepare
+
+      - name: Type check
+        run: npx tsc --noEmit
 
       - name: Build extension
         run: npx wxt build
