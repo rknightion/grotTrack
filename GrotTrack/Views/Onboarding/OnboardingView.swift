@@ -1,0 +1,295 @@
+import SwiftUI
+import AppKit
+
+struct OnboardingView: View {
+    @AppStorage("hasCompletedOnboarding") private var completed: Bool = false
+    @State private var currentPage: Int = 0
+    let permissionManager: PermissionManager
+    let browserTabService: BrowserTabService
+
+    private let totalPages = 5
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Content area
+            Group {
+                switch currentPage {
+                case 0: welcomePage
+                case 1: permissionsPage
+                case 2: chromeExtensionPage
+                case 3: apiKeyPage
+                case 4: readyPage
+                default: EmptyView()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Divider()
+
+            // Bottom navigation bar
+            HStack {
+                if currentPage > 0 && currentPage < totalPages - 1 {
+                    Button("Back") {
+                        withAnimation { currentPage -= 1 }
+                    }
+                }
+
+                Spacer()
+
+                // Page indicators
+                HStack(spacing: 6) {
+                    ForEach(0..<totalPages, id: \.self) { index in
+                        Circle()
+                            .fill(index == currentPage ? Color.accentColor : Color.secondary.opacity(0.3))
+                            .frame(width: 7, height: 7)
+                    }
+                }
+
+                Spacer()
+
+                if currentPage == 0 {
+                    Button("Get Started") {
+                        withAnimation { currentPage = 1 }
+                    }
+                    .buttonStyle(.borderedProminent)
+                } else if currentPage == totalPages - 1 {
+                    // The ready page has its own button in the content area
+                    EmptyView()
+                } else {
+                    if currentPage == 2 || currentPage == 3 {
+                        Button("Skip") {
+                            withAnimation { currentPage += 1 }
+                        }
+                    }
+
+                    Button("Continue") {
+                        withAnimation { currentPage += 1 }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 14)
+        }
+        .frame(width: 550, height: 480)
+    }
+
+    // MARK: - Page 0: Welcome
+
+    private var welcomePage: some View {
+        VStack(spacing: 20) {
+            Spacer()
+
+            Image(systemName: "clock.fill")
+                .font(.system(size: 56))
+                .foregroundStyle(Color.accentColor)
+
+            Text("Welcome to GrotTrack")
+                .font(.title)
+                .bold()
+
+            Text("Automatically track your time across apps, classify work by customer using AI, and generate daily reports.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 400)
+
+            VStack(alignment: .leading, spacing: 12) {
+                featureBullet(icon: "clock", text: "Automatic time tracking")
+                featureBullet(icon: "camera", text: "Periodic screenshot capture")
+                featureBullet(icon: "brain", text: "AI-powered classification")
+            }
+            .padding(.top, 8)
+
+            Spacer()
+        }
+        .padding(.horizontal, 40)
+    }
+
+    private func featureBullet(icon: String, text: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 24)
+            Text(text)
+                .font(.body)
+        }
+    }
+
+    // MARK: - Page 1: Permissions
+
+    private var permissionsPage: some View {
+        VStack(spacing: 16) {
+            Spacer()
+
+            Text("Grant Permissions")
+                .font(.title)
+                .bold()
+
+            Text("GrotTrack needs two permissions to work effectively.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+
+            PermissionRequestView(permissionManager: permissionManager)
+                .padding(.horizontal, 20)
+
+            if !permissionManager.accessibilityGranted || !permissionManager.screenRecordingGranted {
+                Text("You can grant permissions later in System Settings.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 24)
+    }
+
+    // MARK: - Page 2: Chrome Extension
+
+    private var chromeExtensionPage: some View {
+        VStack(spacing: 16) {
+            Spacer()
+
+            Text("Browser Integration")
+                .font(.title)
+                .bold()
+
+            Text("Optional: Install the Chrome extension to track browser tab titles and URLs.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 420)
+
+            VStack(alignment: .leading, spacing: 10) {
+                extensionStep(number: 1, text: "Open chrome://extensions in Chrome")
+                extensionStep(number: 2, text: "Enable Developer Mode (toggle in top-right)")
+                extensionStep(number: 3, text: "Click \"Load unpacked\" and select the extension folder")
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+
+            Button("Open Extension Folder") {
+                let extensionURL = URL(fileURLWithPath: Bundle.main.bundlePath)
+                    .deletingLastPathComponent()
+                    .deletingLastPathComponent()
+                    .deletingLastPathComponent()
+                    .appendingPathComponent("grot-track-extension")
+                // Fall back to a well-known project path if the bundle-relative one doesn't exist
+                let fallbackURL = URL(fileURLWithPath: "/Users/rob/repos/grotTrack/grot-track-extension")
+                let urlToOpen = FileManager.default.fileExists(atPath: extensionURL.path)
+                    ? extensionURL : fallbackURL
+                NSWorkspace.shared.open(urlToOpen)
+            }
+            .buttonStyle(.bordered)
+
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(browserTabService.isConnected ? Color.green : Color.gray)
+                    .frame(width: 8, height: 8)
+                Text(browserTabService.isConnected ? "Connected" : "Not connected")
+                    .font(.caption)
+                    .foregroundStyle(browserTabService.isConnected ? .green : .secondary)
+            }
+            .padding(.top, 4)
+
+            Spacer()
+        }
+        .padding(.horizontal, 24)
+    }
+
+    private func extensionStep(number: Int, text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text("\(number).")
+                .font(.body)
+                .bold()
+                .frame(width: 20, alignment: .trailing)
+            Text(text)
+                .font(.body)
+        }
+    }
+
+    // MARK: - Page 3: API Key
+
+    private var apiKeyPage: some View {
+        VStack(spacing: 16) {
+            Text("Claude AI Integration")
+                .font(.title)
+                .bold()
+                .padding(.top, 20)
+
+            Text("Optional: Enter your Anthropic API key to enable AI-powered time classification.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 420)
+
+            APISettingsView()
+                .frame(maxHeight: .infinity)
+        }
+        .padding(.horizontal, 24)
+    }
+
+    // MARK: - Page 4: Ready
+
+    private var readyPage: some View {
+        VStack(spacing: 20) {
+            Spacer()
+
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 56))
+                .foregroundStyle(.green)
+
+            Text("You're All Set!")
+                .font(.title)
+                .bold()
+
+            VStack(alignment: .leading, spacing: 10) {
+                configSummaryRow(
+                    icon: "hand.raised.fill",
+                    title: "Accessibility",
+                    granted: permissionManager.accessibilityGranted
+                )
+                configSummaryRow(
+                    icon: "rectangle.inset.filled.and.person.filled",
+                    title: "Screen Recording",
+                    granted: permissionManager.screenRecordingGranted
+                )
+                configSummaryRow(
+                    icon: "globe",
+                    title: "Browser Extension",
+                    granted: browserTabService.isConnected
+                )
+                configSummaryRow(
+                    icon: "brain",
+                    title: "Claude API Key",
+                    granted: Keychain.load(key: "claude_api_key") != nil
+                )
+            }
+            .padding(16)
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+
+            Button("Start Tracking") {
+                completed = true
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .padding(.top, 8)
+
+            Spacer()
+        }
+        .padding(.horizontal, 40)
+    }
+
+    private func configSummaryRow(icon: String, title: String, granted: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(.secondary)
+                .frame(width: 24)
+            Text(title)
+                .font(.body)
+            Spacer()
+            Image(systemName: granted ? "checkmark.circle.fill" : "minus.circle")
+                .foregroundStyle(granted ? .green : .secondary)
+        }
+    }
+}

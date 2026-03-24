@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          release-type: simple
+
+  build-release:
+    name: Build Release Artifacts
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 16
+        run: sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build Release Archive
+        run: |
+          xcodebuild archive \
+            -project GrotTrack.xcodeproj \
+            -scheme GrotTrack \
+            -archivePath build/GrotTrack.xcarchive \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package App
+        run: |
+          cd build/GrotTrack.xcarchive/Products/Applications
+          zip -r ../../../../GrotTrack-unsigned.zip GrotTrack.app
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: grot-track-extension/package-lock.json
+
+      - name: Build Chrome Extension
+        run: |
+          cd grot-track-extension
+          npm ci
+          npx wxt zip
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: |
+            GrotTrack-unsigned.zip
+            grot-track-extension/.output/*.zip

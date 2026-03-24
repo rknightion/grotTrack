@@ -1,0 +1,62 @@
+# macOS
+.DS_Store
+*.swp
+*~
+.AppleDouble
+.LSOverride
+
+# Xcode
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+build/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.xccheckout
+*.xcscmblueprint
+
+# Swift Package Manager
+.build/
+Packages/
+Package.pins
+Package.resolved
+*.xcodeproj
+
+# Chrome Extension (WXT)
+grot-track-extension/node_modules/
+grot-track-extension/.output/
+grot-track-extension/.wxt/
+grot-track-extension/dist/
+
+# Build outputs
+*.app
+*.zip
+*.pkg
+*.dmg
+
+# IDE
+.vscode/
+.idea/
+
+# Environment / Secrets
+.env
+.env.*
+*.p12
+*.cer
+*.mobileprovision
+
+# Temporary files
+*.log
+*.tmp

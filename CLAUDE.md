@@ -1,0 +1,1 @@
+The file arch.txt contains all our architecture and design princaples and must be respected. If an architecture decision is changed or updated this file must be kept up to date. 

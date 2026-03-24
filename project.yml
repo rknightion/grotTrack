@@ -1,0 +1,68 @@
+name: GrotTrack
+options:
+  bundleIdPrefix: com.grottrack
+  deploymentTarget:
+    macOS: "15.0"
+  xcodeVersion: "16.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+
+targets:
+  GrotTrack:
+    type: application
+    platform: macOS
+    sources:
+      - path: GrotTrack
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - target: GrotTrackNativeHost
+        copy:
+          destination: executables
+    settings:
+      base:
+        INFOPLIST_FILE: GrotTrack/Info.plist
+        CODE_SIGN_ENTITLEMENTS: GrotTrack/GrotTrack.entitlements
+        PRODUCT_BUNDLE_IDENTIFIER: com.grottrack.app
+        GENERATE_INFOPLIST_FILE: false
+        PRODUCT_NAME: GrotTrack
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: YES
+
+  GrotTrackNativeHost:
+    type: tool
+    platform: macOS
+    sources:
+      - path: GrotTrackNativeHost
+        excludes:
+          - "**/.DS_Store"
+      - path: GrotTrack/Services/NativeMessageHost.swift
+      - path: GrotTrack/Utilities/SharedConstants.swift
+    settings:
+      base:
+        PRODUCT_NAME: GrotTrackNativeHost
+        PRODUCT_BUNDLE_IDENTIFIER: com.grottrack.nativehost
+        SWIFT_VERSION: "6.0"
+        MACOSX_DEPLOYMENT_TARGET: "15.0"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: YES
+
+  GrotTrackTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: GrotTrackTests
+    dependencies:
+      - target: GrotTrack
+    settings:
+      base:
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/GrotTrack.app/Contents/MacOS/GrotTrack"
+        GENERATE_INFOPLIST_FILE: true

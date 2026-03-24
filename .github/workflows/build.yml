@@ -1,0 +1,62 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-swift:
+    name: Build & Test macOS App
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 16
+        run: sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project GrotTrack.xcodeproj \
+            -scheme GrotTrack \
+            -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project GrotTrack.xcodeproj \
+            -scheme GrotTrackTests \
+            -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_ALLOWED=NO
+
+  build-extension:
+    name: Build Chrome Extension
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: grot-track-extension
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: grot-track-extension/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build extension
+        run: npx wxt build
