@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.2](https://github.com/rknightion/grotTrack/compare/v0.2.1...v0.2.2) (2026-03-24)
+
+
+### Miscellaneous
+
+* **deps:** pin dependencies ([#3](https://github.com/rknightion/grotTrack/issues/3)) ([35ff7bf](https://github.com/rknightion/grotTrack/commit/35ff7bf0f756eb0d572b5a0859a9d0a31cd75f01))
+* **deps:** update dependency typescript to v6 ([d87361c](https://github.com/rknightion/grotTrack/commit/d87361c330cec4b1ed88150f1b3de7293c1fe6e8))
+* **deps:** update dependency typescript to v6 ([f58f558](https://github.com/rknightion/grotTrack/commit/f58f558dd994d5868d399f854385d4f3ddac1d54))
+
 ## [0.2.1](https://github.com/rknightion/grotTrack/compare/v0.2.0...v0.2.1) (2026-03-24)
 
 
