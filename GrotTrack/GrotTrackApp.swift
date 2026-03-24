@@ -40,10 +40,12 @@ final class AppCoordinator {
     }
 
     func bootstrap() async {
-        await permissionManager.checkAllPermissions()
+        permissionManager.checkAllPermissions()
         if !permissionManager.accessibilityGranted {
             permissionManager.requestAccessibility()
         }
+
+        permissionManager.startMonitoring()
 
         browserTabService.startListening()
 
@@ -53,15 +55,28 @@ final class AppCoordinator {
         }
 
         // Request notification permission
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        _ = try? await UNUserNotificationCenter.current()
+            .requestAuthorization(options: [.alert, .sound])
 
         // Set up global keyboard shortcut (Ctrl+Shift+G to toggle pause)
         setupGlobalShortcut()
     }
 
     func startTracking() {
-        activityTracker.startTracking()
-        screenshotManager.startCapturing()
+        permissionManager.checkAllPermissions()
+
+        if permissionManager.accessibilityGranted {
+            activityTracker.startTracking()
+        } else {
+            print("Accessibility permission not granted — activity tracking disabled")
+        }
+
+        if permissionManager.screenRecordingGranted {
+            screenshotManager.startCapturing()
+        } else {
+            print("Screen recording permission not granted — screenshots disabled")
+        }
+
         idleDetector.start()
         startHourlyAggregation()
         startIdleObservation()
