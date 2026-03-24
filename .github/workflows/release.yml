@@ -23,7 +23,7 @@ jobs:
       - uses: googleapis/release-please-action@v4
         id: release
         with:
-          release-type: simple
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   test-gate:
     name: Test Before Release
