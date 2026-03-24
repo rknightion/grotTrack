@@ -1,6 +1,6 @@
 import SwiftUI
 import ApplicationServices
-import ScreenCaptureKit
+import CoreGraphics
 
 @Observable
 @MainActor
@@ -20,21 +20,47 @@ final class PermissionManager {
         AXIsProcessTrustedWithOptions(options)
     }
 
-    func checkScreenRecording() async {
-        let granted = await Task.detached {
-            do {
-                _ = try await SCShareableContent.current
-                return true
-            } catch {
-                return false
-            }
-        }.value
-        screenRecordingGranted = granted
+    func checkScreenRecording() -> Bool {
+        screenRecordingGranted = CGPreflightScreenCaptureAccess()
+        return screenRecordingGranted
     }
 
-    func checkAllPermissions() async {
+    func requestScreenRecording() {
+        CGRequestScreenCaptureAccess()
+    }
+
+    func checkAllPermissions() {
         _ = checkAccessibility()
-        await checkScreenRecording()
-        // Note: No Automation permission needed (Chrome extension replaces JXA)
+        _ = checkScreenRecording()
+    }
+
+    func startMonitoring() {
+        monitoringTask?.cancel()
+        monitoringTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                guard let self else { return }
+                self.checkAllPermissions()
+            }
+        }
+
+        // Instant detection of accessibility changes
+        accessibilityObserver = DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("com.apple.accessibility.api"),
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                _ = self?.checkAccessibility()
+            }
+        }
+    }
+
+    func stopMonitoring() {
+        monitoringTask?.cancel()
+        monitoringTask = nil
+        if let observer = accessibilityObserver {
+            DistributedNotificationCenter.default().removeObserver(observer)
+            accessibilityObserver = nil
+        }
     }
 }
