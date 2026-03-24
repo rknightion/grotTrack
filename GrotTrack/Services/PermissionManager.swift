@@ -8,6 +8,9 @@ final class PermissionManager {
     var accessibilityGranted: Bool = false
     var screenRecordingGranted: Bool = false
 
+    private var monitoringTask: Task<Void, Never>?
+    private var accessibilityObserver: NSObjectProtocol?
+
     func checkAccessibility() -> Bool {
         accessibilityGranted = AXIsProcessTrusted()
         return accessibilityGranted
