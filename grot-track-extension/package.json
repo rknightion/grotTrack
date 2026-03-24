@@ -10,6 +10,6 @@
   "devDependencies": {
     "@types/chrome": "^0.1.0",
     "wxt": "^0.20.20",
-    "typescript": "^5.7.0"
+    "typescript": "^6.0.0"
   }
 }
