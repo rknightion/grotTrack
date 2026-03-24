@@ -32,7 +32,6 @@ targets:
         GENERATE_INFOPLIST_FILE: false
         PRODUCT_NAME: GrotTrack
         CODE_SIGN_STYLE: Automatic
-        CODE_SIGN_IDENTITY: "-"
         ENABLE_HARDENED_RUNTIME: YES
 
   GrotTrackNativeHost:
