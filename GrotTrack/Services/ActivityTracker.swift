@@ -91,6 +91,7 @@ final class ActivityTracker {
 
     private func pollCurrentWindow() {
         guard let appState, !appState.isPaused, !appState.isIdle else { return }
+        guard AXIsProcessTrusted() else { return }
         guard let frontApp = NSWorkspace.shared.frontmostApplication else { return }
 
         let appName = frontApp.localizedName ?? "Unknown"
@@ -112,6 +113,7 @@ final class ActivityTracker {
         )
         if result == .success, let window = focusedWindow {
             var title: AnyObject?
+            // AXUIElement is a CFTypeRef; result == .success guarantees the type
             AXUIElementCopyAttributeValue(
                 window as! AXUIElement,
                 kAXTitleAttribute as CFString,
