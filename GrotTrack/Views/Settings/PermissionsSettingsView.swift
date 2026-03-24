@@ -42,15 +42,13 @@ struct PermissionsSettingsView: View {
             }
             Section {
                 Button("Re-check Permissions") {
-                    Task {
-                        await permissionManager.checkAllPermissions()
-                    }
+                    permissionManager.checkAllPermissions()
                 }
             }
         }
         .padding()
-        .task {
-            await permissionManager.checkAllPermissions()
+        .onAppear {
+            permissionManager.checkAllPermissions()
         }
     }
 
