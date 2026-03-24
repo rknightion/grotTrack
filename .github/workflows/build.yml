@@ -87,7 +87,7 @@ jobs:
       # PRs: upload unsigned test build (secrets not available from forks)
       - name: Upload macOS App (unsigned)
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
           name: GrotTrack-macOS-unsigned-${{ github.sha }}
           path: build/Build/Products/Debug/GrotTrack.app
@@ -122,7 +122,7 @@ jobs:
 
       - name: Upload macOS App (signed)
         if: github.event_name == 'push'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
           name: GrotTrack-macOS-signed-${{ github.sha }}
           path: GrotTrack-signed.zip
@@ -156,7 +156,7 @@ jobs:
         run: npx wxt build
 
       - name: Upload Chrome Extension
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
           name: GrotTrack-Extension-${{ github.sha }}
           path: grot-track-extension/.output/chrome-mv3/
