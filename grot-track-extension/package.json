@@ -8,6 +8,7 @@
     "zip": "wxt zip"
   },
   "devDependencies": {
+    "@types/chrome": "^0.0.316",
     "wxt": "^0.20.20",
     "typescript": "^5.7.0"
   }
