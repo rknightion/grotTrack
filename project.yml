@@ -32,6 +32,7 @@ targets:
         GENERATE_INFOPLIST_FILE: false
         PRODUCT_NAME: GrotTrack
         CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: D3CJ67Z95V
         ENABLE_HARDENED_RUNTIME: YES
 
   GrotTrackNativeHost:

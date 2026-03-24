@@ -33,10 +33,8 @@ struct PermissionsSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button("Open System Settings") {
-                        NSWorkspace.shared.open(
-                            URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
-                        )
+                    Button(permissionManager.screenRecordingGranted ? "Open System Settings" : "Grant Access") {
+                        permissionManager.requestScreenRecording()
                     }
                 }
             }

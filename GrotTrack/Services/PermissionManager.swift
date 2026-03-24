@@ -1,6 +1,7 @@
 import SwiftUI
 import ApplicationServices
 import CoreGraphics
+import ScreenCaptureKit
 
 @Observable
 @MainActor
@@ -28,8 +29,38 @@ final class PermissionManager {
         return screenRecordingGranted
     }
 
+    /// Request screen recording permission.
+    /// First asks TCC for screen capture access, then falls back to touching
+    /// ScreenCaptureKit shareable content so the app shows up in the Privacy list.
+    /// If access is still missing, open the Screen Recording pane in System Settings.
     func requestScreenRecording() {
-        CGRequestScreenCaptureAccess()
+        Task {
+            let granted = await Task.detached(priority: .userInitiated) {
+                CGRequestScreenCaptureAccess()
+            }.value
+
+            if granted {
+                await MainActor.run {
+                    self.screenRecordingGranted = true
+                }
+                return
+            }
+
+            // If the direct TCC prompt did not grant access, touch shareable content
+            // so the app is registered in the Screen Recording list before opening Settings.
+            await Task.detached {
+                _ = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            }.value
+
+            await MainActor.run {
+                _ = checkScreenRecording()
+                if !screenRecordingGranted {
+                    NSWorkspace.shared.open(
+                        URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
+                    )
+                }
+            }
+        }
     }
 
     func checkAllPermissions() {
