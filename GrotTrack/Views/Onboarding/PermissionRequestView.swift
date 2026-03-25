@@ -23,7 +23,7 @@ struct PermissionRequestView: View {
 
             PermissionRow(
                 title: "Screen Recording",
-                description: "Required to capture periodic screenshots for AI-powered time classification",
+                description: "Required to capture periodic screenshots for time tracking",
                 icon: "rectangle.inset.filled.and.person.filled",
                 granted: permissionManager.screenRecordingGranted
             ) {

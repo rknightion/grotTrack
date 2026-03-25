@@ -7,7 +7,7 @@ struct OnboardingView: View {
     let permissionManager: PermissionManager
     let browserTabService: BrowserTabService
 
-    private let totalPages = 5
+    private let totalPages = 4
 
     var body: some View {
         VStack(spacing: 0) {
@@ -17,8 +17,7 @@ struct OnboardingView: View {
                 case 0: welcomePage
                 case 1: permissionsPage
                 case 2: chromeExtensionPage
-                case 3: apiKeyPage
-                case 4: readyPage
+                case 3: readyPage
                 default: EmptyView()
                 }
             }
@@ -56,7 +55,7 @@ struct OnboardingView: View {
                     // The ready page has its own button in the content area
                     EmptyView()
                 } else {
-                    if currentPage == 2 || currentPage == 3 {
+                    if currentPage == 2 {
                         Button("Skip") {
                             withAnimation { currentPage += 1 }
                         }
@@ -88,7 +87,7 @@ struct OnboardingView: View {
                 .font(.title)
                 .bold()
 
-            Text("Automatically track your time across apps, classify work by customer using AI, and generate daily reports.")
+            Text("Automatically track your time across apps, monitor your focus, and generate detailed daily reports.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -97,7 +96,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 12) {
                 featureBullet(icon: "clock", text: "Automatic time tracking")
                 featureBullet(icon: "camera", text: "Periodic screenshot capture")
-                featureBullet(icon: "brain", text: "AI-powered classification")
+                featureBullet(icon: "chart.bar", text: "Detailed app usage reports")
             }
             .padding(.top, 8)
 
@@ -208,28 +207,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: - Page 3: API Key
-
-    private var apiKeyPage: some View {
-        VStack(spacing: 16) {
-            Text("Claude AI Integration")
-                .font(.title)
-                .bold()
-                .padding(.top, 20)
-
-            Text("Optional: Enter your Anthropic API key to enable AI-powered time classification.")
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 420)
-
-            APISettingsView()
-                .frame(maxHeight: .infinity)
-        }
-        .padding(.horizontal, 24)
-    }
-
-    // MARK: - Page 4: Ready
+    // MARK: - Page 3: Ready
 
     private var readyPage: some View {
         VStack(spacing: 20) {
@@ -258,11 +236,6 @@ struct OnboardingView: View {
                     icon: "globe",
                     title: "Browser Extension",
                     granted: browserTabService.isConnected
-                )
-                configSummaryRow(
-                    icon: "brain",
-                    title: "Claude API Key",
-                    granted: Keychain.load(key: "claude_api_key") != nil
                 )
             }
             .padding(16)

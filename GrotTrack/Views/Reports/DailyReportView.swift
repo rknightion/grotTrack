@@ -2,8 +2,6 @@ import SwiftUI
 import SwiftData
 
 struct DailyReportView: View {
-    let llmProvider: any LLMProvider
-
     @Environment(\.modelContext) private var context
     @State private var viewModel = ReportViewModel()
 
@@ -24,7 +22,6 @@ struct DailyReportView: View {
         }
         .frame(minWidth: 700, minHeight: 500)
         .onAppear {
-            viewModel.configure(llmProvider: llmProvider)
             viewModel.loadReport(for: viewModel.selectedDate, context: context)
         }
         .onChange(of: viewModel.selectedDate) { _, newDate in
@@ -92,9 +89,9 @@ struct DailyReportView: View {
                 icon: "clock"
             )
             SummaryCard(
-                title: "Customers",
-                value: "\(viewModel.customerCount)",
-                icon: "person.3"
+                title: "Apps Used",
+                value: "\(viewModel.appCount)",
+                icon: "app.badge"
             )
             SummaryCard(
                 title: "Focus Score",
@@ -115,12 +112,12 @@ struct DailyReportView: View {
         } else if let report = viewModel.report {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    // LLM Summary
-                    if !report.llmSummary.isEmpty {
+                    // Summary
+                    if !report.summary.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("AI Summary")
+                            Text("Summary")
                                 .font(.headline)
-                            Text(report.llmSummary)
+                            Text(report.summary)
                                 .padding()
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
@@ -137,11 +134,8 @@ struct DailyReportView: View {
                     // Hour-by-hour grid
                     hourGrid
 
-                    // Customer breakdown chart
-                    CustomerBreakdownView(
-                        allocations: viewModel.decodedAllocations,
-                        customerColors: customerColorMap
-                    )
+                    // App breakdown chart
+                    AppBreakdownView(allocations: viewModel.decodedAllocations)
 
                     // Screenshot gallery
                     screenshotGallery
@@ -152,7 +146,7 @@ struct DailyReportView: View {
             ContentUnavailableView {
                 Label("No Report", systemImage: "doc.text")
             } description: {
-                Text("Generate a report for this day to see your time breakdown.")
+                Text("Generate a report for this day to see your activity breakdown.")
             } actions: {
                 Button("Generate Report") {
                     Task {
@@ -257,18 +251,6 @@ struct DailyReportView: View {
         .padding()
     }
 
-    // MARK: - Customer Color Map
-
-    private var customerColorMap: [String: Color] {
-        let descriptor = FetchDescriptor<Customer>()
-        let customers = (try? context.fetch(descriptor)) ?? []
-        var map: [String: Color] = [:]
-        for customer in customers {
-            map[customer.name] = customer.swiftUIColor
-        }
-        return map
-    }
-
     // MARK: - Helpers
 
     private func hourLabel(for hour: Int) -> String {
@@ -322,23 +304,21 @@ private struct HourReportRow: View {
                 .frame(width: 130, alignment: .leading)
 
             if let block {
-                // Customer-colored bar
+                // App-colored bar
                 GeometryReader { geometry in
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(customerColor(for: block))
+                        .fill(TimelineViewModel.appColor(for: block.dominantApp))
                         .frame(width: max(4, geometry.size.width * barProportion(for: block)))
                 }
                 .frame(height: 12)
 
-                // Customer name badge
-                if let customerName = block.llmClassification ?? block.customer?.name {
-                    Text(customerName)
-                        .font(.caption2)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(customerColor(for: block).opacity(0.2))
-                        .clipShape(Capsule())
-                }
+                // App name badge
+                Text(block.dominantApp)
+                    .font(.caption2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(TimelineViewModel.appColor(for: block.dominantApp).opacity(0.2))
+                    .clipShape(Capsule())
 
                 Spacer()
 
@@ -380,13 +360,6 @@ private struct HourReportRow: View {
         let start = startDate.formatted(.dateTime.hour().minute())
         let end = startDate.addingTimeInterval(3600).formatted(.dateTime.hour().minute())
         return "\(start) \u{2013} \(end)"
-    }
-
-    private func customerColor(for block: TimeBlock) -> Color {
-        if let customer = block.customer {
-            return customer.swiftUIColor
-        }
-        return .blue
     }
 
     private func barProportion(for block: TimeBlock) -> Double {

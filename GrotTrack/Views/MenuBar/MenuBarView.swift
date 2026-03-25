@@ -104,11 +104,6 @@ struct MenuBarView: View {
                 NSApp.activate(ignoringOtherApps: true)
             }
 
-            Button("Manage Customers") {
-                openWindow(id: "customers")
-                NSApp.activate(ignoringOtherApps: true)
-            }
-
             Button("View Daily Report") {
                 openWindow(id: "report")
                 NSApp.activate(ignoringOtherApps: true)

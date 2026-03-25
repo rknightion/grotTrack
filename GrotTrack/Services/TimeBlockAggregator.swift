@@ -54,26 +54,6 @@ final class TimeBlockAggregator {
         let events = (try? context.fetch(descriptor)) ?? []
         let block = aggregateHour(events: events, hour: hour)
 
-        // Auto-match customer by keywords
-        let customerDescriptor = FetchDescriptor<Customer>(
-            predicate: #Predicate<Customer> { $0.isActive == true },
-            sortBy: [SortDescriptor(\Customer.name)]
-        )
-        let activeCustomers = (try? context.fetch(customerDescriptor)) ?? []
-
-        if !activeCustomers.isEmpty, !events.isEmpty {
-            let dominantActivity = events
-                .filter { $0.appName == block.dominantApp }
-                .max(by: { $0.duration < $1.duration })
-
-            if let activity = dominantActivity {
-                let customerVM = CustomerViewModel()
-                if let matched = customerVM.matchCustomer(forActivity: activity, customers: activeCustomers) {
-                    block.customer = matched
-                }
-            }
-        }
-
         context.insert(block)
         try? context.save()
 

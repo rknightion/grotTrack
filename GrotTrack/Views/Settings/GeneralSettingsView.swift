@@ -6,7 +6,6 @@ struct GeneralSettingsView: View {
     @AppStorage("screenshotInterval") private var screenshotInterval: Double = 30.0
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
     @AppStorage("selectedAppearance") private var selectedAppearance: String = "system"
-    @AppStorage("notifyOnHourlyAnalysis") private var notifyOnHourlyAnalysis: Bool = true
 
     var body: some View {
         Form {
@@ -46,9 +45,6 @@ struct GeneralSettingsView: View {
                 .onChange(of: selectedAppearance) { _, newValue in
                     applyAppearance(newValue)
                 }
-            }
-            Section("Notifications") {
-                Toggle("Notify on hourly analysis", isOn: $notifyOnHourlyAnalysis)
             }
         }
         .padding()

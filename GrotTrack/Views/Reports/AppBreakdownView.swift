@@ -1,19 +1,18 @@
 import SwiftUI
 import Charts
 
-struct CustomerBreakdownView: View {
-    let allocations: [CustomerAllocation]
-    let customerColors: [String: Color]
+struct AppBreakdownView: View {
+    let allocations: [AppAllocation]
 
-    @State private var selectedCustomer: String?
+    @State private var selectedApp: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Customer Breakdown")
+            Text("App Breakdown")
                 .font(.headline)
 
             if allocations.isEmpty {
-                Text("No customer data available")
+                Text("No app usage data available")
                     .foregroundStyle(.secondary)
             } else {
                 // Horizontal bar chart
@@ -25,10 +24,10 @@ struct CustomerBreakdownView: View {
                 // Legend
                 legend
 
-                // Selected customer detail
-                if let selectedCustomer,
-                   let allocation = allocations.first(where: { $0.customerName == selectedCustomer }) {
-                    selectedCustomerDetail(allocation)
+                // Selected app detail
+                if let selectedApp,
+                   let allocation = allocations.first(where: { $0.appName == selectedApp }) {
+                    selectedAppDetail(allocation)
                 }
             }
         }
@@ -37,12 +36,12 @@ struct CustomerBreakdownView: View {
     // MARK: - Bar Chart
 
     private var barChart: some View {
-        Chart(allocations, id: \.customerName) { allocation in
+        Chart(allocations, id: \.appName) { allocation in
             BarMark(
                 x: .value("Hours", allocation.hours),
-                y: .value("Customer", allocation.customerName)
+                y: .value("App", allocation.appName)
             )
-            .foregroundStyle(colorForCustomer(allocation.customerName))
+            .foregroundStyle(colorForApp(allocation.appName))
             .annotation(position: .trailing) {
                 Text("\(String(format: "%.1f", allocation.hours))h (\(String(format: "%.0f", allocation.percentage))%)")
                     .font(.caption2)
@@ -60,19 +59,19 @@ struct CustomerBreakdownView: View {
     // MARK: - Donut Chart
 
     private var donutChart: some View {
-        Chart(allocations, id: \.customerName) { allocation in
+        Chart(allocations, id: \.appName) { allocation in
             SectorMark(
                 angle: .value("Hours", allocation.hours),
                 innerRadius: .ratio(0.5),
                 angularInset: 1.5
             )
-            .foregroundStyle(colorForCustomer(allocation.customerName))
-            .opacity(selectedCustomer == nil || selectedCustomer == allocation.customerName ? 1.0 : 0.4)
+            .foregroundStyle(colorForApp(allocation.appName))
+            .opacity(selectedApp == nil || selectedApp == allocation.appName ? 1.0 : 0.4)
         }
         .frame(height: 200)
         .chartBackground { _ in
-            if let selectedCustomer,
-               let allocation = allocations.first(where: { $0.customerName == selectedCustomer }) {
+            if let selectedApp,
+               let allocation = allocations.first(where: { $0.appName == selectedApp }) {
                 VStack(spacing: 2) {
                     Text(String(format: "%.1fh", allocation.hours))
                         .font(.title3)
@@ -89,21 +88,21 @@ struct CustomerBreakdownView: View {
 
     private var legend: some View {
         FlowLayout(spacing: 8) {
-            ForEach(allocations, id: \.customerName) { allocation in
+            ForEach(allocations, id: \.appName) { allocation in
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        if selectedCustomer == allocation.customerName {
-                            selectedCustomer = nil
+                        if selectedApp == allocation.appName {
+                            selectedApp = nil
                         } else {
-                            selectedCustomer = allocation.customerName
+                            selectedApp = allocation.appName
                         }
                     }
                 } label: {
                     HStack(spacing: 4) {
                         Circle()
-                            .fill(colorForCustomer(allocation.customerName))
+                            .fill(colorForApp(allocation.appName))
                             .frame(width: 8, height: 8)
-                        Text(allocation.customerName)
+                        Text(allocation.appName)
                             .font(.caption)
                         Text(String(format: "%.1fh", allocation.hours))
                             .font(.caption2)
@@ -112,8 +111,8 @@ struct CustomerBreakdownView: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(
-                        selectedCustomer == allocation.customerName
-                            ? colorForCustomer(allocation.customerName).opacity(0.15)
+                        selectedApp == allocation.appName
+                            ? colorForApp(allocation.appName).opacity(0.15)
                             : Color.clear,
                         in: RoundedRectangle(cornerRadius: 6)
                     )
@@ -123,19 +122,19 @@ struct CustomerBreakdownView: View {
         }
     }
 
-    // MARK: - Selected Customer Detail
+    // MARK: - Selected App Detail
 
-    private func selectedCustomerDetail(_ allocation: CustomerAllocation) -> some View {
+    private func selectedAppDetail(_ allocation: AppAllocation) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Circle()
-                    .fill(colorForCustomer(allocation.customerName))
+                    .fill(colorForApp(allocation.appName))
                     .frame(width: 10, height: 10)
-                Text(allocation.customerName)
+                Text(allocation.appName)
                     .font(.subheadline)
                     .bold()
                 Spacer()
-                Text("Confidence: \(String(format: "%.0f%%", allocation.confidence * 100))")
+                Text(String(format: "%.1fh (%.0f%%)", allocation.hours, allocation.percentage))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -152,12 +151,8 @@ struct CustomerBreakdownView: View {
 
     // MARK: - Color Helpers
 
-    private func colorForCustomer(_ name: String) -> Color {
-        customerColors[name] ?? {
-            let palette: [Color] = [.blue, .purple, .orange, .teal, .pink, .indigo, .mint, .cyan, .brown, .gray]
-            let hash = abs(name.hashValue)
-            return palette[hash % palette.count]
-        }()
+    private func colorForApp(_ name: String) -> Color {
+        TimelineViewModel.appColor(for: name)
     }
 }
 

@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import UserNotifications
 import AppKit
 
 @Observable
@@ -11,7 +10,6 @@ final class AppCoordinator {
     let browserTabService = BrowserTabService()
     let chromeInstaller = ChromeExtensionInstaller()
     let screenshotManager = ScreenshotManager()
-    let llmProvider: any LLMProvider = ClaudeProvider()
     let idleDetector = IdleDetector()
     private var _activityTracker: ActivityTracker?
 
@@ -51,9 +49,6 @@ final class AppCoordinator {
         if status == .notInstalled {
             try? chromeInstaller.installNativeHost()
         }
-
-        // Request notification permission
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
 
         // Set up global keyboard shortcut (Ctrl+Shift+G to toggle pause)
         setupGlobalShortcut()
@@ -181,106 +176,7 @@ final class AppCoordinator {
         ) else { return }
         let previousHourStart = currentHourStart.addingTimeInterval(-3600)
 
-        let block = timeBlockAggregator.aggregateHour(for: previousHourStart, context: modelContext)
-        autoClassifyBlock(block)
-    }
-
-    // MARK: - Automatic LLM Classification
-
-    private func autoClassifyBlock(_ block: TimeBlock) {
-        guard llmProvider.isConfigured else { return }
-        guard !block.activities.isEmpty else { return }
-        guard block.llmClassification == nil else { return }
-
-        // Extract data before async boundary to avoid Swift 6 sendability issues
-        let activities = block.activities
-        let screenshotPaths = gatherScreenshotPaths(for: block)
-        let customers = fetchActiveCustomers()
-
-        Task {
-            do {
-                let allocations = try await llmProvider.classifyTimeBlock(
-                    activities: activities,
-                    screenshotPaths: screenshotPaths,
-                    customers: customers
-                )
-
-                if let topAllocation = allocations.max(by: { $0.confidence < $1.confidence }) {
-                    block.llmClassification = topAllocation.customerName
-                    block.llmConfidence = topAllocation.confidence
-
-                    if let matched = customers.first(where: { $0.name == topAllocation.customerName }) {
-                        block.customer = matched
-                    }
-
-                    try? modelContext?.save()
-
-                    // Notify on hourly analysis completion
-                    if UserDefaults.standard.object(forKey: "notifyOnHourlyAnalysis") == nil
-                        || UserDefaults.standard.bool(forKey: "notifyOnHourlyAnalysis") {
-                        sendHourlyAnalysisNotification(block: block, allocation: topAllocation)
-                    }
-
-                    if topAllocation.confidence < 0.5 {
-                        sendLowConfidenceNotification(block: block, allocation: topAllocation)
-                    }
-                }
-            } catch {
-                // Fail silently for automatic analysis
-                print("Auto-classification failed: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    private func gatherScreenshotPaths(for block: TimeBlock) -> [String] {
-        guard let modelContext else { return [] }
-        var paths: [String] = []
-        for activity in block.activities {
-            guard let screenshotID = activity.screenshotID else { continue }
-            let predicate = #Predicate<Screenshot> { $0.id == screenshotID }
-            var descriptor = FetchDescriptor<Screenshot>(predicate: predicate)
-            descriptor.fetchLimit = 1
-            if let screenshot = try? modelContext.fetch(descriptor).first {
-                paths.append(screenshot.filePath)
-            }
-        }
-        return paths
-    }
-
-    private func fetchActiveCustomers() -> [Customer] {
-        guard let modelContext else { return [] }
-        let descriptor = FetchDescriptor<Customer>(
-            predicate: #Predicate<Customer> { $0.isActive }
-        )
-        return (try? modelContext.fetch(descriptor)) ?? []
-    }
-
-    private func sendHourlyAnalysisNotification(block: TimeBlock, allocation: CustomerAllocation) {
-        let content = UNMutableNotificationContent()
-        content.title = "Hourly Analysis Complete"
-        content.body = "The \(block.startTime.formatted(.dateTime.hour().minute())) block was classified as '\(allocation.customerName)' (\(Int(allocation.confidence * 100))% confidence)."
-        content.sound = .default
-
-        let request = UNNotificationRequest(
-            identifier: "hourly-analysis-\(block.id)",
-            content: content,
-            trigger: nil
-        )
-        UNUserNotificationCenter.current().add(request)
-    }
-
-    private func sendLowConfidenceNotification(block: TimeBlock, allocation: CustomerAllocation) {
-        let content = UNMutableNotificationContent()
-        content.title = "Low Confidence Classification"
-        content.body = "The \(block.startTime.formatted(.dateTime.hour().minute())) hour was classified as '\(allocation.customerName)' with \(Int(allocation.confidence * 100))% confidence."
-        content.sound = .default
-
-        let request = UNNotificationRequest(
-            identifier: "low-confidence-\(block.id)",
-            content: content,
-            trigger: nil
-        )
-        UNUserNotificationCenter.current().add(request)
+        _ = timeBlockAggregator.aggregateHour(for: previousHourStart, context: modelContext)
     }
 
     private func stopHourlyAggregation() {
@@ -300,7 +196,6 @@ struct GrotTrackApp: App {
             ActivityEvent.self,
             Screenshot.self,
             TimeBlock.self,
-            Customer.self,
             DailyReport.self
         ])
         do {
@@ -341,22 +236,16 @@ struct GrotTrackApp: App {
         .modelContainer(container)
 
         Window("GrotTrack Timeline", id: "timeline") {
-            TimelineView(llmProvider: coordinator.llmProvider)
+            TimelineView()
         }
         .modelContainer(container)
         .defaultSize(width: 800, height: 600)
 
         Window("Daily Report", id: "report") {
-            DailyReportView(llmProvider: coordinator.llmProvider)
+            DailyReportView()
         }
         .modelContainer(container)
         .defaultSize(width: 900, height: 700)
-
-        Window("Customers", id: "customers") {
-            CustomerListView(llmProvider: coordinator.llmProvider)
-        }
-        .modelContainer(container)
-        .defaultSize(width: 500, height: 500)
 
         Window("Welcome to GrotTrack", id: "onboarding") {
             OnboardingView(

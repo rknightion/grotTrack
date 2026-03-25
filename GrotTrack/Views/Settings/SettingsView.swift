@@ -9,8 +9,6 @@ struct SettingsView: View {
                 .tabItem { Label("Permissions", systemImage: "lock.shield") }
             BrowserIntegrationSettingsView()
                 .tabItem { Label("Browser", systemImage: "globe") }
-            APISettingsView()
-                .tabItem { Label("API", systemImage: "cloud") }
             StorageSettingsView()
                 .tabItem { Label("Storage", systemImage: "externaldrive") }
             ExclusionListView()

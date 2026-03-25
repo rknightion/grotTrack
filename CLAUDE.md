@@ -62,18 +62,14 @@ npx wxt build     # output in .output/chrome-mv3/
 
 ### App entry point & wiring
 
-`GrotTrackApp.swift` contains two things: `AppCoordinator` (an `@Observable @MainActor` class that owns all services) and `GrotTrackApp` (`@main` App struct). `AppCoordinator` is the single root — it creates and connects `ActivityTracker`, `ScreenshotManager`, `BrowserTabService`, `IdleDetector`, `TimeBlockAggregator`, and the `LLMProvider`. The SwiftData `ModelContext` is injected into services after the container is ready in the `.task` modifier.
+`GrotTrackApp.swift` contains two things: `AppCoordinator` (an `@Observable @MainActor` class that owns all services) and `GrotTrackApp` (`@main` App struct). `AppCoordinator` is the single root — it creates and connects `ActivityTracker`, `ScreenshotManager`, `BrowserTabService`, `IdleDetector`, and `TimeBlockAggregator`. The SwiftData `ModelContext` is injected into services after the container is ready in the `.task` modifier.
 
 ### Data flow
 
 1. `ActivityTracker` polls AXUIElement + listens to NSWorkspace notifications every 3–5 s → writes `ActivityEvent` records to SwiftData
 2. `ScreenshotManager` captures via ScreenCaptureKit every 30 s → saves WebP files + `Screenshot` metadata
-3. `TimeBlockAggregator.aggregateHour()` runs at the top of each hour → groups events into `TimeBlock` records
-4. `AppCoordinator.autoClassifyBlock()` calls `LLMProvider.classifyTimeBlock()` on each new block if an API key is configured → writes `CustomerAllocation` data back to the `TimeBlock`
-
-### LLM integration
-
-`LLMProvider` is a `Sendable` protocol with three methods. `ClaudeProvider` is the concrete implementation (hand-rolled URLSession, zero external Swift dependencies). `MockLLMProvider` is used in tests. To swap providers, conform a new type to `LLMProvider` and assign it in `AppCoordinator`. The API key is stored in Keychain via `Keychain.swift`.
+3. `TimeBlockAggregator.aggregateHour()` runs at the top of each hour → groups events into `TimeBlock` records with dominant app, title, and multitasking score
+4. `ReportGenerator.generateDailyReport()` aggregates TimeBlocks into app-based allocations and generates a local text summary
 
 ### Chrome extension
 
@@ -81,8 +77,8 @@ The extension (`grot-track-extension/`) is built with [WXT](https://wxt.dev/) (a
 
 ### SwiftData schema
 
-All five models (`ActivityEvent`, `Screenshot`, `TimeBlock`, `Customer`, `DailyReport`) are registered in `GrotTrackApp.init()`. `CustomerAllocation` is a plain `Codable` struct stored as JSON inside `DailyReport.customerAllocationsJSON`, not a `@Model`.
+Four models (`ActivityEvent`, `Screenshot`, `TimeBlock`, `DailyReport`) are registered in `GrotTrackApp.init()`. `AppAllocation` is a plain `Codable` struct stored as JSON inside `DailyReport.appAllocationsJSON`, not a `@Model`.
 
 ### Concurrency rules
 
-The project uses Swift 6 with `SWIFT_STRICT_CONCURRENCY = complete`. `AppState` and `AppCoordinator` are `@MainActor`. Service classes that cross isolation boundaries must be `Sendable`. Extract model data before `async` boundaries to avoid sendability errors (see the pattern in `autoClassifyBlock`).
+The project uses Swift 6 with `SWIFT_STRICT_CONCURRENCY = complete`. `AppState` and `AppCoordinator` are `@MainActor`. Service classes that cross isolation boundaries must be `Sendable`.

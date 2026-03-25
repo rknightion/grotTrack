@@ -14,13 +14,13 @@ final class ReportViewModel {
     var report: DailyReport?
     var isGenerating: Bool = false
     var generationError: String?
-    var decodedAllocations: [CustomerAllocation] = []
+    var decodedAllocations: [AppAllocation] = []
     var timeBlocks: [TimeBlock] = []
     var selectedHour: Int?
     var hourScreenshots: [Screenshot] = []
     var selectedScreenshot: Screenshot?
 
-    private var reportGenerator: ReportGenerator?
+    private let reportGenerator = ReportGenerator()
 
     // MARK: - Computed Properties
 
@@ -28,7 +28,7 @@ final class ReportViewModel {
         report?.totalHoursTracked ?? 0
     }
 
-    var customerCount: Int {
+    var appCount: Int {
         decodedAllocations.count
     }
 
@@ -36,12 +36,6 @@ final class ReportViewModel {
         guard !timeBlocks.isEmpty else { return 0 }
         let avgMultitasking = timeBlocks.reduce(0.0) { $0 + $1.multitaskingScore } / Double(timeBlocks.count)
         return 1.0 - avgMultitasking
-    }
-
-    // MARK: - Configuration
-
-    func configure(llmProvider: any LLMProvider) {
-        reportGenerator = ReportGenerator(llmProvider: llmProvider)
     }
 
     // MARK: - Load Report
@@ -68,16 +62,11 @@ final class ReportViewModel {
     // MARK: - Generate Report
 
     func generateReport(for date: Date, context: ModelContext) async {
-        guard let reportGenerator else {
-            generationError = "Report generator not configured. Please configure an LLM provider."
-            return
-        }
-
         isGenerating = true
         generationError = nil
 
         do {
-            let generatedReport = try await reportGenerator.generateDailyReport(date: date, context: context)
+            let generatedReport = try reportGenerator.generateDailyReport(date: date, context: context)
             report = generatedReport
             selectedDate = date
             decodeAllocations()
@@ -155,17 +144,17 @@ final class ReportViewModel {
     // MARK: - Private Helpers
 
     private func decodeAllocations() {
-        guard let report, !report.customerAllocationsJSON.isEmpty else {
+        guard let report, !report.appAllocationsJSON.isEmpty else {
             decodedAllocations = []
             return
         }
 
-        guard let data = report.customerAllocationsJSON.data(using: .utf8) else {
+        guard let data = report.appAllocationsJSON.data(using: .utf8) else {
             decodedAllocations = []
             return
         }
 
-        decodedAllocations = (try? JSONDecoder().decode([CustomerAllocation].self, from: data)) ?? []
+        decodedAllocations = (try? JSONDecoder().decode([AppAllocation].self, from: data)) ?? []
     }
 
     private func loadTimeBlocks(for date: Date, context: ModelContext) {
@@ -217,9 +206,7 @@ final class ReportViewModel {
                 "focusScore": (focusScore * 100).rounded() / 100,
                 "activities": activities
             ]
-            if let customer = block.llmClassification ?? block.customer?.name {
-                blockEntry["customer"] = customer
-            }
+            blockEntry["app"] = block.dominantApp
             hourBlockEntries.append(blockEntry)
         }
 
@@ -228,13 +215,12 @@ final class ReportViewModel {
             "date": formattedDate(report.date),
             "totalHoursTracked": report.totalHoursTracked,
             "generatedAt": isoFormatter.string(from: report.generatedAt),
-            "summary": report.llmSummary,
+            "summary": report.summary,
             "allocations": decodedAllocations.map { alloc in
                 [
-                    "customerName": alloc.customerName,
+                    "appName": alloc.appName,
                     "hours": alloc.hours,
                     "percentage": alloc.percentage,
-                    "confidence": alloc.confidence,
                     "description": alloc.description
                 ] as [String: Any]
             },
@@ -253,10 +239,8 @@ final class ReportViewModel {
 
     private func buildCSVExport(_ report: DailyReport) -> String {
         let calendar = Calendar.current
-        let hourFormatter = DateFormatter()
-        hourFormatter.dateFormat = "HH:mm"
 
-        var rows: [String] = ["Hour,Customer,Hours,Description,FocusScore"]
+        var rows: [String] = ["Hour,App,Hours,Description,FocusScore"]
 
         for block in timeBlocks {
             let hour = calendar.component(.hour, from: block.startTime)
@@ -264,16 +248,16 @@ final class ReportViewModel {
             let endStr = String(format: "%02d:00", hour + 1)
             let hourRange = "\(startStr)-\(endStr)"
 
-            let customer = block.llmClassification ?? block.customer?.name ?? "Unclassified"
+            let app = block.dominantApp.isEmpty ? "Unknown" : block.dominantApp
             let hours = block.endTime.timeIntervalSince(block.startTime) / 3600.0
             let focusScore = 1.0 - block.multitaskingScore
             let focusPercent = "\(Int(focusScore * 100))%"
 
             // Escape CSV fields that may contain commas or quotes
             let description = csvEscape(block.dominantApp + " - " + block.dominantTitle)
-            let customerEscaped = csvEscape(customer)
+            let appEscaped = csvEscape(app)
 
-            rows.append("\(hourRange),\(customerEscaped),\(String(format: "%.2f", hours)),\(description),\(focusPercent)")
+            rows.append("\(hourRange),\(appEscaped),\(String(format: "%.2f", hours)),\(description),\(focusPercent)")
         }
 
         return rows.joined(separator: "\n")

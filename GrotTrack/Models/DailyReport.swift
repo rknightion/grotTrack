@@ -7,8 +7,8 @@ final class DailyReport {
     var date: Date = Date()
     var totalHoursTracked: Double = 0.0
     @Relationship(deleteRule: .cascade) var hourBlocks: [TimeBlock] = []
-    var customerAllocationsJSON: String = "[]"
-    var llmSummary: String = ""
+    var appAllocationsJSON: String = "[]"
+    var summary: String = ""
     var generatedAt: Date = Date()
 
     init(date: Date) {
@@ -16,10 +16,9 @@ final class DailyReport {
     }
 }
 
-struct CustomerAllocation: Codable {
-    var customerName: String
+struct AppAllocation: Codable {
+    var appName: String
     var hours: Double
     var percentage: Double
-    var confidence: Double
     var description: String
 }

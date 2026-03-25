@@ -2,8 +2,6 @@ import SwiftUI
 import SwiftData
 
 struct TimelineView: View {
-    let llmProvider: any LLMProvider
-
     @Environment(\.modelContext) private var context
     @State private var viewModel = TimelineViewModel()
 
@@ -120,8 +118,7 @@ struct TimelineView: View {
                                 timeBlock: block,
                                 isExpanded: viewModel.isExpanded(block.id),
                                 appBreakdown: viewModel.appBreakdown(for: block),
-                                onToggleExpand: { viewModel.toggleExpansion(for: block.id) },
-                                llmProvider: llmProvider
+                                onToggleExpand: { viewModel.toggleExpansion(for: block.id) }
                             )
                             .id(hour)
                             .background(

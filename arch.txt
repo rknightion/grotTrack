@@ -1,6 +1,6 @@
 ================================================================================
                         GrotTrack - Architecture Document
-                     macOS Time Tracking & Billing Assistant
+                        macOS Time Tracking Application
 ================================================================================
 
 App Name:       GrotTrack
@@ -19,7 +19,7 @@ Architecture:   MVVM with @Observable
 │                                                                             │
 │  ┌──────────────┐  ┌──────────────┐  ┌─────────────────────────────────┐   │
 │  │   SwiftUI    │  │  MenuBarExtra │  │      Settings Window            │   │
-│  │   Popover    │  │  (StatusItem) │  │  (Customer Mgmt, Prefs, API)    │   │
+│  │   Popover    │  │  (StatusItem) │  │  (Prefs, Storage, Exclusions)   │   │
 │  └──────┬───────┘  └──────┬───────┘  └───────────────┬─────────────────┘   │
 │         │                 │                           │                      │
 │  ┌──────▼─────────────────▼───────────────────────────▼──────────────────┐  │
@@ -33,7 +33,7 @@ Architecture:   MVVM with @Observable
 │  │  ┌─────────────────┐  ┌──────────────────┐  ┌─────────────────────┐   │  │
 │  │  │ ActivityTracker  │  │ ScreenshotManager│  │MultitaskingDetector │   │  │
 │  │  │ - AXUIElement    │  │ - SCScreenshot   │  │ - Rolling window    │   │  │
-│  │  │ - NSWorkspace    │  │ - JPEG compress  │  │ - Switch frequency  │   │  │
+│  │  │ - NSWorkspace    │  │ - WebP compress  │  │ - Switch frequency  │   │  │
 │  │  │ - CGWindowList   │  │ - File storage   │  │ - Focus scoring     │   │  │
 │  │  │ - BrowserTab     │  │                  │  │ - CGWindowList      │   │  │
 │  │  │   Service        │  │                  │  │   window counting   │   │  │
@@ -45,20 +45,8 @@ Architecture:   MVVM with @Observable
 │  │  │  SwiftData ModelContainer         FileManager                    │  │  │
 │  │  │  - ActivityEvent                  - Screenshots/YYYY-MM-DD/      │  │  │
 │  │  │  - TimeBlock                      - Thumbnails/YYYY-MM-DD/       │  │  │
-│  │  │  - Customer                       - Exports/                     │  │  │
-│  │  │  - DailyReport                                                   │  │  │
+│  │  │  - DailyReport                    - Exports/                     │  │  │
 │  │  │  - Screenshot (metadata)                                         │  │  │
-│  │  └──────────────────────────┬───────────────────────────────────────┘  │  │
-│  │                              │                                         │  │
-│  │  ┌──────────────────────────▼───────────────────────────────────────┐  │  │
-│  │  │                  LLM Integration Layer                           │  │  │
-│  │  │  - LLMProvider protocol (pluggable backends)                    │  │  │
-│  │  │  - ClaudeProvider (URLSession async/await)                      │  │  │
-│  │  │  - Vision: screenshot + activity context -> classification       │  │  │
-│  │  │  - Batch hourly analysis                                         │  │  │
-│  │  │  - Customer/project classification                               │  │  │
-│  │  │  - Seeding: PM tool screenshot -> customer extraction            │  │  │
-│  │  │  - Report generation (prose summary)                             │  │  │
 │  │  └──────────────────────────────────────────────────────────────────┘  │  │
 │  └────────────────────────────────────────────────────────────────────────┘  │
 │                                                                             │
@@ -87,8 +75,7 @@ Language            Swift 6                         Approachable Concurrency, na
                     (Approachable Concurrency)      access, data-race safety by default
 UI Framework        SwiftUI + MenuBarExtra          Declarative UI, native menu bar support
                                                     (macOS 13+), minimal boilerplate
-Architecture        MVVM with @Observable           Clean separation, AI-friendly patterns,
-                                                    testable ViewModels
+Architecture        MVVM with @Observable           Clean separation, testable ViewModels
 Persistence         SwiftData                       Modern Swift ORM, integrates with SwiftUI,
                                                     automatic migrations, @Query support
 Screenshots         ScreenCaptureKit                Modern macOS 14+ API, Apple-recommended,
@@ -98,12 +85,6 @@ Window Tracking     AXUIElement + NSWorkspace       AX for window titles, NSWork
                                                     complete visible window enumeration
 Browser Tabs        Chrome Extension +              Reliable tab title/URL access via native
                     Native Messaging Host           messaging protocol; no Apple Events needed
-LLM Integration     LLMProvider protocol +          Pluggable backend via protocol; Claude
-                    ClaudeProvider                  implementation uses URLSession async/await
-                                                    with Vision capability; MockLLMProvider
-                                                    for testing
-API Key Storage     Keychain (Security framework)   Secure credential storage, OS-level
-                                                    encryption
 Launch at Login     SMAppService                    Modern API (macOS 13+), no helper app
                                                     needed
 Minimum Target      macOS 15.0 (Sequoia)            Required for Swift 6 Approachable
@@ -129,19 +110,16 @@ Minimum Target      macOS 15.0 (Sequoia)            Required for Swift 6 Approac
 └──────────┬───────────┘
            │ many:1
            ▼
-┌──────────────────────┐         ┌────────────────────────┐
-│      TimeBlock       │         │      Customer          │
-│──────────────────────│         │────────────────────────│
-│ id: UUID             │    N:1  │ id: UUID               │
-│ startTime: Date      │◄───────►│ name: String           │
-│ endTime: Date        │         │ keywords: [String]     │
-│ dominantApp: String  │         │ color: String          │
-│ dominantTitle: String│         │ isActive: Bool         │
-│ multitaskingScore: Double      └────────────────────────┘
-│ customerID: UUID?    │
+┌──────────────────────┐
+│      TimeBlock       │
+│──────────────────────│
+│ id: UUID             │
+│ startTime: Date      │
+│ endTime: Date        │
+│ dominantApp: String  │
+│ dominantTitle: String│
+│ multitaskingScore: Double
 │ activities: [ActivityEvent]
-│ llmClassification: String?
-│ llmConfidence: Double
 └──────────┬───────────┘
            │ many:1
            ▼
@@ -152,17 +130,16 @@ Minimum Target      macOS 15.0 (Sequoia)            Required for Swift 6 Approac
 │ date: Date                                    │
 │ totalHoursTracked: Double                     │
 │ hourBlocks: [TimeBlock]                       │
-│ customerAllocationsJSON: String               │
-│   (encoded [CustomerAllocation])              │
-│ llmSummary: String                            │
+│ appAllocationsJSON: String                    │
+│   (encoded [AppAllocation])                   │
+│ summary: String                               │
 │ generatedAt: Date                             │
 └──────────────────────────────────────────────┘
 
-CustomerAllocation (Codable struct, not a @Model):
-  - customerName: String
+AppAllocation (Codable struct, not a @Model):
+  - appName: String
   - hours: Double
   - percentage: Double
-  - confidence: Double
   - description: String
 
 
@@ -213,119 +190,14 @@ Messaging, which does not require Automation entitlement.
 
 
 ================================================================================
-5. LLM INTEGRATION PIPELINE
-================================================================================
-
-Provider Architecture:
-  ┌──────────────────────────────────┐
-  │    protocol LLMProvider: Sendable│
-  │  ──────────────────────────────  │
-  │  var isConfigured: Bool          │
-  │                                  │
-  │  func classifyTimeBlock(         │
-  │    activities:,                  │
-  │    screenshotPaths: [String],    │
-  │    customers:                    │
-  │  ) async throws                  │
-  │    -> [CustomerAllocation]       │
-  │                                  │
-  │  func generateDailySummary(      │
-  │    allocations:                  │
-  │  ) async throws -> String        │
-  │                                  │
-  │  func analyzeSeedingScreenshot(  │
-  │    imageData:                    │
-  │  ) async throws -> [String]      │
-  └──────────────┬───────────────────┘
-                 │ conforms
-       ┌─────────┼──────────┐
-       ▼         ▼          ▼
-  ┌─────────┐ ┌──────────┐ ┌────────────┐
-  │ Claude  │ │ Mock LLM │ │  (future   │
-  │ Provider│ │ Provider │ │  backends) │
-  └─────────┘ └──────────┘ └────────────┘
-
-ADR: Hand-rolled URLSession was chosen over SwiftAnthropic SDK to
-maintain zero external dependencies. The API surface is narrow (one
-endpoint, three prompt variations) and the protocol isolates the
-concrete implementation for future swapping.
-
-Trigger: Hourly automatic (after aggregation, if API key configured
-and block not yet classified) OR on-demand "Analyze with AI" button
-in HourBlockView. Low-confidence (<50%) auto-classifications send
-a local notification via UNUserNotificationCenter.
-    │
-    ▼
-┌─────────────────────────────────────────┐
-│ 1. GATHER CONTEXT                       │
-│    - All ActivityEvents for the hour    │
-│    - Associated Screenshots (up to 10)  │
-│    - Customer list with keywords        │
-│    - Previous hour's allocation         │
-└────────────────┬────────────────────────┘
-                 │
-                 ▼
-┌─────────────────────────────────────────┐
-│ 2. BUILD PROMPT                         │
-│    - System: "You are a time analyst"   │
-│    - Activity log as JSON               │
-│    - Base64-encoded screenshots         │
-│    - Customer names + keywords          │
-│    - "Classify into customers, return   │
-│      JSON: [{customer, hours,           │
-│      confidence, description}]"         │
-└────────────────┬────────────────────────┘
-                 │
-                 ▼
-┌─────────────────────────────────────────┐
-│ 3. SEND VIA LLMProvider                 │
-│    provider.classifyTimeBlock(          │
-│      activities:, screenshotPaths:,     │
-│      customers:)                        │
-│    ClaudeProvider implementation:        │
-│      POST /v1/messages                  │
-│      Model: claude-sonnet-4-20250514    │
-│      Content: [image, text] blocks      │
-│      Max tokens: 2048                   │
-│      Response format: JSON requested    │
-└────────────────┬────────────────────────┘
-                 │
-                 ▼
-┌─────────────────────────────────────────┐
-│ 4. PARSE RESPONSE                       │
-│    - Extract JSON from response         │
-│    - Decode [CustomerAllocation]        │
-│    - Validate: hours sum <= 1.0         │
-│    - Handle errors gracefully           │
-└────────────────┬────────────────────────┘
-                 │
-                 ▼
-┌─────────────────────────────────────────┐
-│ 5. STORE RESULTS                        │
-│    - Update TimeBlock.customerID        │
-│    - Store classification + confidence  │
-│    - Update DailyReport allocations     │
-└─────────────────────────────────────────┘
-
-SEEDING FLOW (one-time customer import):
-  1. User provides screenshot of PM tool (drag & drop or file picker)
-  2. Send to provider: extractCustomers(screenshot:)
-  3. Parse response: list of names
-  4. Present to user with checkboxes
-  5. Create Customer entities for selected names
-
-
-================================================================================
-6. SCREENSHOT MANAGEMENT
+5. SCREENSHOT MANAGEMENT
 ================================================================================
 
 Capture Settings:
   - Interval: every 30 seconds (configurable 15-120s)
   - Resolution: scale to max 1280px long edge (proportional)
-  - Format: WebP at 80% quality (optimized for Claude Vision API)
+  - Format: WebP at 80% quality
   - Thumbnail: 320px long edge, WebP 70% quality
-  - Claude Vision: images stay under 1.15 megapixels (1280px fits
-    16:10 displays at 1.02MP, within API recommended limits)
 
 Storage Location:
   ~/Library/Application Support/GrotTrack/
@@ -355,7 +227,7 @@ Estimated Storage:
 
 
 ================================================================================
-7. MULTITASKING DETECTION
+6. MULTITASKING DETECTION
 ================================================================================
 
 Algorithm: Rolling Window Analysis
@@ -402,7 +274,7 @@ in the timeline UI.
 
 
 ================================================================================
-8. CHROME EXTENSION ARCHITECTURE
+7. CHROME EXTENSION ARCHITECTURE
 ================================================================================
 
 The Chrome Extension replaces the old JXA (JavaScript for Automation) approach
@@ -469,7 +341,7 @@ Extension Permissions (manifest.json):
 
 
 ================================================================================
-9. XCODE PROJECT STRUCTURE
+8. XCODE PROJECT STRUCTURE
 ================================================================================
 
 GrotTrack/
@@ -477,19 +349,17 @@ GrotTrack/
 ├── GrotTrack/
 │   ├── GrotTrackApp.swift                    # @main, MenuBarExtra + Window scenes
 │   ├── Info.plist                            # LSUIElement=true, usage descriptions
-│   ├── GrotTrack.entitlements                # App Sandbox, Keychain
+│   ├── GrotTrack.entitlements                # App Sandbox
 │   │
 │   ├── Models/
 │   │   ├── ActivityEvent.swift               # @Model: window/app tracking events
 │   │   ├── Screenshot.swift                  # @Model: screenshot metadata
 │   │   ├── TimeBlock.swift                   # @Model: hourly aggregated blocks
-│   │   ├── Customer.swift                    # @Model: customer/project entities
-│   │   └── DailyReport.swift                 # @Model: daily report with allocations
+│   │   └── DailyReport.swift                 # @Model: daily report with app allocations
 │   │
 │   ├── ViewModels/
 │   │   ├── AppState.swift                    # @Observable: global app state
 │   │   ├── TimelineViewModel.swift           # @Observable: timeline data queries
-│   │   ├── CustomerViewModel.swift           # @Observable: customer CRUD + matching
 │   │   └── ReportViewModel.swift             # @Observable: report generation
 │   │
 │   ├── Services/
@@ -497,11 +367,8 @@ GrotTrack/
 │   │   ├── ScreenshotManager.swift           # ScreenCaptureKit + storage
 │   │   ├── MultitaskingDetector.swift        # Rolling window + CGWindowList analysis
 │   │   ├── TimeBlockAggregator.swift         # Hourly event grouping
-│   │   ├── ReportGenerator.swift             # Daily report compilation
+│   │   ├── ReportGenerator.swift             # Daily report compilation (local)
 │   │   ├── PermissionManager.swift           # Permission checking + requesting
-│   │   ├── LLMProvider.swift                 # Protocol defining LLM backend interface
-│   │   ├── ClaudeProvider.swift              # Claude Messages API + Vision impl
-│   │   ├── MockLLMProvider.swift             # Test/preview stub returning fixture data
 │   │   ├── NativeMessageHost.swift           # Chrome native messaging stdin/stdout
 │   │   └── BrowserTabService.swift           # Tab data manager, feeds ActivityTracker
 │   │
@@ -512,13 +379,9 @@ GrotTrack/
 │   │   │   ├── TimelineView.swift            # Full timeline window
 │   │   │   ├── HourBlockView.swift           # Hourly bar visualization
 │   │   │   └── TimeBlockView.swift           # Individual activity segment
-│   │   ├── Customers/
-│   │   │   ├── CustomerListView.swift        # Customer list management
-│   │   │   ├── CustomerEditView.swift        # Add/edit customer form
-│   │   │   └── SeedingView.swift             # PM screenshot import
 │   │   ├── Reports/
 │   │   │   ├── DailyReportView.swift         # Full daily report view
-│   │   │   └── CustomerBreakdownView.swift   # Pie/bar chart breakdown
+│   │   │   └── AppBreakdownView.swift        # Pie/bar chart app breakdown
 │   │   ├── Settings/
 │   │   │   ├── SettingsView.swift            # TabView settings window
 │   │   │   ├── ExclusionListView.swift       # App exclusion management
@@ -528,9 +391,8 @@ GrotTrack/
 │   │       └── PermissionRequestView.swift   # Permission grant UI
 │   │
 │   ├── Utilities/
-│   │   ├── Keychain.swift                    # Secure API key storage
 │   │   └── Extensions/
-│   │       └── CGImage+Extensions.swift      # Resize, JPEG conversion
+│   │       └── CGImage+Extensions.swift      # Resize, WebP conversion
 │   │
 │   └── Assets.xcassets/                      # App icons, colors
 │
@@ -542,13 +404,11 @@ GrotTrack/
 └── GrotTrackTests/
     ├── ActivityTrackerTests.swift
     ├── MultitaskingDetectorTests.swift
-    ├── TimeBlockAggregatorTests.swift
-    ├── LLMProviderTests.swift                # Tests against MockLLMProvider
-    └── BrowserTabServiceTests.swift
+    └── TimeBlockAggregatorTests.swift
 
 
 ================================================================================
-10. KEY DESIGN DECISIONS
+9. KEY DESIGN DECISIONS
 ================================================================================
 
 Decision                    Choice              Rationale
@@ -559,14 +419,10 @@ Minimum macOS               15.0 (Sequoia)       Swift 6 runtime, mature SwiftDa
                                                  latest ScreenCaptureKit
 Polling interval            3-5 seconds          Balance between accuracy and CPU
 Screenshot interval         30 seconds           ~960/day, manageable storage
-Screenshot quality          WebP 80%, 1280px     ~30-50KB each, optimized for
-                                                 Claude Vision API (under 1.15MP)
+Screenshot quality          WebP 80%, 1280px     ~30-50KB each, compact storage
 Data persistence            SwiftData            Modern, minimal boilerplate
-LLM architecture            LLMProvider protocol Pluggable backends, testable via
-                                                 MockLLMProvider
-LLM default provider        ClaudeProvider       Best vision quality, native async
-LLM model                   claude-sonnet        Good quality/cost/speed balance
-LLM batching                Hourly               Cost-effective, timely feedback
+Local-only                  No external APIs     All data stays on-device; reports
+                                                 generated from local activity data
 Multitasking detection      Rolling window +     App switches + visible window
                             CGWindowList         count for richer signal
 Multitasking window         5 minutes            Smooths brief app switches
@@ -574,12 +430,7 @@ Browser tab access          Chrome Extension +   No Automation permission needed
                             Native Messaging     richer data (title + URL + active)
 Menu bar style              MenuBarExtra         Native SwiftUI, no AppKit needed
 App visibility              LSUIElement=true      Menu bar only, no Dock icon
-Credential storage          Keychain             OS-level security
 Launch at login             SMAppService         Modern API, no helper app
 Screenshot retention        7 days full, 30 thumb Balances evidence vs storage
 App exclusions              Bundle ID list       Precise, no ambiguity
 Export formats              JSON + CSV           Machine-readable + spreadsheet
-LLM API client             Hand-rolled URLSession Zero external deps, narrow API
-                                                 surface (1 endpoint, 3 prompts)
-LLM auto-classify          Hourly after agg.    Auto-classifies if API key set,
-                                                 notifies on low confidence
