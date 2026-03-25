@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.4.0](https://github.com/rknightion/grotTrack/compare/v0.3.0...v0.4.0) (2026-03-24)
+
+
+### Features
+
+* add Chrome extension with automated publishing and enhanced UI ([ddce222](https://github.com/rknightion/grotTrack/commit/ddce2223491518581f9115401a974b51fb2ddbba))
+
+## [0.3.0](https://github.com/rknightion/grotTrack/compare/v0.2.2...v0.3.0) (2026-03-24)
+
+
+### Features
+
+* **permissions:** add real-time permission monitoring system ([5a7d763](https://github.com/rknightion/grotTrack/commit/5a7d763936fc4a8e794ab42a0ea84269dfa0a728))
+* **permissions:** improve screen recording permission request flow ([1cd9ef4](https://github.com/rknightion/grotTrack/commit/1cd9ef44460f8a1d5916f5b6cad63c2383f8a55e))
+* **tracking:** add graceful degradation for missing permissions ([541ee23](https://github.com/rknightion/grotTrack/commit/541ee233abf9d4becd9ce60b2e1fed443d5f8abd))
+
+
+### Bug Fixes
+
+* **app:** update bootstrap to use synchronous permission checks ([0d7014f](https://github.com/rknightion/grotTrack/commit/0d7014f01fb06de96e00d193c48cac25e425c535))
+* **ui:** simplify permission request flows in onboarding and settings ([d184401](https://github.com/rknightion/grotTrack/commit/d184401eaaa252fc5e68de850a5041eff5f24351))
+
+
+### Documentation
+
+* **arch:** update permission handling architecture documentation ([7cd8062](https://github.com/rknightion/grotTrack/commit/7cd8062b5f61bc34082f057beb79fff845973963))
+
+
+### Refactoring
+
+* **permissions:** replace async screen recording check with synchronous API ([8e88449](https://github.com/rknightion/grotTrack/commit/8e88449b1c9517c7e4b88efeb3ea09452e2ad25f))
+
+## [0.2.2](https://github.com/rknightion/grotTrack/compare/v0.2.1...v0.2.2) (2026-03-24)
+
+
+### Miscellaneous
+
+* **deps:** pin dependencies ([#3](https://github.com/rknightion/grotTrack/issues/3)) ([35ff7bf](https://github.com/rknightion/grotTrack/commit/35ff7bf0f756eb0d572b5a0859a9d0a31cd75f01))
+* **deps:** update dependency typescript to v6 ([d87361c](https://github.com/rknightion/grotTrack/commit/d87361c330cec4b1ed88150f1b3de7293c1fe6e8))
+* **deps:** update dependency typescript to v6 ([f58f558](https://github.com/rknightion/grotTrack/commit/f58f558dd994d5868d399f854385d4f3ddac1d54))
+
 ## [0.2.1](https://github.com/rknightion/grotTrack/compare/v0.2.0...v0.2.1) (2026-03-24)
 
 

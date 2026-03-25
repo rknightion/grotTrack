@@ -159,34 +159,44 @@ App Launch
          ▼                ▼
     Continue          ┌───────────────────────┐
                       │ Show onboarding       │
-                      │ "Grant Permission"    │
-                      │ Opens System Settings │
-                      │ > Privacy > Access.   │
+                      │ AXIsProcessTrusted-   │
+                      │ WithOptions(prompt)   │
                       └───────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────────┐
 │ 2. Check Screen Recording Permission   │
-│    Triggered by first SCScreenshot call │
+│    CGPreflightScreenCaptureAccess()     │
 │    Required for: screenshot capture     │
 └────────┬───────────────┬────────────────┘
          │ Granted        │ Not Granted
          ▼                ▼
-    Continue          System auto-prompts
-                      on first capture attempt
+    Continue          CGRequestScreenCaptureAccess()
+                      shows system dialog
 
     │
     ▼
 ┌─────────────────────────────────────────┐
-│ 3. Store permission states              │
-│    @AppStorage flags                    │
-│    Re-check on each app launch          │
+│ 3. Start permission monitoring          │
+│    Poll every 5s (both permissions)     │
+│    + DistributedNotification observer   │
+│      for accessibility changes          │
 │    Show status indicators in Settings   │
 └─────────────────────────────────────────┘
 
-Note: No Automation (Apple Events) permission is required.
-Browser tab access is handled via Chrome Extension + Native
-Messaging, which does not require Automation entitlement.
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│ 4. Graceful degradation on startTracking│
+│    Re-check before starting services    │
+│    Skip ActivityTracker if no access.   │
+│    Skip ScreenshotManager if no screen  │
+│    recording. IdleDetector always runs. │
+└─────────────────────────────────────────┘
+
+Note: Both permission checks are synchronous. No Automation
+(Apple Events) permission is required. Browser tab access is
+handled via Chrome Extension + Native Messaging.
 
 
 ================================================================================

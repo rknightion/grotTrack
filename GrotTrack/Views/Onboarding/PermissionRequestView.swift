@@ -13,12 +13,6 @@ struct PermissionRequestView: View {
                 granted: permissionManager.accessibilityGranted
             ) {
                 permissionManager.requestAccessibility()
-                Task {
-                    for _ in 0..<30 {
-                        try await Task.sleep(for: .seconds(2))
-                        if permissionManager.checkAccessibility() { break }
-                    }
-                }
             }
 
             PermissionRow(
@@ -27,16 +21,7 @@ struct PermissionRequestView: View {
                 icon: "rectangle.inset.filled.and.person.filled",
                 granted: permissionManager.screenRecordingGranted
             ) {
-                NSWorkspace.shared.open(
-                    URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
-                )
-                Task {
-                    for _ in 0..<30 {
-                        try await Task.sleep(for: .seconds(2))
-                        await permissionManager.checkScreenRecording()
-                        if permissionManager.screenRecordingGranted { break }
-                    }
-                }
+                permissionManager.requestScreenRecording()
             }
         }
         .padding()

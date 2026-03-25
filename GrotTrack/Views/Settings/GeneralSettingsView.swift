@@ -5,6 +5,7 @@ struct GeneralSettingsView: View {
     @AppStorage("pollingInterval") private var pollingInterval: Double = 3.0
     @AppStorage("screenshotInterval") private var screenshotInterval: Double = 30.0
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
+    @AppStorage("startTrackingOnLaunch") private var startTrackingOnLaunch: Bool = false
     @AppStorage("selectedAppearance") private var selectedAppearance: String = "system"
 
     var body: some View {
@@ -34,6 +35,8 @@ struct GeneralSettingsView: View {
                             launchAtLogin = !newValue
                         }
                     }
+                Toggle("Start tracking on launch", isOn: $startTrackingOnLaunch)
+                    .help("Automatically begin monitoring when the app opens")
             }
             Section("Appearance") {
                 Picker("Appearance", selection: $selectedAppearance) {

@@ -22,11 +22,10 @@ struct HourBlockView: View {
 
                 Text(durationLabel)
                     .font(.caption)
+                    .monospacedDigit()
                     .foregroundStyle(.secondary)
 
-                Circle()
-                    .fill(multitaskingColor)
-                    .frame(width: 10, height: 10)
+                FocusIndicator(multitaskingScore: timeBlock.multitaskingScore, showLabel: true)
 
                 Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                     .font(.caption)
@@ -35,20 +34,9 @@ struct HourBlockView: View {
             .contentShape(Rectangle())
             .onTapGesture { onToggleExpand() }
 
-            // Proportional colored bar
+            // Multi-segment app bar
             if !appBreakdown.isEmpty {
-                GeometryReader { geometry in
-                    HStack(spacing: 1) {
-                        ForEach(appBreakdown.indices, id: \.self) { index in
-                            let entry = appBreakdown[index]
-                            Rectangle()
-                                .fill(entry.color)
-                                .frame(width: max(2, geometry.size.width * entry.proportion - 1))
-                        }
-                    }
-                }
-                .frame(height: 12)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+                AppSegmentBar(segments: appBreakdown)
             }
 
             // Info row: app icon + dominant app
@@ -70,10 +58,7 @@ struct HourBlockView: View {
                 Divider()
 
                 ForEach(timeBlock.activities.sorted(by: { $0.timestamp < $1.timestamp }), id: \.id) { activity in
-                    TimeBlockView(
-                        activity: activity,
-                        screenshotThumbnailPath: viewModel.thumbnailPath(for: activity, context: context)
-                    )
+                    expandedActivityRow(activity)
                 }
                 .padding(.leading, 20)
             }
@@ -81,6 +66,61 @@ struct HourBlockView: View {
         .padding(10)
         .background(Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    // MARK: - Expanded Activity Row
+
+    private func expandedActivityRow(_ activity: ActivityEvent) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(nsImage: AppIconProvider.icon(forBundleID: activity.bundleID))
+                .resizable()
+                .frame(width: 24, height: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(activity.appName)
+                    .font(.subheadline)
+                    .bold()
+
+                Text(activity.windowTitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+
+                if let browserTab = activity.browserTabTitle, !browserTab.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "globe")
+                        Text(browserTab)
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                }
+
+                if let url = activity.browserTabURL, !url.isEmpty {
+                    Link(destination: URL(string: url) ?? URL(string: "about:blank")!) {
+                        Text(url)
+                            .font(.caption2)
+                            .lineLimit(1)
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    Text(formatDuration(activity.duration))
+                        .monospacedDigit()
+                    Text(activity.timestamp, format: .dateTime.hour().minute().second())
+                        .foregroundStyle(.secondary)
+                }
+                .font(.caption2)
+            }
+
+            Spacer()
+
+            // Clickable screenshot thumbnail
+            if let path = viewModel.thumbnailPath(for: activity, context: context) {
+                ClickableScreenshotThumbnail(thumbnailPath: path)
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     // MARK: - Computed Properties
@@ -96,11 +136,12 @@ struct HourBlockView: View {
         return "\(minutes) min"
     }
 
-    private var multitaskingColor: Color {
-        switch timeBlock.multitaskingScore {
-        case 0..<0.2: .green
-        case 0.2..<0.5: .yellow
-        default: .red
+    private func formatDuration(_ interval: TimeInterval) -> String {
+        let minutes = Int(interval) / 60
+        let seconds = Int(interval) % 60
+        if minutes > 0 {
+            return "\(minutes)m \(seconds)s"
         }
+        return "\(seconds)s"
     }
 }

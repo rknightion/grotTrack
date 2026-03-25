@@ -1,7 +1,6 @@
 import CoreGraphics
 import AppKit
-import ImageIO
-import UniformTypeIdentifiers
+import libwebp
 
 extension CGImage {
     func resized(toMaxWidth maxWidth: CGFloat) -> CGImage? {
@@ -27,19 +26,28 @@ extension CGImage {
     }
 
     func webpData(quality: CGFloat) -> Data? {
-        let data = NSMutableData()
-        guard let destination = CGImageDestinationCreateWithData(
-            data as CFMutableData,
-            UTType.webP.identifier as CFString,
-            1,
-            nil
-        ) else { return nil }
-        let properties: [CFString: Any] = [
-            kCGImageDestinationLossyCompressionQuality: quality
-        ]
-        CGImageDestinationAddImage(destination, self, properties as CFDictionary)
-        guard CGImageDestinationFinalize(destination) else { return nil }
-        return data as Data
+        let width = self.width
+        let height = self.height
+        let bytesPerRow = width * 4
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+
+        guard let context = CGContext(
+            data: nil, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        ), let pixelData = context.data else { return nil }
+
+        context.draw(self, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        let bgra = pixelData.assumingMemoryBound(to: UInt8.self)
+        var output: UnsafeMutablePointer<UInt8>?
+        let size = WebPEncodeBGRA(bgra, Int32(width), Int32(height), Int32(bytesPerRow), Float(quality * 100), &output)
+
+        guard size > 0, let output else { return nil }
+        let data = Data(bytes: output, count: Int(size))
+        WebPFree(output)
+        return data
     }
 
     func resized(toFit maxDimension: CGFloat) -> CGImage? {

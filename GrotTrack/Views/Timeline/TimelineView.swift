@@ -7,23 +7,38 @@ struct TimelineView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Date picker header
             datePickerHeader
                 .padding()
 
             Divider()
 
-            // Summary bar
             summaryBar
                 .padding(.horizontal)
                 .padding(.vertical, 8)
 
+            FocusLegend()
+                .padding(.horizontal)
+                .padding(.bottom, 4)
+
             Divider()
 
-            // 24-hour timeline
-            timelineScrollView
+            // View mode picker
+            Picker("View", selection: $viewModel.viewMode) {
+                ForEach(ViewMode.allCases, id: \.self) { mode in
+                    Label(mode.rawValue, systemImage: mode.icon)
+                        .tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+
+            Divider()
+
+            // Content for selected mode
+            viewContent
         }
-        .frame(minWidth: 600, minHeight: 400)
+        .frame(minWidth: 700, minHeight: 500)
         .onChange(of: viewModel.selectedDate) { _, newDate in
             viewModel.loadBlocks(for: newDate, context: context)
         }
@@ -31,8 +46,34 @@ struct TimelineView: View {
             viewModel.loadBlocks(for: viewModel.selectedDate, context: context)
         }
         .toolbar {
-            if Calendar.current.isDateInToday(viewModel.selectedDate) {
-                ToolbarItem {
+            ToolbarItemGroup {
+                if viewModel.viewMode == .timeline {
+                    Button {
+                        viewModel.expandAll()
+                    } label: {
+                        Image(systemName: "rectangle.expand.vertical")
+                    }
+                    .help("Expand all")
+
+                    Button {
+                        viewModel.collapseAll()
+                    } label: {
+                        Image(systemName: "rectangle.compress.vertical")
+                    }
+                    .help("Collapse all")
+                }
+
+                if viewModel.viewMode == .byApp {
+                    Picker("Sort", selection: $viewModel.appSortOrder) {
+                        ForEach(AppSortOrder.allCases, id: \.self) { order in
+                            Text(order.rawValue).tag(order)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .help("Sort apps by")
+                }
+
+                if Calendar.current.isDateInToday(viewModel.selectedDate) {
                     Button {
                         viewModel.refreshCurrentHour(context: context)
                     } label: {
@@ -97,6 +138,11 @@ struct TimelineView: View {
                 icon: "app.fill"
             )
             SummaryCard(
+                title: "Apps Used",
+                value: "\(viewModel.uniqueAppCount)",
+                icon: "square.grid.2x2"
+            )
+            SummaryCard(
                 title: "Focus Score",
                 value: String(format: "%.0f%%", viewModel.averageFocusScore * 100),
                 icon: "eye"
@@ -104,9 +150,31 @@ struct TimelineView: View {
         }
     }
 
-    // MARK: - Timeline Scroll
+    // MARK: - View Content
 
-    private var timelineScrollView: some View {
+    @ViewBuilder
+    private var viewContent: some View {
+        switch viewModel.viewMode {
+        case .timeline:
+            timelineContent
+        case .byApp:
+            AppGroupView(
+                appGroups: viewModel.appGroups,
+                viewModel: viewModel
+            )
+        case .byCustomer:
+            CustomerGroupView(
+                customerGroups: viewModel.customerGroups,
+                viewModel: viewModel
+            )
+        case .stats:
+            StatsView(stats: viewModel.statsData)
+        }
+    }
+
+    // MARK: - Timeline Content
+
+    private var timelineContent: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 2) {
@@ -124,7 +192,7 @@ struct TimelineView: View {
                             .background(
                                 isCurrentHour(hour)
                                     ? Color.accentColor.opacity(0.05)
-                                    : (block.multitaskingScore > 0.5 ? Color.red.opacity(0.05) : Color.clear)
+                                    : Color.clear
                             )
                         } else {
                             EmptyHourRow(hour: hour, date: viewModel.selectedDate)
@@ -155,30 +223,6 @@ struct TimelineView: View {
     private func isCurrentHour(_ hour: Int) -> Bool {
         Calendar.current.isDateInToday(viewModel.selectedDate) &&
         Calendar.current.component(.hour, from: Date()) == hour
-    }
-}
-
-// MARK: - Summary Card
-
-private struct SummaryCard: View {
-    let title: String
-    let value: String
-    let icon: String
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Image(systemName: icon)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.title3)
-                .bold()
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
     }
 }
 

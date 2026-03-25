@@ -34,8 +34,10 @@ Package.pins
 Package.resolved
 *.xcodeproj
 
+# Node
+node_modules/
+
 # Chrome Extension (WXT)
-grot-track-extension/node_modules/
 grot-track-extension/.output/
 grot-track-extension/.wxt/
 grot-track-extension/dist/

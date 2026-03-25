@@ -99,7 +99,7 @@ struct MenuBarView: View {
 
             Divider()
 
-            Button("View Full Timeline") {
+            Button("View Activity") {
                 openWindow(id: "timeline")
                 NSApp.activate(ignoringOtherApps: true)
             }

@@ -3,18 +3,13 @@ import SwiftData
 
 struct DailyReportView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.openWindow) private var openWindow
     @State private var viewModel = ReportViewModel()
 
     var body: some View {
         VStack(spacing: 0) {
             datePickerHeader
                 .padding()
-
-            Divider()
-
-            summaryBar
-                .padding(.horizontal)
-                .padding(.vertical, 8)
 
             Divider()
 
@@ -28,16 +23,21 @@ struct DailyReportView: View {
             viewModel.loadReport(for: newDate, context: context)
         }
         .toolbar {
-            ToolbarItem {
+            ToolbarItemGroup {
+                Button {
+                    openWindow(id: "timeline")
+                    NSApp.activate(ignoringOtherApps: true)
+                } label: {
+                    Label("View Activity", systemImage: "clock")
+                }
+                .help("Open Activity Viewer for this date")
+
                 Menu("Export") {
                     Button("Export as JSON") { viewModel.exportReport(format: .json) }
                     Button("Export as CSV") { viewModel.exportReport(format: .csv) }
                 }
                 .disabled(viewModel.report == nil)
             }
-        }
-        .sheet(item: $viewModel.selectedScreenshot) { screenshot in
-            screenshotSheet(screenshot)
         }
     }
 
@@ -107,7 +107,7 @@ struct DailyReportView: View {
     private var reportContent: some View {
         if viewModel.isGenerating {
             Spacer()
-            ProgressView("Generating report...")
+            ProgressView("Generating AI report...")
             Spacer()
         } else if let report = viewModel.report {
             ScrollView {
@@ -137,8 +137,10 @@ struct DailyReportView: View {
                     // App breakdown chart
                     AppBreakdownView(allocations: viewModel.decodedAllocations)
 
-                    // Screenshot gallery
-                    screenshotGallery
+                    // Classification confidence per hour
+                    if !viewModel.timeBlocks.isEmpty {
+                        classificationDetails
+                    }
                 }
                 .padding()
             }
@@ -152,90 +154,92 @@ struct DailyReportView: View {
                     Task {
                         await viewModel.generateReport(for: viewModel.selectedDate, context: context)
                     }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.borderedProminent)
+
+                Text("For raw activity data, use the Activity Viewer instead.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Button("Open Activity Viewer") {
+                    openWindow(id: "timeline")
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+                .font(.caption)
+
+                Spacer()
             }
         }
     }
 
-    // MARK: - Hour Grid
+    // MARK: - Summary Bar
 
-    private var hourGrid: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Hour-by-Hour Breakdown")
+    private var summaryBar: some View {
+        HStack(spacing: 20) {
+            SummaryCard(
+                title: "Hours Tracked",
+                value: String(format: "%.1f", viewModel.totalHours),
+                icon: "clock"
+            )
+            SummaryCard(
+                title: "Customers",
+                value: "\(viewModel.customerCount)",
+                icon: "person.3"
+            )
+            SummaryCard(
+                title: "Focus Score",
+                value: String(format: "%.0f%%", viewModel.averageFocusScore * 100),
+                icon: "eye"
+            )
+        }
+    }
+
+    // MARK: - Classification Details
+
+    private var classificationDetails: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Hourly Classifications")
                 .font(.headline)
 
-            ForEach(0..<24, id: \.self) { hour in
-                let block = viewModel.blockForHour(hour)
-                HourReportRow(
-                    hour: hour,
-                    date: viewModel.selectedDate,
-                    block: block,
-                    isSelected: viewModel.selectedHour == hour,
-                    onSelect: {
-                        viewModel.loadScreenshots(
-                            forHour: hour,
-                            date: viewModel.selectedDate,
-                            context: context
-                        )
-                    }
-                )
-            }
-        }
-    }
-
-    // MARK: - Screenshot Gallery
-
-    @ViewBuilder
-    private var screenshotGallery: some View {
-        if let selectedHour = viewModel.selectedHour {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Screenshots - \(hourLabel(for: selectedHour))")
-                    .font(.headline)
-
-                if viewModel.hourScreenshots.isEmpty {
-                    Text("No screenshots for this hour")
-                        .foregroundStyle(.secondary)
+            ForEach(viewModel.timeBlocks.sorted(by: { $0.startTime < $1.startTime }), id: \.id) { block in
+                HStack(spacing: 8) {
+                    Text(hourLabel(for: block))
                         .font(.caption)
-                } else {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(viewModel.hourScreenshots, id: \.id) { screenshot in
-                                screenshotThumbnail(screenshot)
-                            }
-                        }
+                        .foregroundStyle(.secondary)
+                        .frame(width: 120, alignment: .leading)
+
+                    Text(block.dominantApp)
+                        .font(.caption)
+                        .bold()
+
+                    Spacer()
+
+                    if let classification = block.llmClassification {
+                        Text(classification)
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(customerColor(for: block).opacity(0.2))
+                            .clipShape(Capsule())
+
+                        Text("\(Int(block.llmConfidence * 100))%")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .monospacedDigit()
+                    } else {
+                        Text("Not classified")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
                     }
+
+                    FocusIndicator(multitaskingScore: block.multitaskingScore)
                 }
+                .padding(.vertical, 2)
             }
         }
     }
 
-    private func screenshotThumbnail(_ screenshot: Screenshot) -> some View {
-        Button {
-            viewModel.selectedScreenshot = screenshot
-        } label: {
-            Group {
-                if let nsImage = NSImage(contentsOfFile: screenshot.thumbnailPath) {
-                    Image(nsImage: nsImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(height: 80)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                } else {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(width: 120, height: 80)
-                        .overlay {
-                            Image(systemName: "photo")
-                                .foregroundStyle(.secondary)
-                        }
-                }
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Screenshot Sheet
+    // MARK: - Helpers
 
     private func screenshotSheet(_ screenshot: Screenshot) -> some View {
         VStack {
@@ -365,13 +369,5 @@ private struct HourReportRow: View {
     private func barProportion(for block: TimeBlock) -> Double {
         let duration = block.endTime.timeIntervalSince(block.startTime)
         return min(duration / 3600.0, 1.0)
-    }
-
-    private func multitaskingColor(for block: TimeBlock) -> Color {
-        switch block.multitaskingScore {
-        case 0..<0.2: .green
-        case 0.2..<0.5: .yellow
-        default: .red
-        }
     }
 }

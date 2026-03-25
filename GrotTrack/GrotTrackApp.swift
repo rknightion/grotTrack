@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import AppKit
+import ServiceManagement
 
 @Observable
 @MainActor
@@ -38,10 +39,12 @@ final class AppCoordinator {
     }
 
     func bootstrap() async {
-        await permissionManager.checkAllPermissions()
+        permissionManager.checkAllPermissions()
         if !permissionManager.accessibilityGranted {
             permissionManager.requestAccessibility()
         }
+
+        permissionManager.startMonitoring()
 
         browserTabService.startListening()
 
@@ -55,8 +58,20 @@ final class AppCoordinator {
     }
 
     func startTracking() {
-        activityTracker.startTracking()
-        screenshotManager.startCapturing()
+        permissionManager.checkAllPermissions()
+
+        if permissionManager.accessibilityGranted {
+            activityTracker.startTracking()
+        } else {
+            print("Accessibility permission not granted — activity tracking disabled")
+        }
+
+        if permissionManager.screenRecordingGranted {
+            screenshotManager.startCapturing()
+        } else {
+            print("Screen recording permission not granted — screenshots disabled")
+        }
+
         idleDetector.start()
         startHourlyAggregation()
         startIdleObservation()
@@ -215,6 +230,11 @@ struct GrotTrackApp: App {
                     coordinator.modelContext = container.mainContext
                     await coordinator.bootstrap()
 
+                    // Auto-start tracking if user opted in
+                    if UserDefaults.standard.bool(forKey: "startTrackingOnLaunch") {
+                        coordinator.startTracking()
+                    }
+
                     // Storage cleanup on launch
                     let screenshotRetention = UserDefaults.standard.integer(forKey: "screenshotRetentionDays")
                     let thumbnailRetention = UserDefaults.standard.integer(forKey: "thumbnailRetentionDays")
@@ -239,13 +259,13 @@ struct GrotTrackApp: App {
             TimelineView()
         }
         .modelContainer(container)
-        .defaultSize(width: 800, height: 600)
+        .defaultSize(width: 900, height: 700)
 
         Window("Daily Report", id: "report") {
             DailyReportView()
         }
         .modelContainer(container)
-        .defaultSize(width: 900, height: 700)
+        .defaultSize(width: 800, height: 600)
 
         Window("Welcome to GrotTrack", id: "onboarding") {
             OnboardingView(

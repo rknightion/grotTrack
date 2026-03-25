@@ -71,6 +71,12 @@ export default defineBackground({
       sendActiveTabInfo();
     });
 
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message.action === 'getStatus') {
+        sendResponse({ connected: port !== null });
+      }
+    });
+
     connectToHost();
   },
 });
