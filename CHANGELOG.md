@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/rknightion/grotTrack/compare/v0.4.0...v0.4.1) (2026-03-25)
+
+
+### Refactoring
+
+* remove AI features for local-only app ([71ef1aa](https://github.com/rknightion/grotTrack/commit/71ef1aa156032c68d5e10ff9281b8bfb667b314b))
+
 ## [0.4.0](https://github.com/rknightion/grotTrack/compare/v0.3.0...v0.4.0) (2026-03-24)
 
 
