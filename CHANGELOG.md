@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/rknightion/grotTrack/compare/v0.3.0...v0.4.0) (2026-03-24)
+
+
+### Features
+
+* add Chrome extension with automated publishing and enhanced UI ([ddce222](https://github.com/rknightion/grotTrack/commit/ddce2223491518581f9115401a974b51fb2ddbba))
+
 ## [0.3.0](https://github.com/rknightion/grotTrack/compare/v0.2.2...v0.3.0) (2026-03-24)
 
 
