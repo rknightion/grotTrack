@@ -9,6 +9,7 @@ struct HourBlockView: View {
 
     @Environment(\.modelContext) private var context
     @State private var viewModel = TimelineViewModel()
+    @State private var annotations: [Annotation] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -57,6 +58,14 @@ struct HourBlockView: View {
             if isExpanded {
                 Divider()
 
+                // Annotations for this hour
+                if !annotations.isEmpty {
+                    ForEach(annotations, id: \.id) { annotation in
+                        annotationRow(annotation)
+                    }
+                    .padding(.leading, 20)
+                }
+
                 ForEach(timeBlock.activities.sorted(by: { $0.timestamp < $1.timestamp }), id: \.id) { activity in
                     expandedActivityRow(activity)
                 }
@@ -66,6 +75,11 @@ struct HourBlockView: View {
         .padding(10)
         .background(Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .onChange(of: isExpanded) { _, expanded in
+            if expanded {
+                loadAnnotations()
+            }
+        }
     }
 
     // MARK: - Expanded Activity Row
@@ -121,6 +135,52 @@ struct HourBlockView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    // MARK: - Annotation Row
+
+    private func annotationRow(_ annotation: Annotation) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "note.text")
+                .foregroundStyle(.orange)
+                .frame(width: 24, height: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(annotation.text)
+                    .font(.subheadline)
+
+                HStack(spacing: 8) {
+                    Text(annotation.timestamp, format: .dateTime.hour().minute().second())
+                        .foregroundStyle(.secondary)
+                    if !annotation.appName.isEmpty {
+                        Text("in \(annotation.appName)")
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .font(.caption2)
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(Color.orange.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+
+    // MARK: - Load Annotations
+
+    private func loadAnnotations() {
+        let start = timeBlock.startTime
+        let end = timeBlock.endTime
+        let predicate = #Predicate<Annotation> {
+            $0.timestamp >= start && $0.timestamp < end
+        }
+        let descriptor = FetchDescriptor<Annotation>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\.timestamp)]
+        )
+        annotations = (try? context.fetch(descriptor)) ?? []
     }
 
     // MARK: - Computed Properties

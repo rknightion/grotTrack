@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import ServiceManagement
 
@@ -7,6 +8,10 @@ struct GeneralSettingsView: View {
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
     @AppStorage("startTrackingOnLaunch") private var startTrackingOnLaunch: Bool = false
     @AppStorage("selectedAppearance") private var selectedAppearance: String = "system"
+    @AppStorage("pauseHotkeyKey") private var pauseHotkeyKey: String = "g"
+    @AppStorage("pauseHotkeyModifiers") private var pauseHotkeyModifiers: Int = 393_216
+    @AppStorage("annotationHotkeyKey") private var annotationHotkeyKey: String = "n"
+    @AppStorage("annotationHotkeyModifiers") private var annotationHotkeyModifiers: Int = 393_216
 
     var body: some View {
         Form {
@@ -47,6 +52,18 @@ struct GeneralSettingsView: View {
                 .pickerStyle(.segmented)
                 .onChange(of: selectedAppearance) { _, newValue in
                     applyAppearance(newValue)
+                }
+            }
+            Section("Shortcuts") {
+                HStack {
+                    Text("Pause/Resume")
+                    Spacer()
+                    ShortcutRecorderView(key: $pauseHotkeyKey, modifiers: $pauseHotkeyModifiers)
+                }
+                HStack {
+                    Text("Quick Annotation")
+                    Spacer()
+                    ShortcutRecorderView(key: $annotationHotkeyKey, modifiers: $annotationHotkeyModifiers)
                 }
             }
         }

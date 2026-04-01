@@ -142,6 +142,59 @@ AppAllocation (Codable struct, not a @Model):
   - percentage: Double
   - description: String
 
+┌──────────────────────────────────────────────┐
+│              Annotation                       │
+│──────────────────────────────────────────────│
+│ id: UUID                                      │
+│ timestamp: Date                               │
+│ text: String                                  │
+│ appName: String                               │
+│ bundleID: String                              │
+│ windowTitle: String                           │
+│ browserTabTitle: String?                      │
+│ browserTabURL: String?                        │
+└──────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────┐
+│              WeeklyReport                     │
+│──────────────────────────────────────────────│
+│ id: UUID                                      │
+│ weekStartDate: Date                           │
+│ totalHoursTracked: Double                     │
+│ appAllocationsJSON: String                    │
+│   (encoded [AppAllocation])                   │
+│ dailyFocusScoresJSON: String                  │
+│   (encoded [DailyFocusPoint])                 │
+│ dailyAppHoursJSON: String                     │
+│   (encoded [DailyAppHours])                   │
+│ summary: String                               │
+│ generatedAt: Date                             │
+└──────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────┐
+│              MonthlyReport                    │
+│──────────────────────────────────────────────│
+│ id: UUID                                      │
+│ monthStartDate: Date                          │
+│ weeklyBreakdownJSON: String                   │
+│   (encoded [WeeklyBreakdown])                 │
+└──────────────────────────────────────────────┘
+
+Supporting Codable structs (not @Model):
+
+DailyFocusPoint:
+  - date: Date
+  - focusScore: Double
+
+DailyAppHours:
+  - date: Date
+  - appHours: [String: Double]
+
+WeeklyBreakdown:
+  - weekStart: Date
+  - totalHours: Double
+  - avgFocusScore: Double
+
 
 ================================================================================
 4. PERMISSION FLOW
@@ -365,12 +418,16 @@ GrotTrack/
 │   │   ├── ActivityEvent.swift               # @Model: window/app tracking events
 │   │   ├── Screenshot.swift                  # @Model: screenshot metadata
 │   │   ├── TimeBlock.swift                   # @Model: hourly aggregated blocks
-│   │   └── DailyReport.swift                 # @Model: daily report with app allocations
+│   │   ├── DailyReport.swift                 # @Model: daily report with app allocations
+│   │   ├── Annotation.swift                  # @Model: user-entered notes with context
+│   │   └── TrendModels.swift                 # @Model: WeeklyReport, MonthlyReport,
+│   │                                         #   and supporting Codable structs
 │   │
 │   ├── ViewModels/
 │   │   ├── AppState.swift                    # @Observable: global app state
 │   │   ├── TimelineViewModel.swift           # @Observable: timeline data queries
-│   │   └── ReportViewModel.swift             # @Observable: report generation
+│   │   ├── ReportViewModel.swift             # @Observable: report generation
+│   │   └── TrendReportViewModel.swift        # @Observable: weekly/monthly reports
 │   │
 │   ├── Services/
 │   │   ├── ActivityTracker.swift             # AXUIElement + NSWorkspace + CGWindowList
@@ -391,11 +448,19 @@ GrotTrack/
 │   │   │   └── TimeBlockView.swift           # Individual activity segment
 │   │   ├── Reports/
 │   │   │   ├── DailyReportView.swift         # Full daily report view
-│   │   │   └── AppBreakdownView.swift        # Pie/bar chart app breakdown
+│   │   │   ├── AppBreakdownView.swift        # Pie/bar chart app breakdown
+│   │   │   ├── WeeklyReportView.swift        # Weekly report: stacked bar chart,
+│   │   │   │                                 #   focus trend, app trends
+│   │   │   └── MonthlyReportView.swift       # Monthly report: calendar heatmap,
+│   │   │                                     #   weekly breakdown, trends
 │   │   ├── Settings/
 │   │   │   ├── SettingsView.swift            # TabView settings window
 │   │   │   ├── ExclusionListView.swift       # App exclusion management
 │   │   │   └── StorageSettingsView.swift     # Storage/retention settings
+│   │   ├── Components/
+│   │   │   ├── AnnotationInputView.swift     # Floating NSPanel annotation text input
+│   │   │   ├── ShortcutRecorderView.swift    # Hotkey recording widget
+│   │   │   └── CalendarHeatmapView.swift     # Monthly calendar heatmap
 │   │   └── Onboarding/
 │   │       ├── OnboardingView.swift          # First-launch walkthrough
 │   │       └── PermissionRequestView.swift   # Permission grant UI
@@ -444,3 +509,9 @@ Launch at login             SMAppService         Modern API, no helper app
 Screenshot retention        7 days full, 30 thumb Balances evidence vs storage
 App exclusions              Bundle ID list       Precise, no ambiguity
 Export formats              JSON + CSV           Machine-readable + spreadsheet
+Annotation hotkey           Ctrl+Shift+N         Configurable; uses NSPanel with
+                            (configurable)       nonactivatingPanel style for minimal
+                                                 workflow disruption
+Trend reports               Cached SwiftData     WeeklyReport/MonthlyReport are
+                            models               persisted; period-over-period deltas
+                                                 computed at view time, not stored

@@ -6,6 +6,7 @@ final class AppState {
     var isTracking: Bool = false
     var isPaused: Bool = false
     var currentAppName: String = ""
+    var currentBundleID: String = ""
     var currentWindowTitle: String = ""
     var currentBrowserTab: String = ""
     var trackingStartTime: Date?

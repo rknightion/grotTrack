@@ -240,8 +240,8 @@ final class TimelineViewModel {
         var grouped: [String: (color: Color, blocks: [TimeBlock])] = [:]
 
         for block in timeBlocks {
-            let customerName = block.llmClassification ?? block.customer?.name ?? "Unclassified"
-            let color = block.customer?.swiftUIColor ?? .gray
+            let customerName = "Unclassified"
+            let color = Color.gray
             if grouped[customerName] == nil {
                 grouped[customerName] = (color: color, blocks: [])
             }

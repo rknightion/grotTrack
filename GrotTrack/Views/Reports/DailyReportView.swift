@@ -5,6 +5,7 @@ struct DailyReportView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.openWindow) private var openWindow
     @State private var viewModel = ReportViewModel()
+    @State private var dailyAnnotations: [Annotation] = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -18,9 +19,11 @@ struct DailyReportView: View {
         .frame(minWidth: 700, minHeight: 500)
         .onAppear {
             viewModel.loadReport(for: viewModel.selectedDate, context: context)
+            loadAnnotations(for: viewModel.selectedDate)
         }
         .onChange(of: viewModel.selectedDate) { _, newDate in
             viewModel.loadReport(for: newDate, context: context)
+            loadAnnotations(for: newDate)
         }
         .toolbar {
             ToolbarItemGroup {
@@ -141,6 +144,11 @@ struct DailyReportView: View {
                     if !viewModel.timeBlocks.isEmpty {
                         classificationDetails
                     }
+
+                    // Annotations for the day
+                    if !dailyAnnotations.isEmpty {
+                        annotationsSection
+                    }
                 }
                 .padding()
             }
@@ -154,8 +162,8 @@ struct DailyReportView: View {
                     Task {
                         await viewModel.generateReport(for: viewModel.selectedDate, context: context)
                     }
-                    .buttonStyle(.borderedProminent)
                 }
+                .buttonStyle(.borderedProminent)
 
                 Text("For raw activity data, use the Activity Viewer instead.")
                     .font(.caption)
@@ -172,25 +180,82 @@ struct DailyReportView: View {
         }
     }
 
-    // MARK: - Summary Bar
+    // MARK: - Annotations Section
 
-    private var summaryBar: some View {
-        HStack(spacing: 20) {
-            SummaryCard(
-                title: "Hours Tracked",
-                value: String(format: "%.1f", viewModel.totalHours),
-                icon: "clock"
-            )
-            SummaryCard(
-                title: "Customers",
-                value: "\(viewModel.customerCount)",
-                icon: "person.3"
-            )
-            SummaryCard(
-                title: "Focus Score",
-                value: String(format: "%.0f%%", viewModel.averageFocusScore * 100),
-                icon: "eye"
-            )
+    private var annotationsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Notes (\(dailyAnnotations.count))")
+                .font(.headline)
+
+            ForEach(dailyAnnotations, id: \.id) { annotation in
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "note.text")
+                        .foregroundStyle(.orange)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(annotation.text)
+                            .font(.subheadline)
+
+                        HStack(spacing: 8) {
+                            Text(annotation.timestamp, format: .dateTime.hour().minute())
+                                .foregroundStyle(.secondary)
+                            if !annotation.appName.isEmpty {
+                                Text("in \(annotation.appName)")
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .font(.caption)
+                    }
+
+                    Spacer()
+                }
+                .padding(8)
+                .background(Color.orange.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+        }
+    }
+
+    private func loadAnnotations(for date: Date) {
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
+            dailyAnnotations = []
+            return
+        }
+
+        let predicate = #Predicate<Annotation> {
+            $0.timestamp >= startOfDay && $0.timestamp < endOfDay
+        }
+        let descriptor = FetchDescriptor<Annotation>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\.timestamp)]
+        )
+        dailyAnnotations = (try? context.fetch(descriptor)) ?? []
+    }
+
+    // MARK: - Hour Grid
+
+    private var hourGrid: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Hourly Overview")
+                .font(.headline)
+
+            ForEach(0..<24, id: \.self) { hour in
+                let block = viewModel.blockForHour(hour)
+                HourReportRow(
+                    hour: hour,
+                    date: viewModel.selectedDate,
+                    block: block,
+                    isSelected: viewModel.selectedHour == hour
+                ) {
+                    viewModel.loadScreenshots(
+                        forHour: hour,
+                        date: viewModel.selectedDate,
+                        context: context
+                    )
+                }
+            }
         }
     }
 
@@ -203,7 +268,7 @@ struct DailyReportView: View {
 
             ForEach(viewModel.timeBlocks.sorted(by: { $0.startTime < $1.startTime }), id: \.id) { block in
                 HStack(spacing: 8) {
-                    Text(hourLabel(for: block))
+                    Text(hourLabel(for: Calendar.current.component(.hour, from: block.startTime)))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(width: 120, alignment: .leading)
@@ -213,24 +278,6 @@ struct DailyReportView: View {
                         .bold()
 
                     Spacer()
-
-                    if let classification = block.llmClassification {
-                        Text(classification)
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(customerColor(for: block).opacity(0.2))
-                            .clipShape(Capsule())
-
-                        Text("\(Int(block.llmConfidence * 100))%")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                            .monospacedDigit()
-                    } else {
-                        Text("Not classified")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
 
                     FocusIndicator(multitaskingScore: block.multitaskingScore)
                 }
@@ -264,30 +311,6 @@ struct DailyReportView: View {
         let start = startDate.formatted(.dateTime.hour().minute())
         let end = startDate.addingTimeInterval(3600).formatted(.dateTime.hour().minute())
         return "\(start) \u{2013} \(end)"
-    }
-}
-
-// MARK: - Summary Card
-
-private struct SummaryCard: View {
-    let title: String
-    let value: String
-    let icon: String
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Image(systemName: icon)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.title3)
-                .bold()
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
     }
 }
 
@@ -369,5 +392,11 @@ private struct HourReportRow: View {
     private func barProportion(for block: TimeBlock) -> Double {
         let duration = block.endTime.timeIntervalSince(block.startTime)
         return min(duration / 3600.0, 1.0)
+    }
+
+    private func multitaskingColor(for block: TimeBlock) -> Color {
+        if block.multitaskingScore < 0.2 { return .green }
+        if block.multitaskingScore < 0.5 { return .yellow }
+        return .red
     }
 }

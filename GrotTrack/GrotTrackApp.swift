@@ -22,6 +22,11 @@ final class AppCoordinator {
     // Keyboard shortcut monitors
     private var globalKeyMonitor: Any?
     private var localKeyMonitor: Any?
+    private var annotationGlobalMonitor: Any?
+    private var annotationLocalMonitor: Any?
+
+    // Annotation panel
+    private var annotationPanel: NSPanel?
 
     // Idle observation
     private var idleObservationTask: Task<Void, Never>?
@@ -124,9 +129,101 @@ final class AppCoordinator {
         appState.isIdle = false
     }
 
+    // MARK: - Annotation Panel
+
+    func showAnnotationPanel() {
+        // Dismiss existing panel if open
+        dismissAnnotationPanel()
+
+        guard let modelContext else { return }
+
+        // Capture current context
+        let capturedApp = appState.currentAppName
+        let capturedBundleID = appState.currentBundleID
+        let capturedTitle = appState.currentWindowTitle
+        let capturedBrowserTab = appState.currentBrowserTab
+        let capturedBrowserURL: String? = browserTabService.activeTabURL
+
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 350, height: 80),
+            styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        panel.level = .floating
+        panel.isFloatingPanel = true
+        panel.titlebarAppearsTransparent = true
+        panel.titleVisibility = .hidden
+        panel.isMovableByWindowBackground = true
+        panel.backgroundColor = .windowBackgroundColor
+
+        let inputView = AnnotationInputView(
+            contextAppName: capturedApp
+        ) { [weak self] text in
+            let annotation = Annotation(
+                text: text,
+                appName: capturedApp,
+                bundleID: capturedBundleID,
+                windowTitle: capturedTitle
+            )
+            if !capturedBrowserTab.isEmpty {
+                annotation.browserTabTitle = capturedBrowserTab
+            }
+            if let url = capturedBrowserURL, !url.isEmpty {
+                annotation.browserTabURL = url
+            }
+            modelContext.insert(annotation)
+            try? modelContext.save()
+            self?.dismissAnnotationPanel()
+        } onCancel: { [weak self] in
+            self?.dismissAnnotationPanel()
+        }
+
+        panel.contentView = NSHostingView(rootView: inputView)
+
+        // Position near top-center of main screen
+        if let screen = NSScreen.main {
+            let screenFrame = screen.visibleFrame
+            let panelWidth: CGFloat = 350
+            let panelX = screenFrame.midX - panelWidth / 2
+            let panelY = screenFrame.maxY - 80
+            panel.setFrameOrigin(NSPoint(x: panelX, y: panelY))
+        }
+
+        panel.makeKeyAndOrderFront(nil)
+        annotationPanel = panel
+    }
+
+    func dismissAnnotationPanel() {
+        annotationPanel?.orderOut(nil)
+        annotationPanel = nil
+    }
+
     // MARK: - Global Keyboard Shortcut
 
     private func setupGlobalShortcut() {
+        registerPauseHotkey()
+        registerAnnotationHotkey()
+    }
+
+    func reregisterHotkeys() {
+        removeAllMonitors()
+        registerPauseHotkey()
+        registerAnnotationHotkey()
+    }
+
+    private func removeAllMonitors() {
+        if let monitor = globalKeyMonitor { NSEvent.removeMonitor(monitor) }
+        if let monitor = localKeyMonitor { NSEvent.removeMonitor(monitor) }
+        if let monitor = annotationGlobalMonitor { NSEvent.removeMonitor(monitor) }
+        if let monitor = annotationLocalMonitor { NSEvent.removeMonitor(monitor) }
+        globalKeyMonitor = nil
+        localKeyMonitor = nil
+        annotationGlobalMonitor = nil
+        annotationLocalMonitor = nil
+    }
+
+    private func registerPauseHotkey() {
         // Ctrl+Shift+G to toggle pause/resume
         globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.modifierFlags.contains([.control, .shift]),
@@ -146,6 +243,34 @@ final class AppCoordinator {
                     self.togglePause()
                 }
                 return nil // consume the event
+            }
+            return event
+        }
+    }
+
+    private func registerAnnotationHotkey() {
+        let hotkeyKey = UserDefaults.standard.string(forKey: "annotationHotkeyKey") ?? "n"
+        let hotkeyModifiersRaw = UserDefaults.standard.object(forKey: "annotationHotkeyModifiers") as? UInt
+            ?? NSEvent.ModifierFlags([.control, .shift]).rawValue
+
+        let requiredModifiers = NSEvent.ModifierFlags(rawValue: hotkeyModifiersRaw)
+
+        annotationGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.modifierFlags.contains(requiredModifiers),
+               event.charactersIgnoringModifiers?.lowercased() == hotkeyKey {
+                Task { @MainActor in
+                    self?.showAnnotationPanel()
+                }
+            }
+        }
+
+        annotationLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.modifierFlags.contains(requiredModifiers),
+               event.charactersIgnoringModifiers?.lowercased() == hotkeyKey {
+                Task { @MainActor in
+                    self?.showAnnotationPanel()
+                }
+                return nil
             }
             return event
         }
@@ -211,7 +336,10 @@ struct GrotTrackApp: App {
             ActivityEvent.self,
             Screenshot.self,
             TimeBlock.self,
-            DailyReport.self
+            DailyReport.self,
+            Annotation.self,
+            WeeklyReport.self,
+            MonthlyReport.self
         ])
         do {
             container = try ModelContainer(for: schema)
@@ -266,6 +394,18 @@ struct GrotTrackApp: App {
         }
         .modelContainer(container)
         .defaultSize(width: 800, height: 600)
+
+        Window("Weekly Report", id: "weeklyReport") {
+            WeeklyReportView()
+        }
+        .modelContainer(container)
+        .defaultSize(width: 850, height: 700)
+
+        Window("Monthly Report", id: "monthlyReport") {
+            MonthlyReportView()
+        }
+        .modelContainer(container)
+        .defaultSize(width: 850, height: 750)
 
         Window("Welcome to GrotTrack", id: "onboarding") {
             OnboardingView(

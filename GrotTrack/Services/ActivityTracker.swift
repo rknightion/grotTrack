@@ -197,6 +197,7 @@ final class ActivityTracker {
 
         // Update appState (always, regardless of event creation)
         appState.currentAppName = appName
+        appState.currentBundleID = bundleID
         appState.currentWindowTitle = windowTitle
         appState.currentBrowserTab = currentBrowserTab
         appState.currentMultitaskingScore = multitaskingDetector.currentScore
