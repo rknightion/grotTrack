@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.8.0](https://github.com/rknightion/grotTrack/compare/v0.7.0...v0.8.0) (2026-04-02)
+
+
+### Features
+
+* **enrichment:** add ActivitySession SwiftData model ([9e88ae4](https://github.com/rknightion/grotTrack/commit/9e88ae4ea0fc68b4c581b19a4c93308bb19108e9))
+* **enrichment:** add EntityExtractor with NSDataDetector, NLTagger, and regex ([227f64d](https://github.com/rknightion/grotTrack/commit/227f64d15f2198adf4b84c9124bae7817d2e2963))
+* **enrichment:** add ExtractedEntity model with entity types ([bd9c515](https://github.com/rknightion/grotTrack/commit/bd9c515f17e51bfd27dc82fd758efab501792e03))
+* **enrichment:** add OCR text, entity chips, search, and session segments to UI ([7529a83](https://github.com/rknightion/grotTrack/commit/7529a83f38410901987db33714e75c0fa6d7d68d))
+* **enrichment:** add ScreenshotEnrichment SwiftData model ([21bbc18](https://github.com/rknightion/grotTrack/commit/21bbc180a428ed39b5086b5a3f9283b264a24586))
+* **enrichment:** add ScreenshotEnrichmentService with Vision OCR pipeline ([c788450](https://github.com/rknightion/grotTrack/commit/c78845096f9247857680ed6ad6f233e0a90e7354))
+* **enrichment:** add SessionClassifier with FoundationModels @Generable ([f3330f6](https://github.com/rknightion/grotTrack/commit/f3330f643ba99c4b3b2efd4547794856e0a889a7))
+* **enrichment:** add SessionDetector with boundary detection state machine ([2a4e8c2](https://github.com/rknightion/grotTrack/commit/2a4e8c28d3c7aa8a8e84fa5f21c3c931e3b219ac))
+* **enrichment:** register ScreenshotEnrichment and ActivitySession in schema ([0e6cf43](https://github.com/rknightion/grotTrack/commit/0e6cf435a531b5bacc4df91fc3296240e2cbd9e7))
+* **enrichment:** wire enrichment services into AppCoordinator lifecycle ([b6213da](https://github.com/rknightion/grotTrack/commit/b6213dae2bccb114e6a540f35b974e4d2cc24081))
+* **ui:** enhance screenshot capture quality and viewer ([596fc31](https://github.com/rknightion/grotTrack/commit/596fc3144521afa276f0fab0983ad5ae5ccf495e))
+
+
+### Miscellaneous
+
+* bump deployment target to macOS 26 for Vision/FoundationModels ([c40d1c7](https://github.com/rknightion/grotTrack/commit/c40d1c7e9b4fd51cb776bcab71206415b4136d6b))
+
+
+### Documentation
+
+* add screenshot enrichment pipeline design spec ([34eebaa](https://github.com/rknightion/grotTrack/commit/34eebaa6a3365f2bdb4f41478c933c194ebde4b7))
+* add screenshot enrichment pipeline implementation plan ([3e9449a](https://github.com/rknightion/grotTrack/commit/3e9449ad573ba8b900b64dc394745be0953b5ebb))
+* update arch.txt with enrichment pipeline architecture ([061a32a](https://github.com/rknightion/grotTrack/commit/061a32a91631c3fddd2fb199e197b429b1e84e7a))
+
+
+### Tests
+
+* **enrichment:** update screenshot browser tests for enrichment and search ([a395264](https://github.com/rknightion/grotTrack/commit/a3952646516c146c00b313ea74582cccfcc6ffbb))
+
 ## [0.7.0](https://github.com/rknightion/grotTrack/compare/v0.6.0...v0.7.0) (2026-04-02)
 
 
