@@ -3,34 +3,33 @@ import SwiftUI
 struct TimelineRailView: View {
     @Bindable var viewModel: ScreenshotBrowserViewModel
 
-    private let railHeight: CGFloat = 600
-
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
+        GeometryReader { geometry in
+            let height = geometry.size.height
             ZStack(alignment: .topLeading) {
-                hourMarkers
-                activitySegmentOverlay
-                sessionSegmentOverlay
-                screenshotMarkers
-                dragOverlay
+                hourMarkers(height: height)
+                activitySegmentOverlay(height: height)
+                sessionSegmentOverlay(height: height)
+                screenshotMarkers(height: height)
+                dragOverlay(height: height)
             }
-            .frame(width: 220, height: railHeight)
+            .frame(width: geometry.size.width, height: height)
         }
         .background(.ultraThinMaterial)
     }
 
     // MARK: - Hour Markers
 
-    private var hourMarkers: some View {
+    private func hourMarkers(height: CGFloat) -> some View {
         let range = dayRange
         return ForEach(range.startHour...range.endHour, id: \.self) { hour in
-            let yPos = yPosition(forHour: hour, range: range)
+            let yPos = yPosition(forHour: hour, range: range, height: height)
             HStack(spacing: 4) {
                 Text(String(format: "%02d:00", hour))
-                    .font(.caption2)
+                    .font(.system(size: 10))
                     .monospacedDigit()
                     .foregroundStyle(.tertiary)
-                    .frame(width: 40, alignment: .trailing)
+                    .frame(width: 44, alignment: .trailing)
                 Rectangle()
                     .fill(Color.gray.opacity(0.2))
                     .frame(height: 1)
@@ -41,53 +40,57 @@ struct TimelineRailView: View {
 
     // MARK: - Activity Segments
 
-    private var activitySegmentOverlay: some View {
+    private func activitySegmentOverlay(height: CGFloat) -> some View {
         let range = dayRange
         return ForEach(viewModel.activitySegments) { segment in
-            let startY = yPosition(for: segment.startTime, range: range)
-            let endY = yPosition(for: segment.endTime, range: range)
+            let startY = yPosition(for: segment.startTime, range: range, height: height)
+            let endY = yPosition(for: segment.endTime, range: range, height: height)
             let segmentHeight = max(2, endY - startY)
 
             RoundedRectangle(cornerRadius: 2)
                 .fill(segment.color.opacity(0.6))
-                .frame(width: 14, height: segmentHeight)
-                .offset(x: 50, y: startY)
+                .frame(width: 18, height: segmentHeight)
+                .offset(x: 56, y: startY)
                 .help("\(segment.appName): \(segment.windowTitle)")
         }
     }
 
     // MARK: - Session Segments
 
-    private var sessionSegmentOverlay: some View {
+    private func sessionSegmentOverlay(height: CGFloat) -> some View {
         let range = dayRange
         return ForEach(viewModel.sessionSegments) { segment in
-            let startY = yPosition(for: segment.startTime, range: range)
-            let endY = yPosition(for: segment.endTime, range: range)
+            let startY = yPosition(for: segment.startTime, range: range, height: height)
+            let endY = yPosition(for: segment.endTime, range: range, height: height)
             let segmentHeight = max(8, endY - startY)
             let opacity = segment.confidence ?? 0.5
 
-            RoundedRectangle(cornerRadius: 3)
+            RoundedRectangle(cornerRadius: 4)
                 .fill(segment.color.opacity(0.3 + opacity * 0.5))
-                .frame(width: 60, height: segmentHeight)
-                .overlay(alignment: .leading) {
+                .frame(height: segmentHeight)
+                .overlay(alignment: .topLeading) {
                     Text(segment.label)
-                        .font(.system(size: 8))
+                        .font(.system(size: 10))
+                        .fontWeight(.medium)
                         .lineLimit(1)
-                        .padding(.leading, 3)
+                        .padding(.leading, 6)
+                        .padding(.top, 4)
                         .foregroundStyle(.primary.opacity(0.8))
                 }
-                .offset(x: 80, y: startY)
+                .padding(.leading, 100)
+                .padding(.trailing, 12)
+                .offset(y: startY)
                 .help(segment.label)
         }
     }
 
     // MARK: - Screenshot Markers
 
-    private var screenshotMarkers: some View {
+    private func screenshotMarkers(height: CGFloat) -> some View {
         let range = dayRange
         return ForEach(viewModel.screenshots.indices, id: \.self) { index in
             let screenshot = viewModel.screenshots[index]
-            let yPos = yPosition(for: screenshot.timestamp, range: range)
+            let yPos = yPosition(for: screenshot.timestamp, range: range, height: height)
             let isSelected = index == viewModel.selectedIndex
 
             Circle()
@@ -100,7 +103,7 @@ struct TimelineRailView: View {
                             .frame(width: 14, height: 14)
                     }
                 }
-                .offset(x: 50 + 7 + 8, y: yPos - (isSelected ? 5 : 3))
+                .offset(x: 80, y: yPos - (isSelected ? 5 : 3))
                 .onTapGesture {
                     viewModel.selectedIndex = index
                 }
@@ -110,14 +113,14 @@ struct TimelineRailView: View {
 
     // MARK: - Drag to Scrub
 
-    private var dragOverlay: some View {
+    private func dragOverlay(height: CGFloat) -> some View {
         let range = dayRange
         return Color.clear
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
-                        let fraction = value.location.y / railHeight
+                        let fraction = value.location.y / height
                         let clamped = max(0, min(1, fraction))
                         let targetTime = range.startDate.addingTimeInterval(
                             clamped * range.endDate.timeIntervalSince(range.startDate)
@@ -175,17 +178,17 @@ struct TimelineRailView: View {
         return DayRange(startHour: startHour, endHour: endHour, startDate: start, endDate: end)
     }
 
-    private func yPosition(for date: Date, range: DayRange) -> CGFloat {
+    private func yPosition(for date: Date, range: DayRange, height: CGFloat) -> CGFloat {
         let totalInterval = range.endDate.timeIntervalSince(range.startDate)
         guard totalInterval > 0 else { return 0 }
         let offset = date.timeIntervalSince(range.startDate)
         let fraction = offset / totalInterval
-        return CGFloat(fraction) * railHeight
+        return CGFloat(fraction) * height
     }
 
-    private func yPosition(forHour hour: Int, range: DayRange) -> CGFloat {
+    private func yPosition(forHour hour: Int, range: DayRange, height: CGFloat) -> CGFloat {
         let calendar = Calendar.current
         let date = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: viewModel.selectedDate)!
-        return yPosition(for: date, range: range)
+        return yPosition(for: date, range: range, height: height)
     }
 }

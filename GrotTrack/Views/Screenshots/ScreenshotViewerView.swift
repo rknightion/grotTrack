@@ -13,7 +13,7 @@ struct ScreenshotViewerView: View {
             Divider()
 
             TimelineRailView(viewModel: viewModel)
-                .frame(width: 220)
+                .frame(width: 280)
         }
         .focusable()
         .onKeyPress(.leftArrow) {
