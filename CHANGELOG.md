@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.6.0](https://github.com/rknightion/grotTrack/compare/v0.5.2...v0.6.0) (2026-04-02)
+
+
+### Features
+
+* **timeline:** add JSON/CSV export to timeline toolbar ([55c43b5](https://github.com/rknightion/grotTrack/commit/55c43b5a064ee5b1129508b5410b1d78eb3345a4))
+* **trends:** add TrendScope enum and unified load/generate/navigate ([500f491](https://github.com/rknightion/grotTrack/commit/500f4911a28430cf44104981743d210c1de715ff))
+* **trends:** create unified TrendsView with Week/Month picker ([cc02f3d](https://github.com/rknightion/grotTrack/commit/cc02f3daaaac3a17968c44747397b8aa8dfbdf48))
+* **trends:** wire up TrendsView, remove old report windows ([a6cd331](https://github.com/rknightion/grotTrack/commit/a6cd3316bfae46c0cf01f8a9331eb84dd1858a49))
+
+
+### Bug Fixes
+
+* **timeline:** use .task instead of .onAppear for initial data load ([f8a1799](https://github.com/rknightion/grotTrack/commit/f8a179950651f04201621fa0f0276121b50de422))
+
+
+### Documentation
+
+* add implementation plan for timeline cleanup and unified trends ([f814aea](https://github.com/rknightion/grotTrack/commit/f814aea31ef6aec34a21d863acf92fc034641833))
+* add timeline cleanup and unified trends design spec ([8328158](https://github.com/rknightion/grotTrack/commit/8328158e2702bb1db92ec857510a27481de714e6))
+* update arch.txt for timeline cleanup and unified trends ([066471c](https://github.com/rknightion/grotTrack/commit/066471cb7c0dae16cd7e82243c25adebdeb6ec7c))
+
+
+### Refactoring
+
+* **reports:** remove DailyReport dependency from ReportGenerator ([a39c0c7](https://github.com/rknightion/grotTrack/commit/a39c0c74960dd935cb5f0691a78d83ed14bc3318))
+* **reports:** remove DailyReport model and daily report views ([7145f3e](https://github.com/rknightion/grotTrack/commit/7145f3e8911de94135e4327cdb7499fff6e16af0))
+* **timeline:** remove dead customer tab ([e158c97](https://github.com/rknightion/grotTrack/commit/e158c979ba13e69b08c43444cb7750f1d811a80c))
+
 ## [0.5.2](https://github.com/rknightion/grotTrack/compare/v0.5.1...v0.5.2) (2026-04-02)
 
 
