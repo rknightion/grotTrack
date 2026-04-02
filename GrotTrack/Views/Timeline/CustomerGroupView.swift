@@ -49,7 +49,7 @@ struct CustomerGroupView: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
 
-                Text("\(group.blocks.count) block\(group.blocks.count == 1 ? "" : "s")")
+                Text("\(group.hourGroups.count) hour\(group.hourGroups.count == 1 ? "" : "s")")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
 
@@ -71,8 +71,8 @@ struct CustomerGroupView: View {
             if isExpanded {
                 Divider()
 
-                ForEach(group.blocks, id: \.id) { block in
-                    blockRow(block)
+                ForEach(group.hourGroups) { hourGroup in
+                    hourGroupRow(hourGroup)
                 }
                 .padding(.leading, 20)
             }
@@ -82,50 +82,50 @@ struct CustomerGroupView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
-    private func blockRow(_ block: TimeBlock) -> some View {
+    private func hourGroupRow(_ hourGroup: HourGroup) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(hourRangeLabel(for: block))
+                Text(hourRangeLabel(for: hourGroup))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 Spacer()
 
-                Text(durationLabel(for: block))
+                Text(durationLabel(for: hourGroup))
                     .font(.caption)
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
 
-                FocusIndicator(multitaskingScore: block.multitaskingScore)
+                FocusIndicator(multitaskingScore: hourGroup.multitaskingScore)
             }
 
             // App breakdown bar
-            let breakdown = viewModel.appBreakdown(for: block)
+            let breakdown = viewModel.appBreakdown(for: hourGroup)
             if !breakdown.isEmpty {
                 AppSegmentBar(segments: breakdown, height: 8)
             }
 
             // Dominant app + title
             HStack(spacing: 6) {
-                let bundleID = block.activities
-                    .first { $0.appName == block.dominantApp }?.bundleID
+                let bundleID = hourGroup.activities
+                    .first { $0.appName == hourGroup.dominantApp }?.bundleID
 
                 Image(nsImage: AppIconProvider.icon(forBundleID: bundleID))
                     .resizable()
                     .frame(width: 14, height: 14)
 
-                Text(block.dominantApp)
+                Text(hourGroup.dominantApp)
                     .font(.caption)
                     .bold()
 
-                Text("— \(block.dominantTitle)")
+                Text("— \(hourGroup.dominantTitle)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 
             // Activities
-            ForEach(block.activities.sorted(by: { $0.timestamp < $1.timestamp }), id: \.id) { activity in
+            ForEach(hourGroup.activities, id: \.id) { activity in
                 activityRow(activity)
             }
             .padding(.leading, 16)
@@ -171,14 +171,14 @@ struct CustomerGroupView: View {
         .padding(.vertical, 2)
     }
 
-    private func hourRangeLabel(for block: TimeBlock) -> String {
-        let start = block.startTime.formatted(.dateTime.hour().minute())
-        let end = block.endTime.formatted(.dateTime.hour().minute())
+    private func hourRangeLabel(for hourGroup: HourGroup) -> String {
+        let start = hourGroup.hourStart.formatted(.dateTime.hour().minute())
+        let end = hourGroup.hourEnd.formatted(.dateTime.hour().minute())
         return "\(start) – \(end)"
     }
 
-    private func durationLabel(for block: TimeBlock) -> String {
-        let minutes = Int(block.endTime.timeIntervalSince(block.startTime) / 60)
+    private func durationLabel(for hourGroup: HourGroup) -> String {
+        let minutes = Int(hourGroup.totalDuration / 60)
         return "\(minutes) min"
     }
 

@@ -332,8 +332,17 @@ Thresholds:
   0.2 - 0.5  = Moderate (yellow)   - 3-4 apps, regular switching
   0.5 - 1.0  = Heavy (red)         - 5+ apps, rapid switching
 
-The score is stored on each TimeBlock and displayed as a colored indicator
-in the timeline UI.
+The score is stored on each ActivityEvent and TimeBlock.
+
+Timeline Data Flow:
+  The timeline view reads ActivityEvents directly from SwiftData (not
+  TimeBlocks). Events are grouped into in-memory HourGroup structs for
+  hourly display. SwiftData save notifications trigger debounced (2s)
+  live updates when viewing today's date. TimeBlocks are created at hour
+  boundaries by TimeBlockAggregator and used only by ReportGenerator for
+  daily/weekly/monthly reports. The menu bar shows a compact app breakdown
+  (top 5 apps by duration) from ActivityEvents of the last 2 hours,
+  also updated via debounced observation (5s).
 
 
 ================================================================================

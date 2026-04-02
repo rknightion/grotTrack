@@ -24,6 +24,17 @@ enum AppSortOrder: String, CaseIterable {
     case frequency = "Switches"
 }
 
+struct HourGroup: Identifiable {
+    let id: Int // hour 0-23
+    let hourStart: Date
+    let hourEnd: Date
+    let activities: [ActivityEvent]
+    let dominantApp: String
+    let dominantTitle: String
+    let multitaskingScore: Double
+    let totalDuration: TimeInterval
+}
+
 struct AppGroup: Identifiable {
     let id: String // appName
     let appName: String
@@ -39,7 +50,7 @@ struct CustomerGroup: Identifiable {
     let customerName: String
     let color: Color
     let totalHours: Double
-    let blocks: [TimeBlock]
+    let hourGroups: [HourGroup]
 }
 
 struct StatsData {
@@ -58,12 +69,12 @@ struct StatsData {
 @MainActor
 final class TimelineViewModel {
     var selectedDate: Date = Date()
-    var timeBlocks: [TimeBlock] = []
+    var activityEvents: [ActivityEvent] = []
     var isLoading: Bool = false
     var totalHoursTracked: Double = 0
     var topApp: String = ""
     var averageFocusScore: Double = 0
-    var expandedBlockIDs: Set<UUID> = []
+    var expandedHourIDs: Set<Int> = []
     var uniqueAppCount: Int = 0
 
     // View mode
@@ -71,11 +82,10 @@ final class TimelineViewModel {
     var appSortOrder: AppSortOrder = .duration
 
     private var screenshotCache: [UUID: String] = [:]
-    private let timeBlockAggregator = TimeBlockAggregator()
 
     // MARK: - Data Loading
 
-    func loadBlocks(for date: Date, context: ModelContext) {
+    func loadEvents(for date: Date, context: ModelContext) {
         isLoading = true
 
         let calendar = Calendar.current
@@ -85,70 +95,97 @@ final class TimelineViewModel {
             return
         }
 
-        let predicate = #Predicate<TimeBlock> {
-            $0.startTime >= startOfDay && $0.startTime < endOfDay
+        let predicate = #Predicate<ActivityEvent> {
+            $0.timestamp >= startOfDay && $0.timestamp < endOfDay
         }
-        let descriptor = FetchDescriptor<TimeBlock>(
+        let descriptor = FetchDescriptor<ActivityEvent>(
             predicate: predicate,
-            sortBy: [SortDescriptor(\.startTime)]
+            sortBy: [SortDescriptor(\.timestamp)]
         )
 
-        timeBlocks = (try? context.fetch(descriptor)) ?? []
+        activityEvents = (try? context.fetch(descriptor)) ?? []
         computeSummaryStats()
         screenshotCache.removeAll()
         isLoading = false
     }
 
-    func refreshCurrentHour(context: ModelContext) {
+    // MARK: - Hour Groups
+
+    var hourGroups: [HourGroup] {
         let calendar = Calendar.current
-        let now = Date()
-        guard let currentHourStart = calendar.date(
-            from: calendar.dateComponents([.year, .month, .day, .hour], from: now)
-        ) else { return }
-        let currentHourEnd = currentHourStart.addingTimeInterval(3600)
-
-        let predicate = #Predicate<TimeBlock> {
-            $0.startTime >= currentHourStart && $0.startTime < currentHourEnd
+        let grouped = Dictionary(grouping: activityEvents) { event in
+            calendar.component(.hour, from: event.timestamp)
         }
-        let descriptor = FetchDescriptor<TimeBlock>(predicate: predicate)
-        if let existing = try? context.fetch(descriptor) {
-            for block in existing {
-                context.delete(block)
+
+        let startOfDay = calendar.startOfDay(for: selectedDate)
+
+        return grouped.compactMap { hour, events in
+            guard let hourStart = calendar.date(byAdding: .hour, value: hour, to: startOfDay) else {
+                return nil
             }
-        }
+            let hourEnd = hourStart.addingTimeInterval(3600)
+            let sortedEvents = events.sorted { $0.timestamp < $1.timestamp }
 
-        _ = timeBlockAggregator.aggregateHour(for: currentHourStart, context: context)
-        loadBlocks(for: selectedDate, context: context)
+            // Compute dominant app
+            var durationByApp: [String: TimeInterval] = [:]
+            for event in events { durationByApp[event.appName, default: 0] += event.duration }
+            let dominant = durationByApp.max(by: { $0.value < $1.value })
+
+            // Compute dominant title within dominant app
+            var dominantTitle = ""
+            if let dominantApp = dominant?.key {
+                let dominantEvents = events.filter { $0.appName == dominantApp }
+                var titleDurations: [String: TimeInterval] = [:]
+                for event in dominantEvents { titleDurations[event.windowTitle, default: 0] += event.duration }
+                dominantTitle = titleDurations.max(by: { $0.value < $1.value })?.key ?? ""
+            }
+
+            let avgMultitasking = events.isEmpty ? 0.0 :
+                events.reduce(0.0) { $0 + $1.multitaskingScore } / Double(events.count)
+            let totalDuration = events.reduce(0.0) { $0 + $1.duration }
+
+            return HourGroup(
+                id: hour,
+                hourStart: hourStart,
+                hourEnd: hourEnd,
+                activities: sortedEvents,
+                dominantApp: dominant?.key ?? "",
+                dominantTitle: dominantTitle,
+                multitaskingScore: avgMultitasking,
+                totalDuration: totalDuration
+            )
+        }
+        .sorted { $0.id < $1.id }
     }
 
     // MARK: - Expand/Collapse
 
-    func toggleExpansion(for blockID: UUID) {
-        if expandedBlockIDs.contains(blockID) {
-            expandedBlockIDs.remove(blockID)
+    func toggleExpansion(for hourID: Int) {
+        if expandedHourIDs.contains(hourID) {
+            expandedHourIDs.remove(hourID)
         } else {
-            expandedBlockIDs.insert(blockID)
+            expandedHourIDs.insert(hourID)
         }
     }
 
-    func isExpanded(_ blockID: UUID) -> Bool {
-        expandedBlockIDs.contains(blockID)
+    func isExpanded(_ hourID: Int) -> Bool {
+        expandedHourIDs.contains(hourID)
     }
 
     func expandAll() {
-        for block in timeBlocks {
-            expandedBlockIDs.insert(block.id)
+        for group in hourGroups {
+            expandedHourIDs.insert(group.id)
         }
     }
 
     func collapseAll() {
-        expandedBlockIDs.removeAll()
+        expandedHourIDs.removeAll()
     }
 
-    // MARK: - App Breakdown (per block)
+    // MARK: - App Breakdown (per hour group)
 
-    func appBreakdown(for block: TimeBlock) -> [(appName: String, proportion: Double, color: Color)] {
-        let activities = block.activities
+    func appBreakdown(for group: HourGroup) -> [(appName: String, proportion: Double, color: Color)] {
+        let activities = group.activities
         guard !activities.isEmpty else { return [] }
 
         var durationByApp: [String: TimeInterval] = [:]
@@ -176,22 +213,20 @@ final class TimelineViewModel {
     // MARK: - App Groups (By App mode)
 
     var appGroups: [AppGroup] {
-        let allActivities = timeBlocks.flatMap(\.activities)
-        guard !allActivities.isEmpty else { return [] }
+        guard !activityEvents.isEmpty else { return [] }
 
         var grouped: [String: (bundleID: String, activities: [ActivityEvent], hourly: [Int: TimeInterval])] = [:]
 
         let calendar = Calendar.current
-        for activity in allActivities {
+        for activity in activityEvents {
             let hour = calendar.component(.hour, from: activity.timestamp)
-            if grouped[activity.appName] == nil {
-                grouped[activity.appName] = (bundleID: activity.bundleID, activities: [], hourly: [:])
-            }
-            grouped[activity.appName]!.activities.append(activity)
-            grouped[activity.appName]!.hourly[hour, default: 0] += activity.duration
+            var entry = grouped[activity.appName] ?? (bundleID: activity.bundleID, activities: [], hourly: [:])
+            entry.activities.append(activity)
+            entry.hourly[hour, default: 0] += activity.duration
+            grouped[activity.appName] = entry
         }
 
-        let totalDuration = allActivities.reduce(0.0) { $0 + $1.duration }
+        let totalDuration = activityEvents.reduce(0.0) { $0 + $1.duration }
 
         var groups = grouped.map { appName, data in
             let appTotal = data.activities.reduce(0.0) { $0 + $1.duration }
@@ -212,14 +247,13 @@ final class TimelineViewModel {
         case .alphabetical:
             groups.sort { $0.appName.localizedCaseInsensitiveCompare($1.appName) == .orderedAscending }
         case .recency:
-            groups.sort { a, b in
-                let aLatest = a.activities.map(\.timestamp).max() ?? .distantPast
-                let bLatest = b.activities.map(\.timestamp).max() ?? .distantPast
-                return aLatest > bLatest
+            groups.sort { first, second in
+                let firstLatest = first.activities.map(\.timestamp).max() ?? .distantPast
+                let secondLatest = second.activities.map(\.timestamp).max() ?? .distantPast
+                return firstLatest > secondLatest
             }
         case .frequency:
-            // Count app switches: transitions to this app
-            let allSorted = allActivities.sorted { $0.timestamp < $1.timestamp }
+            let allSorted = activityEvents.sorted { $0.timestamp < $1.timestamp }
             var switchCounts: [String: Int] = [:]
             var prevApp = ""
             for activity in allSorted {
@@ -237,36 +271,27 @@ final class TimelineViewModel {
     // MARK: - Customer Groups (By Customer mode)
 
     var customerGroups: [CustomerGroup] {
-        var grouped: [String: (color: Color, blocks: [TimeBlock])] = [:]
+        let groups = hourGroups
+        guard !groups.isEmpty else { return [] }
 
-        for block in timeBlocks {
-            let customerName = "Unclassified"
-            let color = Color.gray
-            if grouped[customerName] == nil {
-                grouped[customerName] = (color: color, blocks: [])
-            }
-            grouped[customerName]!.blocks.append(block)
-        }
+        // Currently all unclassified — customer mapping is a future feature
+        let totalHours = groups.reduce(0.0) { $0 + $1.totalDuration / 3600.0 }
 
-        return grouped.map { name, data in
-            let totalHours = data.blocks.reduce(0.0) { total, block in
-                total + block.endTime.timeIntervalSince(block.startTime) / 3600.0
-            }
-            return CustomerGroup(
-                id: name,
-                customerName: name,
-                color: data.color,
+        return [
+            CustomerGroup(
+                id: "Unclassified",
+                customerName: "Unclassified",
+                color: .gray,
                 totalHours: totalHours,
-                blocks: data.blocks.sorted { $0.startTime < $1.startTime }
+                hourGroups: groups.sorted { $0.id < $1.id }
             )
-        }
-        .sorted { $0.totalHours > $1.totalHours }
+        ]
     }
 
     // MARK: - Stats
 
     var statsData: StatsData {
-        let allActivities = timeBlocks.flatMap(\.activities).sorted { $0.timestamp < $1.timestamp }
+        let allActivities = activityEvents
         let totalActive = allActivities.reduce(0.0) { $0 + $1.duration }
 
         // App switch count
@@ -282,35 +307,26 @@ final class TimelineViewModel {
         // Unique apps
         let apps = Set(allActivities.map(\.appName))
 
-        // Hourly activity
+        // Hourly activity and focus from hour groups
         let calendar = Calendar.current
         var hourlyActivity: [Int: TimeInterval] = [:]
-        var hourlyFocus: [Int: (total: Double, count: Int)] = [:]
+        var hourlyFocusScores: [Int: Double] = [:]
 
-        for block in timeBlocks {
-            let hour = calendar.component(.hour, from: block.startTime)
-            let duration = block.endTime.timeIntervalSince(block.startTime)
-            hourlyActivity[hour, default: 0] += duration
-            let focus = 1.0 - block.multitaskingScore
-            if hourlyFocus[hour] == nil {
-                hourlyFocus[hour] = (total: focus, count: 1)
-            } else {
-                hourlyFocus[hour]!.total += focus
-                hourlyFocus[hour]!.count += 1
-            }
+        for group in hourGroups {
+            let hour = group.id
+            hourlyActivity[hour] = group.totalDuration
+            hourlyFocusScores[hour] = 1.0 - group.multitaskingScore
         }
-
-        let hourlyFocusScores = hourlyFocus.mapValues { $0.total / Double($0.count) }
 
         // Most productive hour (longest active time)
         let mostProductive = hourlyActivity.max(by: { $0.value < $1.value })?.key
 
         // Longest focus streak (consecutive hours with multitaskingScore < 0.2)
+        let hourGroupsByHour = Dictionary(uniqueKeysWithValues: hourGroups.map { ($0.id, $0) })
         var longestStreak = 0
         var currentStreak = 0
         for hour in 0..<24 {
-            if let block = timeBlocks.first(where: { calendar.component(.hour, from: $0.startTime) == hour }),
-               block.multitaskingScore < 0.2 {
+            if let group = hourGroupsByHour[hour], group.multitaskingScore < 0.2 {
                 currentStreak += 1
                 longestStreak = max(longestStreak, currentStreak)
             } else if hourlyActivity[hour] != nil {
@@ -370,7 +386,7 @@ final class TimelineViewModel {
     // MARK: - Private
 
     private func computeSummaryStats() {
-        guard !timeBlocks.isEmpty else {
+        guard !activityEvents.isEmpty else {
             totalHoursTracked = 0
             topApp = ""
             averageFocusScore = 0
@@ -378,20 +394,16 @@ final class TimelineViewModel {
             return
         }
 
-        totalHoursTracked = timeBlocks.reduce(0) { total, block in
-            total + block.endTime.timeIntervalSince(block.startTime) / 3600.0
-        }
+        totalHoursTracked = activityEvents.reduce(0.0) { $0 + $1.duration } / 3600.0
 
         var durationByApp: [String: TimeInterval] = [:]
-        for block in timeBlocks {
-            for activity in block.activities {
-                durationByApp[activity.appName, default: 0] += activity.duration
-            }
+        for activity in activityEvents {
+            durationByApp[activity.appName, default: 0] += activity.duration
         }
         topApp = durationByApp.max(by: { $0.value < $1.value })?.key ?? ""
         uniqueAppCount = durationByApp.count
 
-        let avgMultitasking = timeBlocks.reduce(0.0) { $0 + $1.multitaskingScore } / Double(timeBlocks.count)
+        let avgMultitasking = activityEvents.reduce(0.0) { $0 + $1.multitaskingScore } / Double(activityEvents.count)
         averageFocusScore = 1.0 - avgMultitasking
     }
 }

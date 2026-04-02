@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Combine
 
 struct TimelineView: View {
     @Environment(\.modelContext) private var context
@@ -40,10 +41,19 @@ struct TimelineView: View {
         }
         .frame(minWidth: 700, minHeight: 500)
         .onChange(of: viewModel.selectedDate) { _, newDate in
-            viewModel.loadBlocks(for: newDate, context: context)
+            viewModel.loadEvents(for: newDate, context: context)
         }
         .onAppear {
-            viewModel.loadBlocks(for: viewModel.selectedDate, context: context)
+            viewModel.loadEvents(for: viewModel.selectedDate, context: context)
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: .NSManagedObjectContextDidSave
+            )
+            .debounce(for: .seconds(2), scheduler: RunLoop.main)
+        ) { _ in
+            guard Calendar.current.isDateInToday(viewModel.selectedDate) else { return }
+            viewModel.loadEvents(for: viewModel.selectedDate, context: context)
         }
         .toolbar {
             ToolbarItemGroup {
@@ -71,15 +81,6 @@ struct TimelineView: View {
                     }
                     .pickerStyle(.menu)
                     .help("Sort apps by")
-                }
-
-                if Calendar.current.isDateInToday(viewModel.selectedDate) {
-                    Button {
-                        viewModel.refreshCurrentHour(context: context)
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .help("Refresh current hour")
                 }
             }
         }
@@ -179,14 +180,15 @@ struct TimelineView: View {
             ScrollView {
                 LazyVStack(spacing: 2) {
                     ForEach(0..<24, id: \.self) { hour in
-                        let block = blockForHour(hour)
+                        let group = hourGroupForHour(hour)
 
-                        if let block {
+                        if let group {
                             HourBlockView(
-                                timeBlock: block,
-                                isExpanded: viewModel.isExpanded(block.id),
-                                appBreakdown: viewModel.appBreakdown(for: block),
-                                onToggleExpand: { viewModel.toggleExpansion(for: block.id) }
+                                hourGroup: group,
+                                isExpanded: viewModel.isExpanded(group.id),
+                                appBreakdown: viewModel.appBreakdown(for: group),
+                                onToggleExpand: { viewModel.toggleExpansion(for: group.id) },
+                                viewModel: viewModel
                             )
                             .id(hour)
                             .background(
@@ -214,10 +216,8 @@ struct TimelineView: View {
 
     // MARK: - Helpers
 
-    private func blockForHour(_ hour: Int) -> TimeBlock? {
-        viewModel.timeBlocks.first {
-            Calendar.current.component(.hour, from: $0.startTime) == hour
-        }
+    private func hourGroupForHour(_ hour: Int) -> HourGroup? {
+        viewModel.hourGroups.first { $0.id == hour }
     }
 
     private func isCurrentHour(_ hour: Int) -> Bool {

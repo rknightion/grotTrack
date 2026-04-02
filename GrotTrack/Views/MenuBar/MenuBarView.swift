@@ -1,11 +1,12 @@
 import SwiftUI
 import SwiftData
+import Combine
 
 struct MenuBarView: View {
     @Bindable var coordinator: AppCoordinator
     @Environment(\.openWindow) private var openWindow
     @Environment(\.modelContext) private var context
-    @State private var recentBlocks: [TimeBlock] = []
+    @State private var recentAppBreakdown: [(appName: String, bundleID: String, duration: TimeInterval)] = []
 
     private var appState: AppState { coordinator.appState }
 
@@ -37,7 +38,7 @@ struct MenuBarView: View {
                     Circle()
                         .fill(focusLevelColor)
                         .frame(width: 6, height: 6)
-                    Text(appState.currentFocusLevel)
+                    Text("Multitasking: \(appState.currentFocusLevel)")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -66,31 +67,27 @@ struct MenuBarView: View {
                 }
             }
 
-            // Compact timeline preview
-            if appState.isTracking, !recentBlocks.isEmpty {
+            // Recent Activity breakdown
+            if appState.isTracking, !recentAppBreakdown.isEmpty {
                 Divider()
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Recent Activity")
+                    Text("Recent Activity (2h)")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
 
-                    HStack(spacing: 2) {
-                        ForEach(recentBlocks, id: \.id) { block in
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(TimelineViewModel.appColor(for: block.dominantApp))
-                                .frame(height: 8)
-                        }
-                    }
-                    .frame(height: 8)
-
-                    if let latestBlock = recentBlocks.last {
-                        HStack {
-                            Text(latestBlock.dominantApp)
+                    ForEach(recentAppBreakdown.prefix(5), id: \.appName) { entry in
+                        HStack(spacing: 6) {
+                            Image(nsImage: AppIconProvider.icon(forBundleID: entry.bundleID))
+                                .resizable()
+                                .frame(width: 14, height: 14)
+                            Text(entry.appName)
                                 .font(.caption)
+                                .lineLimit(1)
                             Spacer()
-                            Text(formatBlockDuration(latestBlock))
+                            Text(formatMinutes(entry.duration))
                                 .font(.caption)
+                                .monospacedDigit()
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -129,10 +126,19 @@ struct MenuBarView: View {
         }
         .padding()
         .onAppear {
-            loadRecentBlocks()
+            loadRecentActivity()
         }
         .onChange(of: appState.isTracking) { _, _ in
-            loadRecentBlocks()
+            loadRecentActivity()
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: .NSManagedObjectContextDidSave
+            )
+            .debounce(for: .seconds(5), scheduler: RunLoop.main)
+        ) { _ in
+            guard appState.isTracking else { return }
+            loadRecentActivity()
         }
     }
 
@@ -146,18 +152,35 @@ struct MenuBarView: View {
 
     // MARK: - Private
 
-    private func loadRecentBlocks() {
-        let fourHoursAgo = Date().addingTimeInterval(-4 * 3600)
-        let predicate = #Predicate<TimeBlock> { $0.startTime >= fourHoursAgo }
-        let descriptor = FetchDescriptor<TimeBlock>(
+    private func loadRecentActivity() {
+        let twoHoursAgo = Date().addingTimeInterval(-2 * 3600)
+        let predicate = #Predicate<ActivityEvent> { $0.timestamp >= twoHoursAgo }
+        let descriptor = FetchDescriptor<ActivityEvent>(
             predicate: predicate,
-            sortBy: [SortDescriptor(\.startTime)]
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
         )
-        recentBlocks = (try? context.fetch(descriptor)) ?? []
+
+        let events = (try? context.fetch(descriptor)) ?? []
+
+        var durationByApp: [String: (bundleID: String, duration: TimeInterval)] = [:]
+        for event in events {
+            var entry = durationByApp[event.appName] ?? (bundleID: event.bundleID, duration: 0)
+            entry.duration += event.duration
+            durationByApp[event.appName] = entry
+        }
+
+        recentAppBreakdown = durationByApp
+            .map { (appName: $0.key, bundleID: $0.value.bundleID, duration: $0.value.duration) }
+            .sorted { $0.duration > $1.duration }
     }
 
-    private func formatBlockDuration(_ block: TimeBlock) -> String {
-        let minutes = Int(block.endTime.timeIntervalSince(block.startTime) / 60)
-        return "\(minutes) min"
+    private func formatMinutes(_ seconds: TimeInterval) -> String {
+        let totalMinutes = Int(seconds) / 60
+        if totalMinutes >= 60 {
+            let hours = totalMinutes / 60
+            let mins = totalMinutes % 60
+            return mins > 0 ? "\(hours)h \(mins)m" : "\(hours)h"
+        }
+        return "\(max(totalMinutes, 1))m"
     }
 }

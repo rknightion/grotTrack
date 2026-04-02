@@ -9,7 +9,7 @@ final class TimeBlock {
     var dominantApp: String = ""
     var dominantTitle: String = ""
     var multitaskingScore: Double = 0.0
-    @Relationship(deleteRule: .cascade) var activities: [ActivityEvent] = []
+    @Relationship(deleteRule: .nullify) var activities: [ActivityEvent] = []
 
     init(startTime: Date, endTime: Date) {
         self.startTime = startTime

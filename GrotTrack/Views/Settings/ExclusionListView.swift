@@ -19,6 +19,7 @@ struct ExclusionListView: View {
     }
 
     var body: some View {
+        ScrollView {
         Form {
             Section("Excluded Apps") {
                 Text("Excluded apps will not be tracked by GrotTrack.")
@@ -96,6 +97,8 @@ struct ExclusionListView: View {
                     .disabled(manualBundleID.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
+        }
+        .formStyle(.grouped)
         }
         .padding()
         .onAppear { refreshRunningApps() }

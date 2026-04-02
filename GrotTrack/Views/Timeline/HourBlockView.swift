@@ -2,13 +2,13 @@ import SwiftUI
 import SwiftData
 
 struct HourBlockView: View {
-    let timeBlock: TimeBlock
+    let hourGroup: HourGroup
     let isExpanded: Bool
     let appBreakdown: [(appName: String, proportion: Double, color: Color)]
     var onToggleExpand: () -> Void
 
     @Environment(\.modelContext) private var context
-    @State private var viewModel = TimelineViewModel()
+    let viewModel: TimelineViewModel
     @State private var annotations: [Annotation] = []
 
     var body: some View {
@@ -26,7 +26,7 @@ struct HourBlockView: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
 
-                FocusIndicator(multitaskingScore: timeBlock.multitaskingScore, showLabel: true)
+                FocusIndicator(multitaskingScore: hourGroup.multitaskingScore, showLabel: true)
 
                 Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                     .font(.caption)
@@ -42,14 +42,14 @@ struct HourBlockView: View {
 
             // Info row: app icon + dominant app
             HStack(spacing: 6) {
-                let bundleID = timeBlock.activities
-                    .first { $0.appName == timeBlock.dominantApp }?.bundleID
+                let bundleID = hourGroup.activities
+                    .first { $0.appName == hourGroup.dominantApp }?.bundleID
 
                 Image(nsImage: AppIconProvider.icon(forBundleID: bundleID))
                     .resizable()
                     .frame(width: 16, height: 16)
 
-                Text(timeBlock.dominantApp)
+                Text(hourGroup.dominantApp)
                     .font(.subheadline)
                     .bold()
             }
@@ -66,7 +66,7 @@ struct HourBlockView: View {
                     .padding(.leading, 20)
                 }
 
-                ForEach(timeBlock.activities.sorted(by: { $0.timestamp < $1.timestamp }), id: \.id) { activity in
+                ForEach(hourGroup.activities, id: \.id) { activity in
                     expandedActivityRow(activity)
                 }
                 .padding(.leading, 20)
@@ -171,8 +171,8 @@ struct HourBlockView: View {
     // MARK: - Load Annotations
 
     private func loadAnnotations() {
-        let start = timeBlock.startTime
-        let end = timeBlock.endTime
+        let start = hourGroup.hourStart
+        let end = hourGroup.hourEnd
         let predicate = #Predicate<Annotation> {
             $0.timestamp >= start && $0.timestamp < end
         }
@@ -186,13 +186,13 @@ struct HourBlockView: View {
     // MARK: - Computed Properties
 
     private var hourRangeLabel: String {
-        let start = timeBlock.startTime.formatted(.dateTime.hour().minute())
-        let end = timeBlock.endTime.formatted(.dateTime.hour().minute())
+        let start = hourGroup.hourStart.formatted(.dateTime.hour().minute())
+        let end = hourGroup.hourEnd.formatted(.dateTime.hour().minute())
         return "\(start) – \(end)"
     }
 
     private var durationLabel: String {
-        let minutes = Int(timeBlock.endTime.timeIntervalSince(timeBlock.startTime) / 60)
+        let minutes = Int(hourGroup.totalDuration / 60)
         return "\(minutes) min"
     }
 
