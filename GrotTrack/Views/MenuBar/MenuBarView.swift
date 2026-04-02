@@ -101,11 +101,6 @@ struct MenuBarView: View {
                 NSApp.activate(ignoringOtherApps: true)
             }
 
-            Button("View Daily Report") {
-                openWindow(id: "report")
-                NSApp.activate(ignoringOtherApps: true)
-            }
-
             Button("View Weekly Report") {
                 openWindow(id: "weeklyReport")
                 NSApp.activate(ignoringOtherApps: true)

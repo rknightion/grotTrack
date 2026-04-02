@@ -55,7 +55,6 @@ final class AnnotationTests: XCTestCase {
             ActivityEvent.self,
             Screenshot.self,
             TimeBlock.self,
-            DailyReport.self,
             Annotation.self,
             WeeklyReport.self,
             MonthlyReport.self

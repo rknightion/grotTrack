@@ -346,7 +346,6 @@ struct GrotTrackApp: App {
             ActivityEvent.self,
             Screenshot.self,
             TimeBlock.self,
-            DailyReport.self,
             Annotation.self,
             WeeklyReport.self,
             MonthlyReport.self
@@ -398,12 +397,6 @@ struct GrotTrackApp: App {
         }
         .modelContainer(container)
         .defaultSize(width: 900, height: 700)
-
-        Window("Daily Report", id: "report") {
-            DailyReportView()
-        }
-        .modelContainer(container)
-        .defaultSize(width: 800, height: 600)
 
         Window("Weekly Report", id: "weeklyReport") {
             WeeklyReportView()

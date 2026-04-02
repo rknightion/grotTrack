@@ -12,7 +12,6 @@ final class ReportGeneratorTests: XCTestCase {
             ActivityEvent.self,
             Screenshot.self,
             TimeBlock.self,
-            DailyReport.self,
             Annotation.self,
             WeeklyReport.self,
             MonthlyReport.self

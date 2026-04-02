@@ -2,6 +2,11 @@ import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 
+enum ExportFormat: String, CaseIterable {
+    case json = "JSON"
+    case csv = "CSV"
+}
+
 enum ViewMode: String, CaseIterable {
     case timeline = "Timeline"
     case byApp = "By App"
