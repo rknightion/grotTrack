@@ -94,14 +94,24 @@ struct ScreenshotBrowserView: View {
 
             Spacer()
 
-            Text("\(viewModel.screenshots.count) screenshots")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if viewModel.searchText.isEmpty {
+                Text("\(viewModel.screenshots.count) screenshots")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("\(viewModel.filteredScreenshots.count) of \(viewModel.screenshots.count) screenshots")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             Button("Today") {
                 viewModel.selectedDate = Date()
             }
             .disabled(Calendar.current.isDateInToday(viewModel.selectedDate))
+
+            TextField("Search screenshots...", text: $viewModel.searchText)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 200)
         }
     }
 }

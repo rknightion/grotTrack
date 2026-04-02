@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ScreenshotViewerView: View {
     @Bindable var viewModel: ScreenshotBrowserViewModel
+    @State private var showOCR = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -11,7 +12,7 @@ struct ScreenshotViewerView: View {
             Divider()
 
             TimelineRailView(viewModel: viewModel)
-                .frame(width: 180)
+                .frame(width: 220)
         }
         .focusable()
         .onKeyPress(.leftArrow) {
@@ -48,6 +49,7 @@ struct ScreenshotViewerView: View {
 
             if let screenshot = viewModel.selectedScreenshot {
                 infoBar(for: screenshot)
+                enrichmentSection(for: screenshot)
             }
         }
     }
@@ -120,5 +122,79 @@ struct ScreenshotViewerView: View {
         .padding(.horizontal)
         .padding(.vertical, 8)
         .background(.ultraThinMaterial)
+    }
+
+    // MARK: - Enrichment Section
+
+    private func enrichmentSection(for screenshot: Screenshot) -> some View {
+        let ctx = viewModel.screenshotContext(for: screenshot)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            // Session label
+            if let label = ctx.sessionLabel {
+                HStack(spacing: 4) {
+                    Image(systemName: "tag")
+                        .foregroundStyle(.secondary)
+                    Text(label)
+                        .font(.caption)
+                        .bold()
+                }
+            }
+
+            // Entity chips
+            if !ctx.entities.isEmpty {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 4)], spacing: 4) {
+                    ForEach(Array(ctx.entities.prefix(10).enumerated()), id: \.offset) { _, entity in
+                        entityChip(entity)
+                    }
+                }
+            }
+
+            // OCR text (collapsible)
+            if let ocrText = ctx.ocrText, !ocrText.isEmpty {
+                DisclosureGroup("OCR Text", isExpanded: $showOCR) {
+                    ScrollView {
+                        Text(ocrText)
+                            .font(.caption2)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxHeight: 150)
+                }
+                .font(.caption)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 6)
+    }
+
+    private func entityChip(_ entity: ExtractedEntity) -> some View {
+        let (icon, color) = entityStyle(entity.type)
+        return HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.caption2)
+            Text(entity.value)
+                .font(.caption2)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(color.opacity(0.15), in: Capsule())
+        .foregroundStyle(color)
+    }
+
+    private func entityStyle(_ type: EntityType) -> (icon: String, color: Color) {
+        switch type {
+        case .url: ("link", .blue)
+        case .date: ("calendar", .orange)
+        case .phoneNumber: ("phone", .green)
+        case .address: ("mappin", .red)
+        case .personName: ("person", .purple)
+        case .organizationName: ("building.2", .indigo)
+        case .issueKey: ("ticket", .teal)
+        case .filePath: ("doc", .brown)
+        case .gitBranch: ("arrow.triangle.branch", .mint)
+        case .meetingLink: ("video", .pink)
+        }
     }
 }

@@ -20,6 +20,10 @@ struct ScreenshotContext {
     let windowTitle: String
     let browserTabTitle: String?
     let browserTabURL: String?
+    let ocrText: String?
+    let topLines: String?
+    let entities: [ExtractedEntity]
+    let sessionLabel: String?
 }
 
 @Observable
@@ -32,6 +36,9 @@ final class ScreenshotBrowserViewModel {
 
     var screenshots: [Screenshot] = []
     var activityEvents: [ActivityEvent] = []
+    var enrichments: [UUID: ScreenshotEnrichment] = [:]
+    var sessions: [ActivitySession] = []
+    var searchText: String = ""
     private var contextCache: [UUID: ScreenshotContext] = [:]
 
     // MARK: - Data Loading
@@ -59,6 +66,27 @@ final class ScreenshotBrowserViewModel {
         )
         activityEvents = (try? context.fetch(eventDescriptor)) ?? []
 
+        // Load enrichments for the day's screenshots
+        let enrichmentDescriptor = FetchDescriptor<ScreenshotEnrichment>(
+            sortBy: [SortDescriptor(\.timestamp)]
+        )
+        let allEnrichments = (try? context.fetch(enrichmentDescriptor)) ?? []
+        let screenshotIDs = Set(screenshots.map(\.id))
+        enrichments = [:]
+        for enrichment in allEnrichments where screenshotIDs.contains(enrichment.screenshotID) {
+            enrichments[enrichment.screenshotID] = enrichment
+        }
+
+        // Load sessions for the day
+        let sessionPredicate = #Predicate<ActivitySession> {
+            $0.startTime >= startOfDay && $0.startTime < endOfDay
+        }
+        let sessionDescriptor = FetchDescriptor<ActivitySession>(
+            predicate: sessionPredicate,
+            sortBy: [SortDescriptor(\.startTime)]
+        )
+        sessions = (try? context.fetch(sessionDescriptor)) ?? []
+
         buildContextCache()
         buildActivitySegments()
         clampSelectedIndex()
@@ -74,7 +102,11 @@ final class ScreenshotBrowserViewModel {
             bundleID: "",
             windowTitle: "",
             browserTabTitle: nil,
-            browserTabURL: nil
+            browserTabURL: nil,
+            ocrText: nil,
+            topLines: nil,
+            entities: [],
+            sessionLabel: nil
         )
     }
 
@@ -84,16 +116,27 @@ final class ScreenshotBrowserViewModel {
 
         for screenshot in screenshots {
             let nearest = findNearestEvent(to: screenshot.timestamp)
+            let enrichment = enrichments[screenshot.id]
+            let session = findSession(at: screenshot.timestamp)
+
             let ctx = ScreenshotContext(
                 screenshot: screenshot,
                 appName: nearest?.appName ?? "",
                 bundleID: nearest?.bundleID ?? "",
                 windowTitle: nearest?.windowTitle ?? "",
                 browserTabTitle: nearest?.browserTabTitle,
-                browserTabURL: nearest?.browserTabURL
+                browserTabURL: nearest?.browserTabURL,
+                ocrText: enrichment?.ocrText,
+                topLines: enrichment?.topLines,
+                entities: enrichment?.entities ?? [],
+                sessionLabel: session?.displayLabel
             )
             contextCache[screenshot.id] = ctx
         }
+    }
+
+    private func findSession(at date: Date) -> ActivitySession? {
+        sessions.first { $0.startTime <= date && $0.endTime >= date }
     }
 
     private func findNearestEvent(to date: Date) -> ActivityEvent? {
@@ -114,11 +157,27 @@ final class ScreenshotBrowserViewModel {
         return bestEvent
     }
 
+    // MARK: - Filtering
+
+    var filteredScreenshots: [Screenshot] {
+        guard !searchText.isEmpty else { return screenshots }
+        let query = searchText.lowercased()
+        return screenshots.filter { screenshot in
+            let ctx = screenshotContext(for: screenshot)
+            if ctx.appName.lowercased().contains(query) { return true }
+            if ctx.windowTitle.lowercased().contains(query) { return true }
+            if ctx.ocrText?.lowercased().contains(query) ?? false { return true }
+            if ctx.entities.contains(where: { $0.value.lowercased().contains(query) }) { return true }
+            if ctx.sessionLabel?.lowercased().contains(query) ?? false { return true }
+            return false
+        }
+    }
+
     // MARK: - Hour Grouping (for grid)
 
     var screenshotsByHour: [(hour: Int, screenshots: [Screenshot])] {
         let calendar = Calendar.current
-        let grouped = Dictionary(grouping: screenshots) { screenshot in
+        let grouped = Dictionary(grouping: filteredScreenshots) { screenshot in
             calendar.component(.hour, from: screenshot.timestamp)
         }
         return grouped
@@ -150,6 +209,30 @@ final class ScreenshotBrowserViewModel {
                 startTime: event.timestamp,
                 endTime: event.timestamp.addingTimeInterval(event.duration),
                 color: TimelineViewModel.appColor(for: event.appName)
+            )
+        }
+    }
+
+    // MARK: - Session Segments (for timeline rail)
+
+    struct SessionSegment: Identifiable {
+        let id: UUID
+        let label: String
+        let startTime: Date
+        let endTime: Date
+        let confidence: Double?
+        let color: Color
+    }
+
+    var sessionSegments: [SessionSegment] {
+        sessions.map { session in
+            SessionSegment(
+                id: session.id,
+                label: session.displayLabel,
+                startTime: session.startTime,
+                endTime: session.endTime,
+                confidence: session.confidence,
+                color: TimelineViewModel.appColor(for: session.dominantApp)
             )
         }
     }

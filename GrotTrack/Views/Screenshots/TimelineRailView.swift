@@ -10,10 +10,11 @@ struct TimelineRailView: View {
             ZStack(alignment: .topLeading) {
                 hourMarkers
                 activitySegmentOverlay
+                sessionSegmentOverlay
                 screenshotMarkers
                 dragOverlay
             }
-            .frame(width: 160, height: railHeight)
+            .frame(width: 220, height: railHeight)
         }
         .background(.ultraThinMaterial)
     }
@@ -52,6 +53,31 @@ struct TimelineRailView: View {
                 .frame(width: 14, height: segmentHeight)
                 .offset(x: 50, y: startY)
                 .help("\(segment.appName): \(segment.windowTitle)")
+        }
+    }
+
+    // MARK: - Session Segments
+
+    private var sessionSegmentOverlay: some View {
+        let range = dayRange
+        return ForEach(viewModel.sessionSegments) { segment in
+            let startY = yPosition(for: segment.startTime, range: range)
+            let endY = yPosition(for: segment.endTime, range: range)
+            let segmentHeight = max(8, endY - startY)
+            let opacity = segment.confidence ?? 0.5
+
+            RoundedRectangle(cornerRadius: 3)
+                .fill(segment.color.opacity(0.3 + opacity * 0.5))
+                .frame(width: 60, height: segmentHeight)
+                .overlay(alignment: .leading) {
+                    Text(segment.label)
+                        .font(.system(size: 8))
+                        .lineLimit(1)
+                        .padding(.leading, 3)
+                        .foregroundStyle(.primary.opacity(0.8))
+                }
+                .offset(x: 80, y: startY)
+                .help(segment.label)
         }
     }
 
