@@ -11,7 +11,6 @@ enum ExportFormat: String, CaseIterable {
 @MainActor
 final class ReportViewModel {
     var selectedDate: Date = Date()
-    var report: DailyReport?
     var isGenerating: Bool = false
     var generationError: String?
     var decodedAllocations: [AppAllocation] = []
@@ -19,13 +18,16 @@ final class ReportViewModel {
     var selectedHour: Int?
     var hourScreenshots: [Screenshot] = []
     var selectedScreenshot: Screenshot?
+    var totalHoursTracked: Double = 0
+    var generatedAt: Date = Date()
+    var summary: String = ""
 
     private let reportGenerator = ReportGenerator()
 
     // MARK: - Computed Properties
 
     var totalHours: Double {
-        report?.totalHoursTracked ?? 0
+        totalHoursTracked
     }
 
     var appCount: Int {
@@ -42,21 +44,9 @@ final class ReportViewModel {
 
     func loadReport(for date: Date, context: ModelContext) {
         selectedDate = date
-
-        // Query existing DailyReport for the date
-        let calendar = Calendar.current
-        let startOfDay = calendar.startOfDay(for: date)
-        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else { return }
-
-        let predicate = #Predicate<DailyReport> {
-            $0.date >= startOfDay && $0.date < endOfDay
-        }
-        var descriptor = FetchDescriptor<DailyReport>(predicate: predicate)
-        descriptor.fetchLimit = 1
-
-        report = try? context.fetch(descriptor).first
-        decodeAllocations()
         loadTimeBlocks(for: date, context: context)
+        decodedAllocations = reportGenerator.aggregateAllocations(blocks: timeBlocks)
+        totalHoursTracked = timeBlocks.reduce(0.0) { $0 + $1.endTime.timeIntervalSince($1.startTime) / 3600.0 }
     }
 
     // MARK: - Generate Report
@@ -65,15 +55,12 @@ final class ReportViewModel {
         isGenerating = true
         generationError = nil
 
-        do {
-            let generatedReport = try reportGenerator.generateDailyReport(date: date, context: context)
-            report = generatedReport
-            selectedDate = date
-            decodeAllocations()
-            loadTimeBlocks(for: date, context: context)
-        } catch {
-            generationError = error.localizedDescription
-        }
+        loadTimeBlocks(for: date, context: context)
+        decodedAllocations = reportGenerator.aggregateAllocations(blocks: timeBlocks)
+        totalHoursTracked = timeBlocks.reduce(0.0) { $0 + $1.endTime.timeIntervalSince($1.startTime) / 3600.0 }
+        generatedAt = Date()
+        summary = buildLocalSummary(blocks: timeBlocks, allocations: decodedAllocations)
+        selectedDate = date
 
         isGenerating = false
     }
@@ -105,18 +92,19 @@ final class ReportViewModel {
     // MARK: - Export
 
     func exportReport(format: ExportFormat) {
-        guard let report else { return }
+        guard !decodedAllocations.isEmpty || !timeBlocks.isEmpty else { return }
 
         let panel = NSSavePanel()
         panel.canCreateDirectories = true
 
+        let dateStr = formattedDate(selectedDate)
         switch format {
         case .json:
             panel.allowedContentTypes = [.json]
-            panel.nameFieldStringValue = "report_\(formattedDate(report.date)).json"
+            panel.nameFieldStringValue = "report_\(dateStr).json"
         case .csv:
             panel.allowedContentTypes = [.commaSeparatedText]
-            panel.nameFieldStringValue = "report_\(formattedDate(report.date)).csv"
+            panel.nameFieldStringValue = "report_\(dateStr).csv"
         }
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -124,9 +112,9 @@ final class ReportViewModel {
         let content: String
         switch format {
         case .json:
-            content = buildJSONExport(report)
+            content = buildJSONExport()
         case .csv:
-            content = buildCSVExport(report)
+            content = buildCSVExport()
         }
 
         try? content.write(to: url, atomically: true, encoding: .utf8)
@@ -142,20 +130,6 @@ final class ReportViewModel {
     }
 
     // MARK: - Private Helpers
-
-    private func decodeAllocations() {
-        guard let report, !report.appAllocationsJSON.isEmpty else {
-            decodedAllocations = []
-            return
-        }
-
-        guard let data = report.appAllocationsJSON.data(using: .utf8) else {
-            decodedAllocations = []
-            return
-        }
-
-        decodedAllocations = (try? JSONDecoder().decode([AppAllocation].self, from: data)) ?? []
-    }
 
     private func loadTimeBlocks(for date: Date, context: ModelContext) {
         let calendar = Calendar.current
@@ -176,11 +150,40 @@ final class ReportViewModel {
         timeBlocks = (try? context.fetch(descriptor)) ?? []
     }
 
-    private func buildJSONExport(_ report: DailyReport) -> String {
+    private func buildLocalSummary(blocks: [TimeBlock], allocations: [AppAllocation]) -> String {
+        guard !allocations.isEmpty else {
+            return "No tracked activity for this day."
+        }
+
+        let totalHours = allocations.reduce(0.0) { $0 + $1.hours }
+        let appCount = allocations.count
+
+        let topApps = allocations.prefix(3).map { alloc in
+            "\(alloc.appName): \(String(format: "%.1f", alloc.hours))h (\(String(format: "%.0f", alloc.percentage))%)"
+        }
+
+        let avgMultitasking = blocks.isEmpty ? 0.0 :
+            blocks.reduce(0.0) { $0 + $1.multitaskingScore } / Double(blocks.count)
+        let focusScore = Int((1.0 - avgMultitasking) * 100)
+
+        var result = "Tracked \(String(format: "%.1f", totalHours)) hours across \(appCount) app\(appCount == 1 ? "" : "s"). "
+        result += topApps.joined(separator: "; ") + "."
+
+        if focusScore >= 80 {
+            result += " High focus day (\(focusScore)% focus score)."
+        } else if focusScore <= 50 {
+            result += " Heavy multitasking day (\(focusScore)% focus score)."
+        } else {
+            result += " Moderate focus (\(focusScore)% focus score)."
+        }
+
+        return result
+    }
+
+    private func buildJSONExport() -> String {
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [.withInternetDateTime]
 
-        // Build hour blocks array
         var hourBlockEntries: [[String: Any]] = []
         for block in timeBlocks {
             let activities: [[String: Any]] = block.activities.map { activity in
@@ -210,12 +213,11 @@ final class ReportViewModel {
             hourBlockEntries.append(blockEntry)
         }
 
-        // Build the top-level dictionary
         let exportDict: [String: Any] = [
-            "date": formattedDate(report.date),
-            "totalHoursTracked": report.totalHoursTracked,
-            "generatedAt": isoFormatter.string(from: report.generatedAt),
-            "summary": report.summary,
+            "date": formattedDate(selectedDate),
+            "totalHoursTracked": totalHoursTracked,
+            "generatedAt": isoFormatter.string(from: generatedAt),
+            "summary": summary,
             "allocations": decodedAllocations.map { alloc in
                 [
                     "appName": alloc.appName,
@@ -237,7 +239,7 @@ final class ReportViewModel {
         return String(data: jsonData, encoding: .utf8) ?? "{}"
     }
 
-    private func buildCSVExport(_ report: DailyReport) -> String {
+    private func buildCSVExport() -> String {
         let calendar = Calendar.current
 
         var rows: [String] = ["Hour,App,Hours,Description,FocusScore"]
@@ -253,7 +255,6 @@ final class ReportViewModel {
             let focusScore = 1.0 - block.multitaskingScore
             let focusPercent = "\(Int(focusScore * 100))%"
 
-            // Escape CSV fields that may contain commas or quotes
             let description = csvEscape(block.dominantApp + " - " + block.dominantTitle)
             let appEscaped = csvEscape(app)
 

@@ -1,36 +1,16 @@
 import SwiftData
 import Foundation
 
+/// Lightweight struct replacing DailyReport for internal aggregation.
+struct DailyMetrics {
+    let date: Date
+    let totalHoursTracked: Double
+    let allocations: [AppAllocation]
+}
+
 @Observable
 @MainActor
 final class ReportGenerator {
-
-    // MARK: - Main Entry Point
-
-    func generateDailyReport(date: Date, context: ModelContext) throws -> DailyReport {
-        // 1. Query all TimeBlocks for the given date
-        let blocks = fetchTimeBlocks(for: date, context: context)
-
-        // 2. Aggregate app allocations across all blocks
-        let allocations = aggregateAllocations(blocks: blocks)
-
-        // 3. Build a local summary from the data
-        let summary = buildLocalSummary(blocks: blocks, allocations: allocations)
-
-        // 4. Create or update the DailyReport (upsert)
-        let report = findOrCreateReport(for: date, context: context)
-        report.totalHoursTracked = blocks.reduce(0.0) { total, block in
-            total + block.endTime.timeIntervalSince(block.startTime) / 3600.0
-        }
-        report.appAllocationsJSON = encodeAllocations(allocations)
-        report.summary = summary
-        report.generatedAt = Date()
-
-        // 5. Save context
-        try context.save()
-
-        return report
-    }
 
     // MARK: - Fetch TimeBlocks
 
@@ -79,30 +59,6 @@ final class ReportGenerator {
         .sorted { $0.hours > $1.hours }
     }
 
-    // MARK: - Find or Create Report
-
-    func findOrCreateReport(for date: Date, context: ModelContext) -> DailyReport {
-        let calendar = Calendar.current
-        let startOfDay = calendar.startOfDay(for: date)
-        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
-            return DailyReport(date: startOfDay)
-        }
-
-        let predicate = #Predicate<DailyReport> {
-            $0.date >= startOfDay && $0.date < endOfDay
-        }
-        var descriptor = FetchDescriptor<DailyReport>(predicate: predicate)
-        descriptor.fetchLimit = 1
-
-        if let existing = try? context.fetch(descriptor).first {
-            return existing
-        }
-
-        let report = DailyReport(date: startOfDay)
-        context.insert(report)
-        return report
-    }
-
     // MARK: - JSON Encoding
 
     func encodeAllocations(_ allocations: [AppAllocation]) -> String {
@@ -115,84 +71,56 @@ final class ReportGenerator {
         return json
     }
 
-    // MARK: - Local Summary
-
-    private func buildLocalSummary(blocks: [TimeBlock], allocations: [AppAllocation]) -> String {
-        guard !allocations.isEmpty else {
-            return "No tracked activity for this day."
-        }
-
-        let totalHours = allocations.reduce(0.0) { $0 + $1.hours }
-        let appCount = allocations.count
-
-        // Top apps summary
-        let topApps = allocations.prefix(3).map { alloc in
-            "\(alloc.appName): \(String(format: "%.1f", alloc.hours))h (\(String(format: "%.0f", alloc.percentage))%)"
-        }
-
-        // Focus score
-        let avgMultitasking = blocks.isEmpty ? 0.0 :
-            blocks.reduce(0.0) { $0 + $1.multitaskingScore } / Double(blocks.count)
-        let focusScore = Int((1.0 - avgMultitasking) * 100)
-
-        var summary = "Tracked \(String(format: "%.1f", totalHours)) hours across \(appCount) app\(appCount == 1 ? "" : "s"). "
-        summary += topApps.joined(separator: "; ") + "."
-
-        if focusScore >= 80 {
-            summary += " High focus day (\(focusScore)% focus score)."
-        } else if focusScore <= 50 {
-            summary += " Heavy multitasking day (\(focusScore)% focus score)."
-        } else {
-            summary += " Moderate focus (\(focusScore)% focus score)."
-        }
-
-        return summary
-    }
-
-    // MARK: - Collect Daily Reports for Date Range
+    // MARK: - Collect Daily Data (for trend reports)
 
     private func collectDailyData(
         from startDate: Date,
         through endDate: Date,
         context: ModelContext
-    ) throws -> (dailyReports: [DailyReport], allBlocks: [TimeBlock]) {
+    ) -> (dailyMetrics: [DailyMetrics], allBlocks: [TimeBlock]) {
         let calendar = Calendar.current
-        var dailyReports: [DailyReport] = []
+        var dailyMetrics: [DailyMetrics] = []
         var allBlocks: [TimeBlock] = []
 
         var currentDay = startDate
         while currentDay <= endDate {
-            let daily = try generateDailyReport(date: currentDay, context: context)
-            dailyReports.append(daily)
-            allBlocks.append(contentsOf: fetchTimeBlocks(for: currentDay, context: context))
+            let blocks = fetchTimeBlocks(for: currentDay, context: context)
+            allBlocks.append(contentsOf: blocks)
+
+            let allocations = aggregateAllocations(blocks: blocks)
+            let totalHours = blocks.reduce(0.0) { total, block in
+                total + block.endTime.timeIntervalSince(block.startTime) / 3600.0
+            }
+
+            dailyMetrics.append(DailyMetrics(
+                date: calendar.startOfDay(for: currentDay),
+                totalHoursTracked: totalHours,
+                allocations: allocations
+            ))
+
             guard let nextDay = calendar.date(byAdding: .day, value: 1, to: currentDay) else { break }
             currentDay = nextDay
         }
-        return (dailyReports, allBlocks)
+        return (dailyMetrics, allBlocks)
     }
 
     // MARK: - Per-Day Focus Scores & App Hours
 
     private func buildDailyMetrics(
-        from dailyReports: [DailyReport],
+        from dailyMetrics: [DailyMetrics],
         context: ModelContext
     ) -> (focusPoints: [DailyFocusPoint], appHoursPerDay: [DailyAppHours]) {
-        let decoder = JSONDecoder()
         var focusPoints: [DailyFocusPoint] = []
         var appHoursPerDay: [DailyAppHours] = []
 
-        for daily in dailyReports {
+        for daily in dailyMetrics {
             let dayBlocks = fetchTimeBlocks(for: daily.date, context: context)
             let avgMultitasking = dayBlocks.isEmpty ? 0.0 :
                 dayBlocks.reduce(0.0) { $0 + $1.multitaskingScore } / Double(dayBlocks.count)
             focusPoints.append(DailyFocusPoint(date: daily.date, focusScore: 1.0 - avgMultitasking))
 
-            let dayAllocations = (try? decoder.decode(
-                [AppAllocation].self,
-                from: Data(daily.appAllocationsJSON.utf8)
-            )) ?? []
             var appHours: [String: Double] = [:]
-            for alloc in dayAllocations {
+            for alloc in daily.allocations {
                 appHours[alloc.appName] = alloc.hours
             }
             appHoursPerDay.append(DailyAppHours(date: daily.date, appHours: appHours))
@@ -217,17 +145,17 @@ final class ReportGenerator {
         }
         let lastDay = min(sunday, today)
 
-        let (dailyReports, allBlocks) = try collectDailyData(from: monday, through: lastDay, context: context)
+        let (dailyMetrics, allBlocks) = collectDailyData(from: monday, through: lastDay, context: context)
 
-        report.totalHoursTracked = dailyReports.reduce(0.0) { $0 + $1.totalHoursTracked }
+        report.totalHoursTracked = dailyMetrics.reduce(0.0) { $0 + $1.totalHoursTracked }
         let mergedAllocations = aggregateAllocations(blocks: allBlocks)
         report.appAllocationsJSON = encodeAllocations(mergedAllocations)
 
-        let (focusPoints, appHoursPerDay) = buildDailyMetrics(from: dailyReports, context: context)
+        let (focusPoints, appHoursPerDay) = buildDailyMetrics(from: dailyMetrics, context: context)
         report.dailyFocusScoresJSON = encodeDailyFocusScores(focusPoints)
         report.dailyAppHoursJSON = encodeDailyAppHours(appHoursPerDay)
         report.summary = buildWeeklySummary(
-            dailyReports: dailyReports,
+            dailyMetrics: dailyMetrics,
             blocks: allBlocks,
             allocations: mergedAllocations
         )
@@ -255,22 +183,21 @@ final class ReportGenerator {
         let lastDayOfMonth = calendar.date(byAdding: .day, value: -1, to: nextMonth) ?? monthStart
         let lastDay = min(lastDayOfMonth, today)
 
-        let (dailyReports, allBlocks) = try collectDailyData(from: monthStart, through: lastDay, context: context)
+        let (dailyMetrics, allBlocks) = collectDailyData(from: monthStart, through: lastDay, context: context)
 
-        report.totalHoursTracked = dailyReports.reduce(0.0) { $0 + $1.totalHoursTracked }
+        report.totalHoursTracked = dailyMetrics.reduce(0.0) { $0 + $1.totalHoursTracked }
         let mergedAllocations = aggregateAllocations(blocks: allBlocks)
         report.appAllocationsJSON = encodeAllocations(mergedAllocations)
 
-        let (focusPoints, appHoursPerDay) = buildDailyMetrics(from: dailyReports, context: context)
+        let (focusPoints, appHoursPerDay) = buildDailyMetrics(from: dailyMetrics, context: context)
         report.dailyFocusScoresJSON = encodeDailyFocusScores(focusPoints)
         report.dailyAppHoursJSON = encodeDailyAppHours(appHoursPerDay)
 
-        // Weekly breakdowns
         report.weeklyBreakdownJSON = encodeWeeklyBreakdowns(
-            buildWeeklyBreakdowns(dailyReports: dailyReports, focusPoints: focusPoints)
+            buildWeeklyBreakdowns(dailyMetrics: dailyMetrics, focusPoints: focusPoints)
         )
         report.summary = buildMonthlySummary(
-            dailyReports: dailyReports,
+            dailyMetrics: dailyMetrics,
             blocks: allBlocks,
             allocations: mergedAllocations
         )
@@ -283,13 +210,13 @@ final class ReportGenerator {
     // MARK: - Weekly Breakdowns (for Monthly Report)
 
     private func buildWeeklyBreakdowns(
-        dailyReports: [DailyReport],
+        dailyMetrics: [DailyMetrics],
         focusPoints: [DailyFocusPoint]
     ) -> [WeeklyBreakdown] {
         let calendar = Calendar.current
         var weekBucket: [Date: (hours: Double, focusScores: [Double])] = [:]
 
-        for (index, daily) in dailyReports.enumerated() {
+        for (index, daily) in dailyMetrics.enumerated() {
             let weekComponents = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: daily.date)
             let weekStart = calendar.date(from: weekComponents) ?? daily.date
             var bucket = weekBucket[weekStart] ?? (hours: 0.0, focusScores: [])
@@ -390,7 +317,7 @@ final class ReportGenerator {
     // MARK: - Weekly / Monthly Summaries
 
     private func buildWeeklySummary(
-        dailyReports: [DailyReport],
+        dailyMetrics: [DailyMetrics],
         blocks: [TimeBlock],
         allocations: [AppAllocation]
     ) -> String {
@@ -399,7 +326,7 @@ final class ReportGenerator {
         }
 
         let totalHours = allocations.reduce(0.0) { $0 + $1.hours }
-        let daysTracked = dailyReports.filter { $0.totalHoursTracked > 0 }.count
+        let daysTracked = dailyMetrics.filter { $0.totalHoursTracked > 0 }.count
         let appCount = allocations.count
 
         let topApps = allocations.prefix(3).map { alloc in
@@ -419,7 +346,7 @@ final class ReportGenerator {
     }
 
     private func buildMonthlySummary(
-        dailyReports: [DailyReport],
+        dailyMetrics: [DailyMetrics],
         blocks: [TimeBlock],
         allocations: [AppAllocation]
     ) -> String {
@@ -428,7 +355,7 @@ final class ReportGenerator {
         }
 
         let totalHours = allocations.reduce(0.0) { $0 + $1.hours }
-        let daysTracked = dailyReports.filter { $0.totalHoursTracked > 0 }.count
+        let daysTracked = dailyMetrics.filter { $0.totalHoursTracked > 0 }.count
         let appCount = allocations.count
 
         let topApps = allocations.prefix(3).map { alloc in

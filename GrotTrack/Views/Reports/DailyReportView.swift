@@ -39,7 +39,7 @@ struct DailyReportView: View {
                     Button("Export as JSON") { viewModel.exportReport(format: .json) }
                     Button("Export as CSV") { viewModel.exportReport(format: .csv) }
                 }
-                .disabled(viewModel.report == nil)
+                .disabled(viewModel.decodedAllocations.isEmpty && viewModel.timeBlocks.isEmpty)
             }
         }
     }
@@ -110,17 +110,17 @@ struct DailyReportView: View {
     private var reportContent: some View {
         if viewModel.isGenerating {
             Spacer()
-            ProgressView("Generating AI report...")
+            ProgressView("Generating report...")
             Spacer()
-        } else if let report = viewModel.report {
+        } else if !viewModel.timeBlocks.isEmpty || !viewModel.decodedAllocations.isEmpty {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     // Summary
-                    if !report.summary.isEmpty {
+                    if !viewModel.summary.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Summary")
                                 .font(.headline)
-                            Text(report.summary)
+                            Text(viewModel.summary)
                                 .padding()
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
