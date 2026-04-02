@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.9.0](https://github.com/rknightion/grotTrack/compare/v0.8.0...v0.9.0) (2026-04-02)
+
+
+### Features
+
+* **ui:** increase screenshot browser default size to 1800×1100 ([a31b825](https://github.com/rknightion/grotTrack/commit/a31b8255b6f1fca10207e327b66004bb50bbc423))
+* **ui:** make timeline rail full-height via GeometryReader, widen to 280pt ([ba68af4](https://github.com/rknightion/grotTrack/commit/ba68af41b92d62aa7c7cdff9471205070f9bcbc0))
+* **ui:** redesign grid tab with Photos-style edge-to-edge thumbnails ([4ebe4cf](https://github.com/rknightion/grotTrack/commit/4ebe4cf06ae584b4fce3d288cb381310623b7816))
+* **ui:** scrollable context panel and Up/Down/Space keyboard navigation ([ff46509](https://github.com/rknightion/grotTrack/commit/ff46509af22a18053db0ed0aa549729066cd8a37))
+
+
+### Documentation
+
+* add screenshot browser v2 enhancement design spec ([265876d](https://github.com/rknightion/grotTrack/commit/265876d67ffbe60ffee1506cd03c16c59f2f7d9f))
+* add screenshot browser v2 implementation plan ([261c0c0](https://github.com/rknightion/grotTrack/commit/261c0c06da7fb73d8acca133ff2aa07072b805e9))
+
+
+### Refactoring
+
+* **ui:** extract shared entityStyle, fix lint warnings, cache DateFormatter ([c58eead](https://github.com/rknightion/grotTrack/commit/c58eeadcea32defefd6863ddf7957c5dafeb87d3))
+
 ## [0.8.0](https://github.com/rknightion/grotTrack/compare/v0.7.0...v0.8.0) (2026-04-02)
 
 
