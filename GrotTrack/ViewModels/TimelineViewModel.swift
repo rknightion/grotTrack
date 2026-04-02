@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 enum ViewMode: String, CaseIterable {
     case timeline = "Timeline"
@@ -351,6 +352,121 @@ final class TimelineViewModel {
             return screenshot.thumbnailPath
         }
         return nil
+    }
+
+    // MARK: - Export
+
+    func exportReport(format: ExportFormat) {
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+
+        let dateStr = formattedDate(selectedDate)
+        switch format {
+        case .json:
+            panel.allowedContentTypes = [.json]
+            panel.nameFieldStringValue = "activity_\(dateStr).json"
+        case .csv:
+            panel.allowedContentTypes = [.commaSeparatedText]
+            panel.nameFieldStringValue = "activity_\(dateStr).csv"
+        }
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        let content: String
+        switch format {
+        case .json:
+            content = buildJSONExport()
+        case .csv:
+            content = buildCSVExport()
+        }
+
+        try? content.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private func buildJSONExport() -> String {
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime]
+
+        let hourBlockEntries: [[String: Any]] = hourGroups.map { group in
+            let activities: [[String: Any]] = group.activities.map { activity in
+                var entry: [String: Any] = [
+                    "appName": activity.appName,
+                    "windowTitle": activity.windowTitle,
+                    "duration": activity.duration
+                ]
+                if let browserTitle = activity.browserTabTitle {
+                    entry["browserTabTitle"] = browserTitle
+                }
+                if let browserURL = activity.browserTabURL {
+                    entry["browserTabURL"] = browserURL
+                }
+                return entry
+            }
+
+            let focusScore = 1.0 - group.multitaskingScore
+            return [
+                "startTime": isoFormatter.string(from: group.hourStart),
+                "endTime": isoFormatter.string(from: group.hourEnd),
+                "dominantApp": group.dominantApp,
+                "focusScore": (focusScore * 100).rounded() / 100,
+                "activities": activities
+            ] as [String: Any]
+        }
+
+        let exportDict: [String: Any] = [
+            "date": formattedDate(selectedDate),
+            "totalHoursTracked": totalHoursTracked,
+            "topApp": topApp,
+            "focusScore": averageFocusScore,
+            "uniqueAppCount": uniqueAppCount,
+            "hourBlocks": hourBlockEntries
+        ]
+
+        guard let jsonData = try? JSONSerialization.data(
+            withJSONObject: exportDict,
+            options: [.prettyPrinted, .sortedKeys]
+        ) else {
+            return "{}"
+        }
+
+        return String(data: jsonData, encoding: .utf8) ?? "{}"
+    }
+
+    private func buildCSVExport() -> String {
+        var rows: [String] = ["Hour,App,WindowTitle,Duration,BrowserTab,FocusScore"]
+
+        for group in hourGroups {
+            let hour = group.id
+            let startStr = String(format: "%02d:00", hour)
+            let endStr = String(format: "%02d:00", hour + 1)
+            let hourRange = "\(startStr)-\(endStr)"
+            let focusScore = "\(Int((1.0 - group.multitaskingScore) * 100))%"
+
+            for activity in group.activities {
+                let app = csvEscape(activity.appName)
+                let title = csvEscape(activity.windowTitle)
+                let duration = String(format: "%.0f", activity.duration)
+                let browser = csvEscape(activity.browserTabTitle ?? "")
+
+                rows.append("\(hourRange),\(app),\(title),\(duration),\(browser),\(focusScore)")
+            }
+        }
+
+        return rows.joined(separator: "\n")
+    }
+
+    private func csvEscape(_ value: String) -> String {
+        if value.contains(",") || value.contains("\"") || value.contains("\n") {
+            let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
+            return "\"\(escaped)\""
+        }
+        return value
+    }
+
+    private func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
 
     // MARK: - Private

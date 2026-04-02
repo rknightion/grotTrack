@@ -82,6 +82,12 @@ struct TimelineView: View {
                     .pickerStyle(.menu)
                     .help("Sort apps by")
                 }
+
+                Menu("Export") {
+                    Button("Export as JSON") { viewModel.exportReport(format: .json) }
+                    Button("Export as CSV") { viewModel.exportReport(format: .csv) }
+                }
+                .disabled(viewModel.activityEvents.isEmpty)
             }
         }
     }
