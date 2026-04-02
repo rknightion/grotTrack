@@ -23,8 +23,8 @@ enum ScreenshotError: Error, LocalizedError {
 final class ScreenshotManager {
     private var captureTimer: Timer?
     var screenshotInterval: TimeInterval = 30.0
-    var maxDimension: CGFloat = 1280.0
-    var imageQuality: CGFloat = 0.8
+    var maxDimension: CGFloat = 2560.0
+    var imageQuality: CGFloat = 0.85
     var thumbnailWidth: CGFloat = 320.0
 
     var lastCaptureDate: Date?
@@ -116,6 +116,8 @@ final class ScreenshotManager {
         isCurrentlyCapturing = true
         defer { isCurrentlyCapturing = false }
 
+        let scaleFactor = Int(NSScreen.main?.backingScaleFactor ?? 2.0)
+
         let image: CGImage = try await Task.detached {
             let content = try await SCShareableContent.current
             guard let display = content.displays.first else {
@@ -124,8 +126,8 @@ final class ScreenshotManager {
 
             let filter = SCContentFilter(display: display, excludingWindows: [])
             let config = SCStreamConfiguration()
-            config.width = display.width
-            config.height = display.height
+            config.width = display.width * scaleFactor
+            config.height = display.height * scaleFactor
             config.pixelFormat = kCVPixelFormatType_32BGRA
 
             return try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)

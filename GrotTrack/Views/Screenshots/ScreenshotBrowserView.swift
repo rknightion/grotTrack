@@ -109,6 +109,13 @@ struct ScreenshotBrowserView: View {
             }
             .disabled(Calendar.current.isDateInToday(viewModel.selectedDate))
 
+            Button {
+                NSWorkspace.shared.open(viewModel.screenshotsDir)
+            } label: {
+                Image(systemName: "folder")
+            }
+            .help("Open screenshots folder in Finder")
+
             TextField("Search screenshots...", text: $viewModel.searchText)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 200)

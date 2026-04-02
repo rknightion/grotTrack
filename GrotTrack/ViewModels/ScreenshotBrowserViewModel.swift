@@ -274,6 +274,10 @@ final class ScreenshotBrowserViewModel {
         .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("GrotTrack")
 
+    var screenshotsDir: URL {
+        Self.appSupportURL.appendingPathComponent("Screenshots")
+    }
+
     func thumbnailURL(for screenshot: Screenshot) -> URL {
         Self.appSupportURL.appendingPathComponent("Thumbnails").appendingPathComponent(screenshot.thumbnailPath)
     }

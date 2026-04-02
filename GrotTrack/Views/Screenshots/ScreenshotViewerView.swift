@@ -3,6 +3,7 @@ import SwiftUI
 struct ScreenshotViewerView: View {
     @Bindable var viewModel: ScreenshotBrowserViewModel
     @State private var showOCR = false
+    @State private var showActualSize = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -29,23 +30,84 @@ struct ScreenshotViewerView: View {
 
     private var imagePanel: some View {
         VStack(spacing: 0) {
-            Spacer()
-
-            if let screenshot = viewModel.selectedScreenshot {
-                let url = viewModel.fullImageURL(for: screenshot)
-                if let nsImage = NSImage(contentsOf: url) {
-                    Image(nsImage: nsImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .padding()
+            ZStack {
+                if let screenshot = viewModel.selectedScreenshot {
+                    let url = viewModel.fullImageURL(for: screenshot)
+                    if let nsImage = NSImage(contentsOf: url) {
+                        if showActualSize {
+                            ScrollView([.horizontal, .vertical]) {
+                                Image(nsImage: nsImage)
+                                    .padding()
+                            }
+                        } else {
+                            Image(nsImage: nsImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .padding()
+                        }
+                    } else {
+                        placeholderImage
+                    }
                 } else {
                     placeholderImage
                 }
-            } else {
-                placeholderImage
-            }
 
-            Spacer()
+                // Prev/Next navigation overlays
+                HStack {
+                    Button {
+                        viewModel.selectPrevious()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.white)
+                            .frame(width: 36, height: 36)
+                            .background(.black.opacity(0.4), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(viewModel.selectedIndex <= 0)
+                    .opacity(viewModel.selectedIndex <= 0 ? 0.3 : 1.0)
+                    .padding(.leading, 12)
+
+                    Spacer()
+
+                    Button {
+                        viewModel.selectNext()
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.white)
+                            .frame(width: 36, height: 36)
+                            .background(.black.opacity(0.4), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(viewModel.selectedIndex >= viewModel.screenshots.count - 1)
+                    .opacity(viewModel.selectedIndex >= viewModel.screenshots.count - 1 ? 0.3 : 1.0)
+                    .padding(.trailing, 12)
+                }
+
+                // Fit / Actual Size toggle
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Button {
+                            showActualSize.toggle()
+                        } label: {
+                            Image(systemName: showActualSize ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                                .font(.caption)
+                                .foregroundStyle(.white)
+                                .frame(width: 28, height: 28)
+                                .background(.black.opacity(0.4), in: RoundedRectangle(cornerRadius: 6))
+                        }
+                        .buttonStyle(.plain)
+                        .help(showActualSize ? "Fit to window" : "Actual size")
+                        .padding([.trailing, .bottom], 12)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if let screenshot = viewModel.selectedScreenshot {
                 infoBar(for: screenshot)
