@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/rknightion/grotTrack/compare/v0.4.1...v0.5.0) (2026-04-02)
+
+
+### Features
+
+* add runtime interval config in settings ([f6f82c5](https://github.com/rknightion/grotTrack/commit/f6f82c56262fc0468f06a74223be95ff213a135b))
+* add weekly/monthly reports and quick annotations ([7ae60bb](https://github.com/rknightion/grotTrack/commit/7ae60bb9ae095ce17c26387dc69c49eed8568253))
+
+
+### Miscellaneous
+
+* **deps:** lock file maintenance ([#15](https://github.com/rknightion/grotTrack/issues/15)) ([684e5aa](https://github.com/rknightion/grotTrack/commit/684e5aa47d965e2e6532962da8035a1a7017fe71))
+
 ## [0.4.1](https://github.com/rknightion/grotTrack/compare/v0.4.0...v0.4.1) (2026-03-25)
 
 
