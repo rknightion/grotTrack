@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.7.0](https://github.com/rknightion/grotTrack/compare/v0.6.0...v0.7.0) (2026-04-02)
+
+
+### Features
+
+* **screenshots:** add ScreenshotBrowserView window shell with date/mode pickers ([cfa3738](https://github.com/rknightion/grotTrack/commit/cfa3738de739f8e3d6b9205914e77711eb088ddd))
+* **screenshots:** add ScreenshotBrowserViewModel with data loading and tests ([954ee63](https://github.com/rknightion/grotTrack/commit/954ee630d9bf07521d1a0fb283eab324948b0307))
+* **screenshots:** add vertical timeline rail with activity segments and screenshot markers ([e547757](https://github.com/rknightion/grotTrack/commit/e54775775d047fa1e253d1ad4f87df0d1424adf2))
+* **screenshots:** implement adaptive grid view grouped by hour ([c8a209d](https://github.com/rknightion/grotTrack/commit/c8a209d12c9a5789e081c3a26a19b92206b53a07))
+* **screenshots:** implement full-bleed viewer with info bar and timeline rail ([83b808c](https://github.com/rknightion/grotTrack/commit/83b808c6b0ce278531290c4b652d9b2994af6d9f))
+
+
+### Bug Fixes
+
+* resolve lint errors in screenshot browser files ([cd7b58b](https://github.com/rknightion/grotTrack/commit/cd7b58bd02c7092f39f95d7b5e9fd5eeee0117a4))
+* **screenshots:** address code review findings ([50f8489](https://github.com/rknightion/grotTrack/commit/50f84893a72254e5c0cc3594a7c8f646a814b8d1))
+
+
+### Documentation
+
+* add screenshot browser design spec ([55439f0](https://github.com/rknightion/grotTrack/commit/55439f0e702d5dd59062aa6921caaaf571abca83))
+* add screenshot browser implementation plan ([2c1cba9](https://github.com/rknightion/grotTrack/commit/2c1cba9eb8a4a7e84fbd0109e226967faabe07a0))
+* clarify screenshot-to-activity resolution in spec ([a7d4650](https://github.com/rknightion/grotTrack/commit/a7d46509713f535cfb1f9113229ce361b753f80a))
+
 ## [0.6.0](https://github.com/rknightion/grotTrack/compare/v0.5.2...v0.6.0) (2026-04-02)
 
 
