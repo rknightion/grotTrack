@@ -27,7 +27,8 @@ final class VisibleWindowTracker {
 
             var bounds = CGRect.zero
             if let boundsDict = info[kCGWindowBounds as String] {
-                let cfDict = boundsDict as CFTypeRef as! CFDictionary
+                // swiftlint:disable:next force_cast
+                let cfDict = boundsDict as! CFDictionary
                 CGRectMakeWithDictionaryRepresentation(cfDict, &bounds)
             }
 

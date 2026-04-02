@@ -85,9 +85,9 @@ final class SessionDetectorTests: XCTestCase {
 
         let now = Date()
 
-        for i in 0..<35 {
+        for idx in 0..<35 {
             let event = ActivityEvent(appName: "Xcode", bundleID: "com.apple.dt.Xcode", windowTitle: "File.swift")
-            event.timestamp = now.addingTimeInterval(Double(i) * 60)
+            event.timestamp = now.addingTimeInterval(Double(idx) * 60)
             event.duration = 60
             context.insert(event)
             detector.processEvent(event)

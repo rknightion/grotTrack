@@ -20,7 +20,12 @@ final class ChromeExtensionInstaller {
         let description: String
         let path: String
         let type: String
-        let allowed_origins: [String]
+        let allowedOrigins: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case name, description, path, type
+            case allowedOrigins = "allowedOrigins"
+        }
     }
 
     enum InstallationStatus: Equatable {
@@ -47,7 +52,7 @@ final class ChromeExtensionInstaller {
             description: "GrotTrack native messaging host for browser tab tracking",
             path: Self.nativeHostBinaryPath,
             type: "stdio",
-            allowed_origins: origins
+            allowedOrigins: origins
         )
 
         let encoder = JSONEncoder()
@@ -78,7 +83,7 @@ final class ChromeExtensionInstaller {
             return .binaryMissing(expectedPath: manifest.path)
         }
 
-        let hasPlaceholder = manifest.allowed_origins.contains { $0.contains("PLACEHOLDER") }
+        let hasPlaceholder = manifest.allowedOrigins.contains { $0.contains("PLACEHOLDER") }
         if hasPlaceholder {
             return .needsExtensionID
         }

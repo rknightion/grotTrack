@@ -8,7 +8,6 @@ extension CGImage {
         return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
 
-
     func resized(toMaxWidth maxWidth: CGFloat) -> CGImage? {
         let currentWidth = CGFloat(self.width)
         guard currentWidth > maxWidth else { return self }

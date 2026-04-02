@@ -147,9 +147,10 @@ final class ActivityTracker {
         )
         if result == .success, let window = focusedWindow {
             var title: AnyObject?
-            // AXUIElement is a CFTypeRef; result == .success guarantees the type
+            // swiftlint:disable:next force_cast
+            let axWindow = window as! AXUIElement
             AXUIElementCopyAttributeValue(
-                window as! AXUIElement,
+                axWindow,
                 kAXTitleAttribute as CFString,
                 &title
             )

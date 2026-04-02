@@ -19,9 +19,9 @@ final class MultitaskingDetectorTests: XCTestCase {
         let detector = MultitaskingDetector(visibleWindowTracker: tracker)
         let now = Date()
         // Rapid switches between 6 apps within 1 minute
-        for i in 0..<30 {
-            let bundleID = "com.app.\(i % 6)"
-            let timestamp = now.addingTimeInterval(Double(i) * 2) // every 2 seconds
+        for idx in 0..<30 {
+            let bundleID = "com.app.\(idx % 6)"
+            let timestamp = now.addingTimeInterval(Double(idx) * 2) // every 2 seconds
             detector.recordSwitch(bundleID: bundleID, at: timestamp)
         }
         XCTAssertGreaterThanOrEqual(detector.currentScore, 0.3, "Rapid multi-app switching should score high")
@@ -33,8 +33,8 @@ final class MultitaskingDetectorTests: XCTestCase {
         let detector = MultitaskingDetector(visibleWindowTracker: tracker)
         let now = Date()
         // Extreme switching
-        for i in 0..<100 {
-            detector.recordSwitch(bundleID: "com.app.\(i)", at: now.addingTimeInterval(Double(i)))
+        for idx in 0..<100 {
+            detector.recordSwitch(bundleID: "com.app.\(idx)", at: now.addingTimeInterval(Double(idx)))
         }
         XCTAssertLessThanOrEqual(detector.currentScore, 1.0)
     }
