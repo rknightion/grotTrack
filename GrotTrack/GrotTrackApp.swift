@@ -348,7 +348,9 @@ struct GrotTrackApp: App {
             TimeBlock.self,
             Annotation.self,
             WeeklyReport.self,
-            MonthlyReport.self
+            MonthlyReport.self,
+            ScreenshotEnrichment.self,
+            ActivitySession.self
         ])
         do {
             container = try ModelContainer(for: schema)
