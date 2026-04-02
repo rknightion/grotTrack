@@ -8,13 +8,12 @@ struct ScreenshotGridView: View {
         ZStack(alignment: .bottomTrailing) {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 16) {
+                    LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(viewModel.screenshotsByHour, id: \.hour) { group in
                             hourSection(hour: group.hour, screenshots: group.screenshots)
                                 .id(group.hour)
                         }
                     }
-                    .padding()
                 }
                 .onChange(of: viewModel.selectedIndex) { _, _ in
                     if let screenshot = viewModel.selectedScreenshot {
@@ -48,6 +47,14 @@ struct ScreenshotGridView: View {
             viewModel.selectNext()
             return .handled
         }
+        .onKeyPress(.upArrow) {
+            viewModel.selectPrevious()
+            return .handled
+        }
+        .onKeyPress(.downArrow) {
+            viewModel.selectNext()
+            return .handled
+        }
         .onKeyPress(.return) {
             viewModel.mode = .viewer
             return .handled
@@ -57,41 +64,102 @@ struct ScreenshotGridView: View {
     // MARK: - Hour Section
 
     private func hourSection(hour: Int, screenshots: [Screenshot]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(String(format: "%02d:00", hour))
-                .font(.headline)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 0) {
+            // Simplified header
+            HStack(spacing: 8) {
+                Text(hourLabel(hour))
+                    .font(.system(size: 15, weight: .semibold))
+                Text("\(screenshots.count) screenshots")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 6)
 
+            // Edge-to-edge grid with 2pt gaps
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: viewModel.thumbnailWidth), spacing: 8)],
-                spacing: 8
+                columns: [GridItem(.adaptive(minimum: viewModel.thumbnailWidth), spacing: 2)],
+                spacing: 2
             ) {
                 ForEach(screenshots, id: \.id) { screenshot in
-                    thumbnailCard(screenshot)
+                    thumbnailCell(screenshot)
                 }
             }
+            .padding(.horizontal, 2)
         }
     }
 
-    // MARK: - Thumbnail Card
+    // MARK: - Thumbnail Cell
 
-    private func thumbnailCard(_ screenshot: Screenshot) -> some View {
+    private func thumbnailCell(_ screenshot: Screenshot) -> some View {
         let isSelected = viewModel.selectedScreenshot?.id == screenshot.id
+        let isHovered = hoveredScreenshotID == screenshot.id
         let ctx = viewModel.screenshotContext(for: screenshot)
 
-        return VStack(alignment: .leading, spacing: 4) {
-            thumbnailImage(screenshot, isSelected: isSelected)
+        return ZStack(alignment: .topLeading) {
+            // Thumbnail image
+            thumbnailImage(screenshot)
 
-            HStack(spacing: 4) {
-                Text(screenshot.timestamp.formatted(.dateTime.hour().minute().second()))
-                    .font(.caption2)
-                    .monospacedDigit()
-                if !ctx.appName.isEmpty {
-                    Text("-- \(ctx.appName)")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+            // App color badge (top-left)
+            if !ctx.appName.isEmpty {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(TimelineViewModel.appColor(for: ctx.appName))
+                    .frame(width: 14, height: 14)
+                    .padding(6)
+            }
+
+            // Hover overlay (bottom gradient with context)
+            if isHovered {
+                VStack {
+                    Spacer()
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 4) {
+                            if !ctx.appName.isEmpty {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(TimelineViewModel.appColor(for: ctx.appName))
+                                    .frame(width: 10, height: 10)
+                                Text(ctx.appName)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(.white)
+                            }
+                            Text(screenshot.timestamp.formatted(.dateTime.hour().minute()))
+                                .font(.system(size: 10))
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
+                        if !ctx.entities.isEmpty {
+                            HStack(spacing: 3) {
+                                ForEach(Array(ctx.entities.prefix(3).enumerated()), id: \.offset) { _, entity in
+                                    hoverEntityChip(entity)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 6)
+                    .padding(.top, 20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        LinearGradient(
+                            colors: [.clear, .black.opacity(0.85)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
                 }
+            }
+        }
+        .aspectRatio(16/10, contentMode: .fill)
+        .clipped()
+        .overlay(
+            RoundedRectangle(cornerRadius: 0)
+                .strokeBorder(Color.accentColor, lineWidth: isSelected ? 2 : 0)
+        )
+        .onHover { hovering in
+            if hovering {
+                hoveredScreenshotID = screenshot.id
+            } else if hoveredScreenshotID == screenshot.id {
+                hoveredScreenshotID = nil
             }
         }
         .onTapGesture(count: 2) {
@@ -104,34 +172,15 @@ struct ScreenshotGridView: View {
     }
 
     @ViewBuilder
-    private func thumbnailImage(_ screenshot: Screenshot, isSelected: Bool) -> some View {
+    private func thumbnailImage(_ screenshot: Screenshot) -> some View {
         let url = viewModel.thumbnailURL(for: screenshot)
         if let nsImage = NSImage(contentsOf: url) {
             Image(nsImage: nsImage)
                 .resizable()
-                .aspectRatio(contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(
-                            isSelected ? Color.accentColor : Color.clear,
-                            lineWidth: isSelected ? 3 : 0
-                        )
-                )
-                .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
-                .scaleEffect(isHovering(screenshot) ? 1.03 : 1.0)
-                .animation(.easeInOut(duration: 0.15), value: isHovering(screenshot))
-                .onHover { hovering in
-                    if hovering {
-                        hoveredScreenshotID = screenshot.id
-                    } else if hoveredScreenshotID == screenshot.id {
-                        hoveredScreenshotID = nil
-                    }
-                }
+                .aspectRatio(contentMode: .fill)
         } else {
-            RoundedRectangle(cornerRadius: 6)
+            Rectangle()
                 .fill(Color.gray.opacity(0.15))
-                .aspectRatio(16/10, contentMode: .fit)
                 .overlay {
                     Image(systemName: "photo")
                         .foregroundStyle(.tertiary)
@@ -139,7 +188,41 @@ struct ScreenshotGridView: View {
         }
     }
 
-    private func isHovering(_ screenshot: Screenshot) -> Bool {
-        hoveredScreenshotID == screenshot.id
+    private func hoverEntityChip(_ entity: ExtractedEntity) -> some View {
+        let (icon, color) = entityStyle(entity.type)
+        return HStack(spacing: 2) {
+            Image(systemName: icon)
+                .font(.system(size: 8))
+            Text(entity.value)
+                .font(.system(size: 8))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 2)
+        .background(color.opacity(0.3), in: Capsule())
+        .foregroundStyle(color)
+    }
+
+    private func entityStyle(_ type: EntityType) -> (icon: String, color: Color) {
+        switch type {
+        case .url: ("link", .blue)
+        case .date: ("calendar", .orange)
+        case .phoneNumber: ("phone", .green)
+        case .address: ("mappin", .red)
+        case .personName: ("person", .purple)
+        case .organizationName: ("building.2", .indigo)
+        case .issueKey: ("ticket", .teal)
+        case .filePath: ("doc", .brown)
+        case .gitBranch: ("arrow.triangle.branch", .mint)
+        case .meetingLink: ("video", .pink)
+        }
+    }
+
+    private func hourLabel(_ hour: Int) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        let calendar = Calendar.current
+        let date = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: Date()) ?? Date()
+        return formatter.string(from: date)
     }
 }
