@@ -33,6 +33,9 @@ final class ActivityTracker {
     /// Reference to idle detector — set by AppCoordinator after init
     weak var idleDetector: IdleDetector?
 
+    /// Called on the main actor each time a new ActivityEvent is persisted
+    var onEventCreated: ((ActivityEvent) -> Void)?
+
     private static let browserBundleIDs: Set<String> = [
         "com.google.Chrome", "com.google.Chrome.canary",
         "com.apple.Safari", "com.apple.SafariTechnologyPreview",
@@ -262,6 +265,7 @@ final class ActivityTracker {
 
         modelContext.insert(event)
         try? modelContext.save()
+        onEventCreated?(event)
 
         previousEvent = event
         previousAppName = appName

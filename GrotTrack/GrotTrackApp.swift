@@ -14,6 +14,11 @@ final class AppCoordinator {
     let idleDetector = IdleDetector()
     private var _activityTracker: ActivityTracker?
 
+    // Enrichment & session services
+    let enrichmentService = ScreenshotEnrichmentService()
+    let sessionDetector = SessionDetector()
+    let sessionClassifier = SessionClassifier()
+
     // Hourly aggregation
     var modelContext: ModelContext?
     private let timeBlockAggregator = TimeBlockAggregator()
@@ -39,11 +44,19 @@ final class AppCoordinator {
             screenshotManager: screenshotManager
         )
         tracker.idleDetector = idleDetector
+        tracker.onEventCreated = { [weak self] event in
+            self?.sessionDetector.processEvent(event)
+        }
         _activityTracker = tracker
         return tracker
     }
 
     func bootstrap() async {
+        // Wire screenshot capture callback → enrichment queue
+        screenshotManager.onScreenshotCaptured = { [weak self] screenshotID in
+            self?.enrichmentService.enqueue(screenshotID: screenshotID)
+        }
+
         permissionManager.checkAllPermissions()
         if !permissionManager.accessibilityGranted {
             permissionManager.requestAccessibility()
@@ -56,6 +69,15 @@ final class AppCoordinator {
         let status = chromeInstaller.checkInstallation()
         if status == .notInstalled {
             try? chromeInstaller.installNativeHost()
+        }
+
+        // Wire session pipeline: events → SessionDetector → SessionClassifier
+        sessionDetector.onSessionFinalized = { [weak self] session in
+            self?.sessionClassifier.classify(session)
+        }
+
+        if sessionClassifier.isAvailable {
+            sessionClassifier.backfillRecentSessions()
         }
 
         // Set up global keyboard shortcut (Ctrl+Shift+G to toggle pause)
@@ -90,9 +112,12 @@ final class AppCoordinator {
         idleDetector.start()
         startHourlyAggregation()
         startIdleObservation()
+        enrichmentService.start()
     }
 
     func stopTracking() {
+        sessionDetector.finalizeCurrentSession()
+        enrichmentService.stop()
         activityTracker.stopTracking()
         screenshotManager.stopCapturing()
         idleDetector.stop()
@@ -367,6 +392,9 @@ struct GrotTrackApp: App {
                     coordinator.screenshotManager.modelContext = container.mainContext
                     coordinator.activityTracker.modelContext = container.mainContext
                     coordinator.modelContext = container.mainContext
+                    coordinator.enrichmentService.modelContext = container.mainContext
+                    coordinator.sessionDetector.modelContext = container.mainContext
+                    coordinator.sessionClassifier.modelContext = container.mainContext
                     await coordinator.bootstrap()
 
                     // Auto-start tracking if user opted in

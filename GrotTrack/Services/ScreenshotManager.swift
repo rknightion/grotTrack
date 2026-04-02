@@ -31,6 +31,8 @@ final class ScreenshotManager {
     var isCapturing: Bool = false
     var isPaused: Bool = false
     var modelContext: ModelContext?
+    /// Called on the main actor each time a screenshot is persisted, with its UUID
+    var onScreenshotCaptured: ((UUID) -> Void)?
     private var isCurrentlyCapturing = false
 
     private let dateFormatter: DateFormatter = {
@@ -180,6 +182,7 @@ final class ScreenshotManager {
             }
 
             try? modelContext.save()
+            onScreenshotCaptured?(screenshot.id)
         }
 
         lastCaptureDate = Date()
