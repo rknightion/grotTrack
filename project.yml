@@ -2,7 +2,7 @@ name: GrotTrack
 options:
   bundleIdPrefix: com.grottrack
   deploymentTarget:
-    macOS: "15.0"
+    macOS: "26.0"
   xcodeVersion: "16.0"
   createIntermediateGroups: true
 
@@ -15,7 +15,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
-    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
 
 targets:
   GrotTrack:
@@ -55,7 +55,7 @@ targets:
         PRODUCT_NAME: GrotTrackNativeHost
         PRODUCT_BUNDLE_IDENTIFIER: com.grottrack.nativehost
         SWIFT_VERSION: "6.0"
-        MACOSX_DEPLOYMENT_TARGET: "15.0"
+        MACOSX_DEPLOYMENT_TARGET: "26.0"
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "-"
         ENABLE_HARDENED_RUNTIME: YES
