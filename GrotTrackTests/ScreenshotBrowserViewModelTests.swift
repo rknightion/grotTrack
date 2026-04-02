@@ -108,10 +108,10 @@ final class ScreenshotBrowserViewModelTests: XCTestCase {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
 
-        for i in 0..<3 {
-            let s = Screenshot(filePath: "\(i).webp", thumbnailPath: "\(i).webp", fileSize: 100)
-            s.timestamp = calendar.date(bySettingHour: 9, minute: i * 10, second: 0, of: today)!
-            context.insert(s)
+        for idx in 0..<3 {
+            let shot = Screenshot(filePath: "\(idx).webp", thumbnailPath: "\(idx).webp", fileSize: 100)
+            shot.timestamp = calendar.date(bySettingHour: 9, minute: idx * 10, second: 0, of: today)!
+            context.insert(shot)
         }
         try context.save()
 

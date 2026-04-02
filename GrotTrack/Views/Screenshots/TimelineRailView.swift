@@ -6,7 +6,7 @@ struct TimelineRailView: View {
     private let railHeight: CGFloat = 600
 
     var body: some View {
-        ScrollViewReader { proxy in
+        ScrollViewReader { _ in
             ScrollView(.vertical, showsIndicators: false) {
                 ZStack(alignment: .topLeading) {
                     hourMarkers
@@ -29,7 +29,7 @@ struct TimelineRailView: View {
     private var hourMarkers: some View {
         let range = dayRange
         return ForEach(range.startHour...range.endHour, id: \.self) { hour in
-            let y = yPosition(forHour: hour, range: range)
+            let yPos = yPosition(forHour: hour, range: range)
             HStack(spacing: 4) {
                 Text(String(format: "%02d:00", hour))
                     .font(.caption2)
@@ -40,7 +40,7 @@ struct TimelineRailView: View {
                     .fill(Color.gray.opacity(0.2))
                     .frame(height: 1)
             }
-            .offset(y: y - 6)
+            .offset(y: yPos - 6)
         }
     }
 
@@ -67,7 +67,7 @@ struct TimelineRailView: View {
         let range = dayRange
         return ForEach(viewModel.screenshots.indices, id: \.self) { index in
             let screenshot = viewModel.screenshots[index]
-            let y = yPosition(for: screenshot.timestamp, range: range)
+            let yPos = yPosition(for: screenshot.timestamp, range: range)
             let isSelected = index == viewModel.selectedIndex
 
             Circle()
@@ -80,7 +80,7 @@ struct TimelineRailView: View {
                             .frame(width: 14, height: 14)
                     }
                 }
-                .offset(x: 50 + 7 + 8, y: y - (isSelected ? 5 : 3))
+                .offset(x: 50 + 7 + 8, y: yPos - (isSelected ? 5 : 3))
                 .onTapGesture {
                     viewModel.selectedIndex = index
                 }
@@ -111,11 +111,11 @@ struct TimelineRailView: View {
         guard !viewModel.screenshots.isEmpty else { return }
         var bestIndex = 0
         var bestDelta = abs(viewModel.screenshots[0].timestamp.timeIntervalSince(date))
-        for i in 1..<viewModel.screenshots.count {
-            let delta = abs(viewModel.screenshots[i].timestamp.timeIntervalSince(date))
+        for idx in 1..<viewModel.screenshots.count {
+            let delta = abs(viewModel.screenshots[idx].timestamp.timeIntervalSince(date))
             if delta < bestDelta {
                 bestDelta = delta
-                bestIndex = i
+                bestIndex = idx
             }
         }
         viewModel.selectedIndex = bestIndex
