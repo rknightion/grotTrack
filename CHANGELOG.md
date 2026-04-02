@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.1](https://github.com/rknightion/grotTrack/compare/v0.5.0...v0.5.1) (2026-04-02)
+
+
+### Miscellaneous
+
+* setup release-please for extension versioning ([fa2035e](https://github.com/rknightion/grotTrack/commit/fa2035eb5adb17bca685998edf2d642fa5f24340))
+
+
+### Refactoring
+
+* **browser:** switch to event-driven tab tracking ([ab93178](https://github.com/rknightion/grotTrack/commit/ab9317814bdf0398a14c96964cd677f139c09c7f))
+
 ## [0.5.0](https://github.com/rknightion/grotTrack/compare/v0.4.1...v0.5.0) (2026-04-02)
 
 
