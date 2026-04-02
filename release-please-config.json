@@ -4,7 +4,18 @@
   "include-component-in-tag": false,
   "packages": {
     ".": {
-      "changelog-path": "CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "grot-track-extension/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "generic",
+          "path": "grot-track-extension/wxt.config.ts"
+        }
+      ]
     }
   },
   "changelog-sections": [
