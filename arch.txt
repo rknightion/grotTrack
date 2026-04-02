@@ -344,58 +344,71 @@ The Chrome Extension replaces the old JXA (JavaScript for Automation) approach
 for reading browser tabs. This eliminates the need for Automation permission
 and provides more reliable, richer tab data.
 
+Design: Event-driven push. The extension listens for Chrome tab events and
+pushes active tab data to the native host, which relays it to the main app
+via DistributedNotificationCenter. ActivityTracker reads cached tab data on
+each poll cycle.
+
 Components:
 
-  GrotTrackExtension/
-  ├── manifest.json        # Chrome Extension manifest v3
-  └── background.js        # Service worker: listens for native messages,
-                           #   queries chrome.tabs API, returns tab data
+  grot-track-extension/           # WXT (TypeScript/Vite) Chrome Extension
+  ├── wxt.config.ts               # WXT config, manifest generation
+  ├── entrypoints/
+  │   ├── background.ts           # Service worker: pushes active tab data
+  │   │                           #   to native host on tab/window events
+  │   └── popup/                  # Status popup (connected/disconnected)
 
   GrotTrack/Services/
-  ├── NativeMessageHost.swift    # Launched by Chrome via native messaging;
-  │                              # reads JSON from stdin, writes to stdout
-  └── BrowserTabService.swift    # Manages the native message host lifecycle;
-                                 # provides tab data to ActivityTracker
+  ├── NativeMessageHost.swift     # Launched by Chrome via native messaging;
+  │                               # reads JSON from stdin, posts to main app
+  │                               # via NSDistributedNotificationCenter
+  └── BrowserTabService.swift     # Listens for distributed notifications;
+                                  # caches latest tab data for ActivityTracker
 
-Communication Flow:
+  GrotTrackNativeHost/
+  └── main.swift                  # CLI entry point; runs NativeMessageHost
+                                  # message loop (embedded in app bundle)
 
-  ActivityTracker           BrowserTabService          NativeMessageHost
-       │                          │                          │
-       │  requestTabs()           │                          │
-       │─────────────────────────►│                          │
-       │                          │  write JSON to stdin     │
-       │                          │─────────────────────────►│
-       │                          │                          │
-       │                          │     Chrome Extension     │
-       │                          │     background.js        │
-       │                          │         │                │
-       │                          │         │ chrome.tabs    │
-       │                          │         │ .query()       │
-       │                          │         ▼                │
-       │                          │  JSON response on stdout │
-       │                          │◄─────────────────────────│
-       │  [BrowserTab]            │                          │
-       │◄─────────────────────────│                          │
+Communication Flow (event-driven push):
+
+  Chrome tab event                 Extension              NativeMessageHost
+       │                          background.ts           (CLI subprocess)
+       │                              │                        │
+       ├─ onActivated               │                        │
+       ├─ onUpdated (active tab)    │                        │
+       └─ onFocusChanged            │                        │
+           │                        │                        │
+           └─ sendActiveTabInfo() ──┤                        │
+              (debounced 300ms)     │                        │
+                                    │  [4-byte len][JSON]    │
+                                    │  on native port ──────►│
+                                    │                        │ readMessage()
+                                    │                        │ postToMainApp()
+                                    │                        │   │
+                                    │                   DistributedNotification
+                                    │                        │   │
+                                                             ▼   ▼
+                                                    BrowserTabService
+                                                    │
+                                                    └─ activeTab = BrowserTab(...)
+
+  (On next poll cycle, 3-5s later)
+  ActivityTracker reads browserTabService.activeTabTitle / .activeTabURL
 
 Native Messaging Host Config:
   Installed at: ~/Library/Application Support/Google/Chrome/
-                NativeMessagingHosts/com.grottrack.tabs.json
-  Points to:    GrotTrack.app/Contents/MacOS/NativeMessageHost
+                NativeMessagingHosts/com.grottrack.tabtracker.json
+  Points to:    GrotTrack.app/Contents/MacOS/GrotTrackNativeHost
   Allowed origins: ["chrome-extension://<extension-id>/"]
 
-Message Format (request):
-  { "action": "getTabs" }
-
-Message Format (response):
+Message Format (extension → native host):
   {
-    "tabs": [
-      {
-        "title": "GitHub - Pull Request #42",
-        "url": "https://github.com/...",
-        "active": true,
-        "windowId": 1
-      }
-    ]
+    "type": "activeTab",
+    "title": "GitHub - Pull Request #42",
+    "url": "https://github.com/...",
+    "tabId": 123,
+    "windowId": 456,
+    "timestamp": 1712145600000
   }
 
 Extension Permissions (manifest.json):

@@ -14,16 +14,11 @@ export default defineBackground({
 
   main() {
     let port: chrome.runtime.Port | null = null;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     function connectToHost(): void {
       try {
         port = chrome.runtime.connectNative(NATIVE_HOST);
-
-        port.onMessage.addListener((message: { action: string }) => {
-          if (message.action === 'getTabs') {
-            sendActiveTabInfo();
-          }
-        });
 
         port.onDisconnect.addListener(() => {
           console.log('GrotTrack: Native host disconnected. Will retry in 5s.');
@@ -46,7 +41,7 @@ export default defineBackground({
             type: 'activeTab',
             title: tab.title || '',
             url: tab.url || '',
-            tabId: tab.id!,
+            tabId: tab.id ?? -1,
             windowId: tab.windowId,
             timestamp: Date.now(),
           };
@@ -57,18 +52,25 @@ export default defineBackground({
       }
     }
 
+    function sendActiveTabInfoDebounced(): void {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(sendActiveTabInfo, 300);
+    }
+
     chrome.tabs.onActivated.addListener(() => {
-      sendActiveTabInfo();
+      sendActiveTabInfoDebounced();
     });
 
-    chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
-      if (changeInfo.title || changeInfo.url) {
-        sendActiveTabInfo();
+    chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+      if ((changeInfo.title || changeInfo.url) && tab.active) {
+        sendActiveTabInfoDebounced();
       }
     });
 
-    chrome.windows.onFocusChanged.addListener(() => {
-      sendActiveTabInfo();
+    chrome.windows.onFocusChanged.addListener((windowId) => {
+      if (windowId !== chrome.windows.WINDOW_ID_NONE) {
+        sendActiveTabInfoDebounced();
+      }
     });
 
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

@@ -73,7 +73,7 @@ npx wxt build     # output in .output/chrome-mv3/
 
 ### Chrome extension
 
-The extension (`grot-track-extension/`) is built with [WXT](https://wxt.dev/) (a TypeScript/Vite-based extension framework). Its background service worker receives `{ action: "getTabs" }` via native messaging, queries `chrome.tabs`, and returns tab data to the Swift `BrowserTabService`. The native messaging host config JSON must be installed at `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.grottrack.tabs.json`.
+The extension (`grot-track-extension/`) is built with [WXT](https://wxt.dev/) (a TypeScript/Vite-based extension framework). Its background service worker receives `{ action: "getTabs" }` via native messaging, queries `chrome.tabs`, and returns tab data to the Swift `BrowserTabService`. The native messaging host config JSON must be installed at `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.grottrack.tabtracker.json`.
 
 ### SwiftData schema
 

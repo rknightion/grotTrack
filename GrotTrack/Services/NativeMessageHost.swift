@@ -44,15 +44,6 @@ actor NativeMessageHost {
         return try JSONDecoder().decode(BrowserTabMessage.self, from: jsonData)
     }
 
-    /// Write a length-prefixed JSON response to stdout.
-    func writeMessage(_ dict: [String: String]) throws {
-        let data = try JSONEncoder().encode(dict)
-        var length = UInt32(data.count)
-        let lengthData = Data(bytes: &length, count: 4)
-        FileHandle.standardOutput.write(lengthData)
-        FileHandle.standardOutput.write(data)
-    }
-
     /// Main loop: read messages from Chrome, relay to main app via distributed notification.
     func runMessageLoop() async {
         while !Task.isCancelled {
@@ -73,7 +64,7 @@ actor NativeMessageHost {
             "title": message.title,
             "url": message.url,
             "windowId": message.windowId ?? 0,
-            "timestamp": message.timestamp ?? Date().timeIntervalSince1970
+            "timestamp": (message.timestamp ?? Date().timeIntervalSince1970 * 1000) / 1000
         ]
         DistributedNotificationCenter.default().postNotificationName(
             NSNotification.Name(GrotTrackIPC.browserTabNotification),
