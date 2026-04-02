@@ -398,17 +398,11 @@ struct GrotTrackApp: App {
         .modelContainer(container)
         .defaultSize(width: 900, height: 700)
 
-        Window("Weekly Report", id: "weeklyReport") {
-            WeeklyReportView()
+        Window("Trends", id: "trends") {
+            TrendsView()
         }
         .modelContainer(container)
         .defaultSize(width: 850, height: 700)
-
-        Window("Monthly Report", id: "monthlyReport") {
-            MonthlyReportView()
-        }
-        .modelContainer(container)
-        .defaultSize(width: 850, height: 750)
 
         Window("Welcome to GrotTrack", id: "onboarding") {
             OnboardingView(
