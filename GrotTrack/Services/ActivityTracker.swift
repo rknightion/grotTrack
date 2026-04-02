@@ -7,7 +7,7 @@ import CoreGraphics
 @MainActor
 final class ActivityTracker {
     private var pollingTimer: Timer?
-    private let pollingInterval: TimeInterval = 3.0
+    var pollingInterval: TimeInterval = 3.0
     private weak var appState: AppState?
     private var workspaceObserver: Any?
     private var browserTabService: BrowserTabService?
@@ -50,11 +50,7 @@ final class ActivityTracker {
     }
 
     func startTracking() {
-        pollingTimer = Timer.scheduledTimer(withTimeInterval: pollingInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.pollCurrentWindow()
-            }
-        }
+        createPollingTimer()
         // Immediate first poll
         pollCurrentWindow()
 
@@ -98,6 +94,22 @@ final class ActivityTracker {
         appState?.currentAppName = ""
         appState?.currentWindowTitle = ""
         appState?.currentBrowserTab = ""
+    }
+
+    func updatePollingInterval(_ newInterval: TimeInterval) {
+        pollingInterval = newInterval
+        if pollingTimer != nil {
+            createPollingTimer()
+        }
+    }
+
+    private func createPollingTimer() {
+        pollingTimer?.invalidate()
+        pollingTimer = Timer.scheduledTimer(withTimeInterval: pollingInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.pollCurrentWindow()
+            }
+        }
     }
 
     /// Finalize the current event's duration (called when pausing or stopping).

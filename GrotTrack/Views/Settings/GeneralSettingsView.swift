@@ -3,6 +3,8 @@ import SwiftUI
 import ServiceManagement
 
 struct GeneralSettingsView: View {
+    @Environment(ScreenshotManager.self) private var screenshotManager: ScreenshotManager?
+    @Environment(ActivityTracker.self) private var activityTracker: ActivityTracker?
     @AppStorage("pollingInterval") private var pollingInterval: Double = 3.0
     @AppStorage("screenshotInterval") private var screenshotInterval: Double = 30.0
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
@@ -19,10 +21,16 @@ struct GeneralSettingsView: View {
                 VStack(alignment: .leading) {
                     Text("Polling interval: \(pollingInterval, specifier: "%.0f") seconds")
                     Slider(value: $pollingInterval, in: 1...10, step: 1)
+                        .onChange(of: pollingInterval) { _, newValue in
+                            activityTracker?.updatePollingInterval(newValue)
+                        }
                 }
                 VStack(alignment: .leading) {
                     Text("Screenshot interval: \(screenshotInterval, specifier: "%.0f") seconds")
                     Slider(value: $screenshotInterval, in: 15...120, step: 5)
+                        .onChange(of: screenshotInterval) { _, newValue in
+                            screenshotManager?.updateInterval(newValue)
+                        }
                 }
             }
             Section("Startup") {

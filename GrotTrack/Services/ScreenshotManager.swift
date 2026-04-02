@@ -79,6 +79,18 @@ final class ScreenshotManager {
             }
         }
 
+        createCaptureTimer()
+    }
+
+    func updateInterval(_ newInterval: TimeInterval) {
+        screenshotInterval = newInterval
+        if isCapturing {
+            createCaptureTimer()
+        }
+    }
+
+    private func createCaptureTimer() {
+        captureTimer?.invalidate()
         captureTimer = Timer.scheduledTimer(withTimeInterval: screenshotInterval, repeats: true) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in

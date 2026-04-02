@@ -65,6 +65,16 @@ final class AppCoordinator {
     func startTracking() {
         permissionManager.checkAllPermissions()
 
+        // Apply saved interval preferences from Settings
+        let savedScreenshotInterval = UserDefaults.standard.double(forKey: "screenshotInterval")
+        if savedScreenshotInterval > 0 {
+            screenshotManager.screenshotInterval = savedScreenshotInterval
+        }
+        let savedPollingInterval = UserDefaults.standard.double(forKey: "pollingInterval")
+        if savedPollingInterval > 0 {
+            activityTracker.pollingInterval = savedPollingInterval
+        }
+
         if permissionManager.accessibilityGranted {
             activityTracker.startTracking()
         } else {
@@ -419,6 +429,8 @@ struct GrotTrackApp: App {
         Settings {
             SettingsView()
                 .environment(coordinator.permissionManager)
+                .environment(coordinator.screenshotManager)
+                .environment(coordinator.activityTracker)
         }
         .modelContainer(container)
     }
