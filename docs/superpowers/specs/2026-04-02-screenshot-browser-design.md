@@ -129,7 +129,11 @@ Two-panel horizontal split:
 ### Queries
 
 - Screenshots for selected date: `#Predicate<Screenshot>` filtering timestamp within day bounds, sorted ascending
-- Activity events for selected date: `#Predicate<ActivityEvent>` filtering timestamp within day bounds, sorted ascending (for timeline rail segments)
+- Activity events for selected date: `#Predicate<ActivityEvent>` filtering timestamp within day bounds, sorted ascending (for timeline rail segments and for resolving screenshot context)
+
+### Screenshot-to-Activity Resolution
+
+The `Screenshot` model does not store app context directly. To populate the info bar in Viewer mode and the app name label in Grid mode, the ViewModel resolves each screenshot to its nearest ActivityEvent by timestamp (the activity that was active when the screenshot was captured). This is computed once on data load and cached, not re-queried per screenshot.
 
 ## Future Extension Points
 
