@@ -6,11 +6,17 @@ enum ReportScope {
     case monthly
 }
 
+enum TrendScope: String, CaseIterable {
+    case week = "Week"
+    case month = "Month"
+}
+
 @Observable
 @MainActor
 final class TrendReportViewModel {
     var selectedWeekStart: Date = mondayOfCurrentWeek()
     var selectedMonthStart: Date = firstOfCurrentMonth()
+    var selectedScope: TrendScope = .week
     var weeklyReport: WeeklyReport?
     var monthlyReport: MonthlyReport?
     var isGenerating: Bool = false
@@ -125,6 +131,77 @@ final class TrendReportViewModel {
         }
 
         isGenerating = false
+    }
+
+    // MARK: - Unified Load/Generate
+
+    func loadReport(context: ModelContext) {
+        switch selectedScope {
+        case .week:
+            loadWeeklyReport(weekOf: selectedWeekStart, context: context)
+        case .month:
+            loadMonthlyReport(monthOf: selectedMonthStart, context: context)
+        }
+    }
+
+    func generateReport(context: ModelContext) async {
+        switch selectedScope {
+        case .week:
+            await generateWeeklyReport(weekOf: selectedWeekStart, context: context)
+        case .month:
+            await generateMonthlyReport(monthOf: selectedMonthStart, context: context)
+        }
+    }
+
+    // MARK: - Unified Navigation
+
+    func navigateBack() {
+        switch selectedScope {
+        case .week: previousWeek()
+        case .month: previousMonth()
+        }
+    }
+
+    func navigateForward() {
+        switch selectedScope {
+        case .week: nextWeek()
+        case .month: nextMonth()
+        }
+    }
+
+    func navigateToNow() {
+        switch selectedScope {
+        case .week: selectedWeekStart = Self.mondayOfWeek(containing: Date())
+        case .month: selectedMonthStart = Self.firstOfMonth(containing: Date())
+        }
+    }
+
+    var isCurrentPeriod: Bool {
+        switch selectedScope {
+        case .week: isCurrentWeek
+        case .month: isCurrentMonth
+        }
+    }
+
+    var periodLabel: String {
+        switch selectedScope {
+        case .week: weekRangeLabel
+        case .month: monthLabel
+        }
+    }
+
+    var hasReport: Bool {
+        switch selectedScope {
+        case .week: weeklyReport != nil
+        case .month: monthlyReport != nil
+        }
+    }
+
+    var reportSummary: String {
+        switch selectedScope {
+        case .week: weeklyReport?.summary ?? ""
+        case .month: monthlyReport?.summary ?? ""
+        }
     }
 
     // MARK: - Navigation
