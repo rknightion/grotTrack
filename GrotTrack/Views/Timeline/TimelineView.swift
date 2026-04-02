@@ -43,7 +43,7 @@ struct TimelineView: View {
         .onChange(of: viewModel.selectedDate) { _, newDate in
             viewModel.loadEvents(for: newDate, context: context)
         }
-        .onAppear {
+        .task {
             viewModel.loadEvents(for: viewModel.selectedDate, context: context)
         }
         .onReceive(
