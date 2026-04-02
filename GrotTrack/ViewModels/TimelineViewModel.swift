@@ -4,14 +4,12 @@ import SwiftData
 enum ViewMode: String, CaseIterable {
     case timeline = "Timeline"
     case byApp = "By App"
-    case byCustomer = "By Customer"
     case stats = "Stats"
 
     var icon: String {
         switch self {
         case .timeline: "clock"
         case .byApp: "square.grid.2x2"
-        case .byCustomer: "person.3"
         case .stats: "chart.bar"
         }
     }
@@ -43,14 +41,6 @@ struct AppGroup: Identifiable {
     let percentageOfDay: Double
     let activities: [ActivityEvent]
     let hourlyPresence: [Int: TimeInterval] // hour -> duration
-}
-
-struct CustomerGroup: Identifiable {
-    let id: String // customerName
-    let customerName: String
-    let color: Color
-    let totalHours: Double
-    let hourGroups: [HourGroup]
 }
 
 struct StatsData {
@@ -266,26 +256,6 @@ final class TimelineViewModel {
         }
 
         return groups
-    }
-
-    // MARK: - Customer Groups (By Customer mode)
-
-    var customerGroups: [CustomerGroup] {
-        let groups = hourGroups
-        guard !groups.isEmpty else { return [] }
-
-        // Currently all unclassified — customer mapping is a future feature
-        let totalHours = groups.reduce(0.0) { $0 + $1.totalDuration / 3600.0 }
-
-        return [
-            CustomerGroup(
-                id: "Unclassified",
-                customerName: "Unclassified",
-                color: .gray,
-                totalHours: totalHours,
-                hourGroups: groups.sorted { $0.id < $1.id }
-            )
-        ]
     }
 
     // MARK: - Stats

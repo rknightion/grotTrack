@@ -163,11 +163,6 @@ struct TimelineView: View {
                 appGroups: viewModel.appGroups,
                 viewModel: viewModel
             )
-        case .byCustomer:
-            CustomerGroupView(
-                customerGroups: viewModel.customerGroups,
-                viewModel: viewModel
-            )
         case .stats:
             StatsView(stats: viewModel.statsData)
         }
