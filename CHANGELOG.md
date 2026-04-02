@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/rknightion/grotTrack/compare/v0.5.1...v0.5.2) (2026-04-02)
+
+
+### Refactoring
+
+* **timeline:** switch to event-based live updates ([a133b83](https://github.com/rknightion/grotTrack/commit/a133b8328947987c8097da9fc430be38a09633c7))
+
 ## [0.5.1](https://github.com/rknightion/grotTrack/compare/v0.5.0...v0.5.1) (2026-04-02)
 
 
