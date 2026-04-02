@@ -12,7 +12,9 @@ final class ScreenshotBrowserViewModelTests: XCTestCase {
             TimeBlock.self,
             Annotation.self,
             WeeklyReport.self,
-            MonthlyReport.self
+            MonthlyReport.self,
+            ScreenshotEnrichment.self,
+            ActivitySession.self
         ])
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         return try ModelContainer(for: schema, configurations: [config])
@@ -151,5 +153,75 @@ final class ScreenshotBrowserViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.screenshots.isEmpty)
         XCTAssertTrue(viewModel.screenshotsByHour.isEmpty)
         XCTAssertNil(viewModel.selectedScreenshot)
+    }
+
+    func testScreenshotContextIncludesEnrichment() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        let screenshot = Screenshot(filePath: "a.webp", thumbnailPath: "a.webp", fileSize: 100)
+        screenshot.timestamp = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: today)!
+        context.insert(screenshot)
+
+        let event = ActivityEvent(appName: "Xcode", bundleID: "com.apple.dt.Xcode", windowTitle: "File.swift")
+        event.timestamp = screenshot.timestamp
+        event.duration = 30
+        context.insert(event)
+
+        let enrichment = ScreenshotEnrichment(screenshotID: screenshot.id)
+        enrichment.ocrText = "func testSomething()"
+        enrichment.topLines = "func testSomething()"
+        enrichment.status = "completed"
+        context.insert(enrichment)
+
+        try context.save()
+
+        let viewModel = ScreenshotBrowserViewModel()
+        viewModel.selectedDate = today
+        viewModel.loadData(context: context)
+
+        let ctx = viewModel.screenshotContext(for: screenshot)
+        XCTAssertEqual(ctx.ocrText, "func testSomething()")
+        XCTAssertEqual(ctx.topLines, "func testSomething()")
+    }
+
+    func testSearchFiltersScreenshots() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        let s1 = Screenshot(filePath: "a.webp", thumbnailPath: "a.webp", fileSize: 100)
+        s1.timestamp = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: today)!
+        context.insert(s1)
+
+        let s2 = Screenshot(filePath: "b.webp", thumbnailPath: "b.webp", fileSize: 100)
+        s2.timestamp = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: today)!
+        context.insert(s2)
+
+        let enrichment = ScreenshotEnrichment(screenshotID: s1.id)
+        enrichment.ocrText = "captureScreenshot function"
+        enrichment.topLines = "captureScreenshot function"
+        enrichment.status = "completed"
+        context.insert(enrichment)
+
+        let event = ActivityEvent(appName: "Xcode", bundleID: "com.apple.dt.Xcode", windowTitle: "File.swift")
+        event.timestamp = s1.timestamp
+        event.duration = 30
+        context.insert(event)
+
+        try context.save()
+
+        let viewModel = ScreenshotBrowserViewModel()
+        viewModel.selectedDate = today
+        viewModel.loadData(context: context)
+
+        XCTAssertEqual(viewModel.filteredScreenshots.count, 2)
+
+        viewModel.searchText = "captureScreenshot"
+        XCTAssertEqual(viewModel.filteredScreenshots.count, 1)
+        XCTAssertEqual(viewModel.filteredScreenshots.first?.id, s1.id)
     }
 }
