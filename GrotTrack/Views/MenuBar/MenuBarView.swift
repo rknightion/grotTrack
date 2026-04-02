@@ -106,6 +106,11 @@ struct MenuBarView: View {
                 NSApp.activate(ignoringOtherApps: true)
             }
 
+            Button("Browse Screenshots") {
+                openWindow(id: "screenshot-browser")
+                NSApp.activate(ignoringOtherApps: true)
+            }
+
             SettingsLink()
 
             Divider()

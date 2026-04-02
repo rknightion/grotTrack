@@ -404,6 +404,12 @@ struct GrotTrackApp: App {
         .modelContainer(container)
         .defaultSize(width: 850, height: 700)
 
+        Window("Screenshot Browser", id: "screenshot-browser") {
+            ScreenshotBrowserView()
+        }
+        .modelContainer(container)
+        .defaultSize(width: 1000, height: 700)
+
         Window("Welcome to GrotTrack", id: "onboarding") {
             OnboardingView(
                 permissionManager: coordinator.permissionManager,
