@@ -4,7 +4,7 @@
 ================================================================================
 
 App Name:       GrotTrack
-Platform:       macOS 15.0+ (Sequoia)
+Platform:       macOS 26.0+ (Tahoe)
 Language:       Swift 6 (Approachable Concurrency)
 UI Framework:   SwiftUI
 Architecture:   MVVM with @Observable
@@ -41,12 +41,20 @@ Architecture:   MVVM with @Observable
 │  │  └────────┬─────────┘  └────────┬─────────┘  └──────────┬──────────┘  │  │
 │  │           │                     │                        │             │  │
 │  │  ┌────────▼─────────────────────▼────────────────────────▼──────────┐  │  │
+│  │  │              Enrichment Layer (post-capture pipeline)            │  │  │
+│  │  │  ScreenshotEnrichmentService  EntityExtractor  SessionDetector   │  │  │
+│  │  │  SessionClassifier (Apple Intelligence / FoundationModels)       │  │  │
+│  │  └──────────────────────────────────┬───────────────────────────────┘  │  │
+│  │                                     │                                   │  │
+│  │  ┌──────────────────────────────────▼───────────────────────────────┐  │  │
 │  │  │                  Persistence Layer                                │  │  │
 │  │  │  SwiftData ModelContainer         FileManager                    │  │  │
 │  │  │  - ActivityEvent                  - Screenshots/YYYY-MM-DD/      │  │  │
 │  │  │  - TimeBlock                      - Thumbnails/YYYY-MM-DD/       │  │  │
 │  │  │  - Annotation                     - Exports/                     │  │  │
 │  │  │  - Screenshot (metadata)                                         │  │  │
+│  │  │  - ScreenshotEnrichment                                          │  │  │
+│  │  │  - ActivitySession                                               │  │  │
 │  │  └──────────────────────────────────────────────────────────────────┘  │  │
 │  └────────────────────────────────────────────────────────────────────────┘  │
 │                                                                             │
@@ -277,7 +285,67 @@ Estimated Storage:
 
 
 ================================================================================
-6. MULTITASKING DETECTION
+6. ENRICHMENT PIPELINE
+================================================================================
+
+After each screenshot is captured, an optional enrichment pipeline runs
+asynchronously to extract richer context from the image and activity stream.
+
+Services:
+
+  ScreenshotEnrichmentService
+    Orchestrates the pipeline for a single screenshot. Runs OCR via
+    VNRecognizeTextRequest, calls EntityExtractor, and persists a
+    ScreenshotEnrichment record. Triggered by ScreenshotManager after save.
+
+  EntityExtractor
+    Parses raw OCR text to identify structured entities: file paths, URLs,
+    git branches, ticket references, and domain terms. Returns [ExtractedEntity].
+
+  SessionDetector
+    Groups consecutive ActivityEvents into ActivitySession records based on
+    temporal gaps and dominant-app transitions. Runs at hour boundaries and
+    on demand. Sessions span [startTime, endTime] with a dominant app and
+    optional title.
+
+  SessionClassifier
+    Optionally enriches ActivitySession records with a human-readable label
+    (e.g. "Code Review", "Writing", "Communication") using Apple Intelligence
+    (FoundationModels). Falls back gracefully when the model is unavailable.
+
+Data flow:
+  capture → OCR (VNRecognizeTextRequest) → EntityExtractor
+      → ScreenshotEnrichment saved to SwiftData
+      → SessionDetector groups events → ActivitySession saved
+      → SessionClassifier labels session (best-effort, Apple Intelligence)
+
+New SwiftData models:
+
+  ScreenshotEnrichment (@Model)
+    screenshotID: UUID        links to Screenshot.id
+    ocrText: String           full OCR transcript
+    topLines: String          first ~3 lines (summary display)
+    entitiesJSON: String      encoded [ExtractedEntity]
+    status: String            pending | running | completed | failed
+    analysisVersion: Int      schema version for re-processing
+
+  ActivitySession (@Model)
+    id: UUID
+    startTime / endTime: Date
+    dominantApp: String
+    dominantBundleID: String
+    eventCount: Int
+    label: String?            classifier output (nil until classified)
+    confidence: Double?       classifier confidence [0, 1]
+
+Graceful degradation tiers:
+  Core (always on):   OCR + EntityExtractor — requires Screen Recording only
+  Full (when avail):  + Apple Intelligence classification via FoundationModels
+  The pipeline writes whatever it can; UI displays partial enrichment gracefully.
+
+
+================================================================================
+7. MULTITASKING DETECTION
 ================================================================================
 
 Algorithm: Rolling Window Analysis
