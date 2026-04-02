@@ -149,100 +149,8 @@ struct ScreenshotViewerView: View {
 
         return ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 0) {
-                // Primary info row
-                HStack(spacing: 12) {
-                    Text("\(viewModel.selectedIndex + 1) / \(viewModel.screenshots.count)")
-                        .font(.caption)
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-
-                    Divider().frame(height: 16)
-
-                    Image(systemName: "clock")
-                        .foregroundStyle(.secondary)
-                    Text(screenshot.timestamp.formatted(.dateTime.hour().minute().second()))
-                        .font(.caption)
-                        .monospacedDigit()
-
-                    if !ctx.appName.isEmpty {
-                        Divider().frame(height: 16)
-
-                        Image(nsImage: AppIconProvider.icon(forBundleID: ctx.bundleID))
-                            .resizable()
-                            .frame(width: 16, height: 16)
-                        Text(ctx.appName)
-                            .font(.caption)
-                            .bold()
-
-                        if !ctx.windowTitle.isEmpty {
-                            Text("-- \(ctx.windowTitle)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-
-                    Spacer()
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-
-                // Browser tab row
-                if let tab = ctx.browserTabTitle, !tab.isEmpty {
-                    HStack(spacing: 6) {
-                        Image(systemName: "globe")
-                            .foregroundStyle(.secondary)
-                        Text(tab)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-                }
-
-                Divider()
-                    .padding(.horizontal)
-
-                // Session label
-                if let label = ctx.sessionLabel {
-                    HStack(spacing: 4) {
-                        Image(systemName: "tag")
-                            .foregroundStyle(.secondary)
-                        Text(label)
-                            .font(.caption)
-                            .bold()
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                }
-
-                // Entity chips (no limit)
-                if !ctx.entities.isEmpty {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 4)], spacing: 4) {
-                        ForEach(Array(ctx.entities.enumerated()), id: \.offset) { _, entity in
-                            entityChip(entity)
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                }
-
-                // OCR text (collapsible)
-                if let ocrText = ctx.ocrText, !ocrText.isEmpty {
-                    DisclosureGroup("OCR Text", isExpanded: $showOCR) {
-                        ScrollView {
-                            Text(ocrText)
-                                .font(.caption2)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .frame(maxHeight: 150)
-                    }
-                    .font(.caption)
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                }
+                primaryInfoRow(for: screenshot, ctx: ctx)
+                contextDetails(for: ctx)
             }
             .padding(.bottom, 8)
         }
@@ -250,8 +158,68 @@ struct ScreenshotViewerView: View {
         .background(.ultraThinMaterial)
     }
 
+    @ViewBuilder
+    private func contextDetails(for ctx: ScreenshotContext) -> some View {
+        // Browser tab row
+        if let tab = ctx.browserTabTitle, !tab.isEmpty {
+            HStack(spacing: 6) {
+                Image(systemName: "globe")
+                    .foregroundStyle(.secondary)
+                Text(tab)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+        }
+
+        Divider()
+            .padding(.horizontal)
+
+        // Session label
+        if let label = ctx.sessionLabel {
+            HStack(spacing: 4) {
+                Image(systemName: "tag")
+                    .foregroundStyle(.secondary)
+                Text(label)
+                    .font(.caption)
+                    .bold()
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+        }
+
+        // Entity chips (no limit)
+        if !ctx.entities.isEmpty {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 4)], spacing: 4) {
+                ForEach(Array(ctx.entities.enumerated()), id: \.offset) { _, entity in
+                    entityChip(entity)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+        }
+
+        // OCR text (collapsible)
+        if let ocrText = ctx.ocrText, !ocrText.isEmpty {
+            DisclosureGroup("OCR Text", isExpanded: $showOCR) {
+                ScrollView {
+                    Text(ocrText)
+                        .font(.caption2)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 150)
+            }
+            .font(.caption)
+            .padding(.horizontal)
+            .padding(.top, 8)
+        }
+    }
+
     private func entityChip(_ entity: ExtractedEntity) -> some View {
-        let (icon, color) = entityStyle(entity.type)
+        let (icon, color) = entity.type.style
         return HStack(spacing: 3) {
             Image(systemName: icon)
                 .font(.caption2)
@@ -265,18 +233,42 @@ struct ScreenshotViewerView: View {
         .foregroundStyle(color)
     }
 
-    private func entityStyle(_ type: EntityType) -> (icon: String, color: Color) {
-        switch type {
-        case .url: ("link", .blue)
-        case .date: ("calendar", .orange)
-        case .phoneNumber: ("phone", .green)
-        case .address: ("mappin", .red)
-        case .personName: ("person", .purple)
-        case .organizationName: ("building.2", .indigo)
-        case .issueKey: ("ticket", .teal)
-        case .filePath: ("doc", .brown)
-        case .gitBranch: ("arrow.triangle.branch", .mint)
-        case .meetingLink: ("video", .pink)
+    private func primaryInfoRow(for screenshot: Screenshot, ctx: ScreenshotContext) -> some View {
+        HStack(spacing: 12) {
+            Text("\(viewModel.selectedIndex + 1) / \(viewModel.screenshots.count)")
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+
+            Divider().frame(height: 16)
+
+            Image(systemName: "clock")
+                .foregroundStyle(.secondary)
+            Text(screenshot.timestamp.formatted(.dateTime.hour().minute().second()))
+                .font(.caption)
+                .monospacedDigit()
+
+            if !ctx.appName.isEmpty {
+                Divider().frame(height: 16)
+
+                Image(nsImage: AppIconProvider.icon(forBundleID: ctx.bundleID))
+                    .resizable()
+                    .frame(width: 16, height: 16)
+                Text(ctx.appName)
+                    .font(.caption)
+                    .bold()
+
+                if !ctx.windowTitle.isEmpty {
+                    Text("-- \(ctx.windowTitle)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer()
         }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
     }
 }

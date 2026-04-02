@@ -111,42 +111,7 @@ struct ScreenshotGridView: View {
 
             // Hover overlay (bottom gradient with context)
             if isHovered {
-                VStack {
-                    Spacer()
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 4) {
-                            if !ctx.appName.isEmpty {
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(TimelineViewModel.appColor(for: ctx.appName))
-                                    .frame(width: 10, height: 10)
-                                Text(ctx.appName)
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundStyle(.white)
-                            }
-                            Text(screenshot.timestamp.formatted(.dateTime.hour().minute()))
-                                .font(.system(size: 10))
-                                .foregroundStyle(.white.opacity(0.7))
-                        }
-                        if !ctx.entities.isEmpty {
-                            HStack(spacing: 3) {
-                                ForEach(Array(ctx.entities.prefix(3).enumerated()), id: \.offset) { _, entity in
-                                    hoverEntityChip(entity)
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 6)
-                    .padding(.top, 20)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        LinearGradient(
-                            colors: [.clear, .black.opacity(0.85)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                }
+                hoverOverlay(for: ctx, timestamp: screenshot.timestamp)
             }
         }
         .aspectRatio(16/10, contentMode: .fill)
@@ -189,7 +154,7 @@ struct ScreenshotGridView: View {
     }
 
     private func hoverEntityChip(_ entity: ExtractedEntity) -> some View {
-        let (icon, color) = entityStyle(entity.type)
+        let (icon, color) = entity.type.style
         return HStack(spacing: 2) {
             Image(systemName: icon)
                 .font(.system(size: 8))
@@ -203,26 +168,55 @@ struct ScreenshotGridView: View {
         .foregroundStyle(color)
     }
 
-    private func entityStyle(_ type: EntityType) -> (icon: String, color: Color) {
-        switch type {
-        case .url: ("link", .blue)
-        case .date: ("calendar", .orange)
-        case .phoneNumber: ("phone", .green)
-        case .address: ("mappin", .red)
-        case .personName: ("person", .purple)
-        case .organizationName: ("building.2", .indigo)
-        case .issueKey: ("ticket", .teal)
-        case .filePath: ("doc", .brown)
-        case .gitBranch: ("arrow.triangle.branch", .mint)
-        case .meetingLink: ("video", .pink)
+    @ViewBuilder
+    private func hoverOverlay(for ctx: ScreenshotContext, timestamp: Date) -> some View {
+        VStack {
+            Spacer()
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 4) {
+                    if !ctx.appName.isEmpty {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(TimelineViewModel.appColor(for: ctx.appName))
+                            .frame(width: 10, height: 10)
+                        Text(ctx.appName)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white)
+                    }
+                    Text(timestamp.formatted(.dateTime.hour().minute()))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+                if !ctx.entities.isEmpty {
+                    HStack(spacing: 3) {
+                        ForEach(Array(ctx.entities.prefix(3).enumerated()), id: \.offset) { _, entity in
+                            hoverEntityChip(entity)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 6)
+            .padding(.top, 20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.85)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
         }
     }
 
-    private func hourLabel(_ hour: Int) -> String {
+    private static let hourFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
+        return formatter
+    }()
+
+    private func hourLabel(_ hour: Int) -> String {
         let calendar = Calendar.current
         let date = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: Date()) ?? Date()
-        return formatter.string(from: date)
+        return Self.hourFormatter.string(from: date)
     }
 }
