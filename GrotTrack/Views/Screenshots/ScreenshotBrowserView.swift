@@ -42,7 +42,6 @@ struct ScreenshotBrowserView: View {
             }
         }
         .frame(minWidth: 800, minHeight: 600)
-        .navigationTitle("Screenshots \u{2014} \(viewModel.selectedDate.formatted(date: .abbreviated, time: .omitted))")
         .onChange(of: viewModel.selectedDate) { _, _ in
             viewModel.loadData(context: context)
         }

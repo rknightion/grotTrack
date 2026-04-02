@@ -60,6 +60,7 @@ final class ScreenshotBrowserViewModel {
         activityEvents = (try? context.fetch(eventDescriptor)) ?? []
 
         buildContextCache()
+        buildActivitySegments()
         clampSelectedIndex()
     }
 
@@ -128,7 +129,7 @@ final class ScreenshotBrowserViewModel {
     // MARK: - Activity Segments (for timeline rail)
 
     struct ActivitySegment: Identifiable {
-        let id = UUID()
+        let id: UUID // Stable ID from the underlying ActivityEvent
         let appName: String
         let bundleID: String
         let windowTitle: String
@@ -137,9 +138,12 @@ final class ScreenshotBrowserViewModel {
         let color: Color
     }
 
-    var activitySegments: [ActivitySegment] {
-        activityEvents.map { event in
+    private(set) var activitySegments: [ActivitySegment] = []
+
+    private func buildActivitySegments() {
+        activitySegments = activityEvents.map { event in
             ActivitySegment(
+                id: event.id,
                 appName: event.appName,
                 bundleID: event.bundleID,
                 windowTitle: event.windowTitle,

@@ -6,20 +6,14 @@ struct TimelineRailView: View {
     private let railHeight: CGFloat = 600
 
     var body: some View {
-        ScrollViewReader { _ in
-            ScrollView(.vertical, showsIndicators: false) {
-                ZStack(alignment: .topLeading) {
-                    hourMarkers
-                    activitySegmentOverlay
-                    screenshotMarkers
-                    dragOverlay
-                }
-                .frame(width: 160, height: railHeight)
-                .id("rail")
+        ScrollView(.vertical, showsIndicators: false) {
+            ZStack(alignment: .topLeading) {
+                hourMarkers
+                activitySegmentOverlay
+                screenshotMarkers
+                dragOverlay
             }
-            .onChange(of: viewModel.selectedIndex) { _, _ in
-                // ScrollViewReader can anchor to rail markers if needed
-            }
+            .frame(width: 160, height: railHeight)
         }
         .background(.ultraThinMaterial)
     }
@@ -145,7 +139,12 @@ struct TimelineRailView: View {
         let endHour = min(23, calendar.component(.hour, from: lastTime) + 1)
 
         let start = calendar.date(bySettingHour: startHour, minute: 0, second: 0, of: viewModel.selectedDate)!
-        let end = calendar.date(bySettingHour: endHour + 1, minute: 0, second: 0, of: viewModel.selectedDate)!
+        let end: Date
+        if endHour >= 23 {
+            end = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: viewModel.selectedDate))!
+        } else {
+            end = calendar.date(bySettingHour: endHour + 1, minute: 0, second: 0, of: viewModel.selectedDate)!
+        }
 
         return DayRange(startHour: startHour, endHour: endHour, startDate: start, endDate: end)
     }
