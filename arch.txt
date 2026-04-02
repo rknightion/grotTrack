@@ -45,7 +45,7 @@ Architecture:   MVVM with @Observable
 │  │  │  SwiftData ModelContainer         FileManager                    │  │  │
 │  │  │  - ActivityEvent                  - Screenshots/YYYY-MM-DD/      │  │  │
 │  │  │  - TimeBlock                      - Thumbnails/YYYY-MM-DD/       │  │  │
-│  │  │  - DailyReport                    - Exports/                     │  │  │
+│  │  │  - Annotation                     - Exports/                     │  │  │
 │  │  │  - Screenshot (metadata)                                         │  │  │
 │  │  └──────────────────────────────────────────────────────────────────┘  │  │
 │  └────────────────────────────────────────────────────────────────────────┘  │
@@ -123,19 +123,6 @@ Minimum Target      macOS 15.0 (Sequoia)            Required for Swift 6 Approac
 └──────────┬───────────┘
            │ many:1
            ▼
-┌──────────────────────────────────────────────┐
-│              DailyReport                      │
-│──────────────────────────────────────────────│
-│ id: UUID                                      │
-│ date: Date                                    │
-│ totalHoursTracked: Double                     │
-│ hourBlocks: [TimeBlock]                       │
-│ appAllocationsJSON: String                    │
-│   (encoded [AppAllocation])                   │
-│ summary: String                               │
-│ generatedAt: Date                             │
-└──────────────────────────────────────────────┘
-
 AppAllocation (Codable struct, not a @Model):
   - appName: String
   - hours: Double
@@ -340,7 +327,7 @@ Timeline Data Flow:
   hourly display. SwiftData save notifications trigger debounced (2s)
   live updates when viewing today's date. TimeBlocks are created at hour
   boundaries by TimeBlockAggregator and used only by ReportGenerator for
-  daily/weekly/monthly reports. The menu bar shows a compact app breakdown
+  weekly/monthly trend reports. The menu bar shows a compact app breakdown
   (top 5 apps by duration) from ActivityEvents of the last 2 hours,
   also updated via debounced observation (5s).
 
@@ -440,7 +427,7 @@ GrotTrack/
 │   │   ├── ActivityEvent.swift               # @Model: window/app tracking events
 │   │   ├── Screenshot.swift                  # @Model: screenshot metadata
 │   │   ├── TimeBlock.swift                   # @Model: hourly aggregated blocks
-│   │   ├── DailyReport.swift                 # @Model: daily report with app allocations
+│   │   ├── DailyReport.swift                 # AppAllocation Codable struct (shared by trend reports)
 │   │   ├── Annotation.swift                  # @Model: user-entered notes with context
 │   │   └── TrendModels.swift                 # @Model: WeeklyReport, MonthlyReport,
 │   │                                         #   and supporting Codable structs
@@ -448,15 +435,14 @@ GrotTrack/
 │   ├── ViewModels/
 │   │   ├── AppState.swift                    # @Observable: global app state
 │   │   ├── TimelineViewModel.swift           # @Observable: timeline data queries
-│   │   ├── ReportViewModel.swift             # @Observable: report generation
-│   │   └── TrendReportViewModel.swift        # @Observable: weekly/monthly reports
+│   │   └── TrendReportViewModel.swift        # @Observable: unified trend reports (week/month)
 │   │
 │   ├── Services/
 │   │   ├── ActivityTracker.swift             # AXUIElement + NSWorkspace + CGWindowList
 │   │   ├── ScreenshotManager.swift           # ScreenCaptureKit + storage
 │   │   ├── MultitaskingDetector.swift        # Rolling window + CGWindowList analysis
 │   │   ├── TimeBlockAggregator.swift         # Hourly event grouping
-│   │   ├── ReportGenerator.swift             # Daily report compilation (local)
+│   │   ├── ReportGenerator.swift             # Trend report generation (weekly/monthly)
 │   │   ├── PermissionManager.swift           # Permission checking + requesting
 │   │   ├── NativeMessageHost.swift           # Chrome native messaging stdin/stdout
 │   │   └── BrowserTabService.swift           # Tab data manager, feeds ActivityTracker
@@ -469,12 +455,8 @@ GrotTrack/
 │   │   │   ├── HourBlockView.swift           # Hourly bar visualization
 │   │   │   └── TimeBlockView.swift           # Individual activity segment
 │   │   ├── Reports/
-│   │   │   ├── DailyReportView.swift         # Full daily report view
-│   │   │   ├── AppBreakdownView.swift        # Pie/bar chart app breakdown
-│   │   │   ├── WeeklyReportView.swift        # Weekly report: stacked bar chart,
-│   │   │   │                                 #   focus trend, app trends
-│   │   │   └── MonthlyReportView.swift       # Monthly report: calendar heatmap,
-│   │   │                                     #   weekly breakdown, trends
+│   │   │   ├── TrendsView.swift              # Unified trend view (week/month scope)
+│   │   │   └── AppBreakdownView.swift        # Pie/bar chart app breakdown
 │   │   ├── Settings/
 │   │   │   ├── SettingsView.swift            # TabView settings window
 │   │   │   ├── ExclusionListView.swift       # App exclusion management
@@ -534,6 +516,6 @@ Export formats              JSON + CSV           Machine-readable + spreadsheet
 Annotation hotkey           Ctrl+Shift+N         Configurable; uses NSPanel with
                             (configurable)       nonactivatingPanel style for minimal
                                                  workflow disruption
-Trend reports               Cached SwiftData     WeeklyReport/MonthlyReport are
-                            models               persisted; period-over-period deltas
-                                                 computed at view time, not stored
+Trend reports               Cached SwiftData     WeeklyReport/MonthlyReport persisted;
+                            models               unified TrendsView with scope picker;
+                                                 period-over-period deltas at view time
