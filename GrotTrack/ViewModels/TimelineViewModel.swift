@@ -72,7 +72,19 @@ final class TimelineViewModel {
     var totalHoursTracked: Double = 0
     var topApp: String = ""
     var averageFocusScore: Double = 0
-    var expandedHourIDs: Set<Int> = []
+    private var expandedHoursByDate: [String: Set<Int>] = [:]
+
+    var expandedHourIDs: Set<Int> {
+        get { expandedHoursByDate[dateKey(for: selectedDate)] ?? [] }
+        set { expandedHoursByDate[dateKey(for: selectedDate)] = newValue }
+    }
+
+    private func dateKey(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
     var uniqueAppCount: Int = 0
 
     // Search & filter
