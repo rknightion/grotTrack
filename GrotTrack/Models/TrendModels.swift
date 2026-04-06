@@ -11,6 +11,7 @@ final class WeeklyReport {
     var dailyAppHoursJSON: String = "[]"    // encoded [DailyAppHours]
     var summary: String = ""
     var generatedAt: Date = Date()
+    var taskAllocationsJSON: String = "[]"  // encoded [TaskAllocation]
 
     init(weekStartDate: Date) {
         self.weekStartDate = weekStartDate
@@ -28,6 +29,7 @@ final class MonthlyReport {
     var weeklyBreakdownJSON: String = "[]"  // encoded [WeeklyBreakdown]
     var summary: String = ""
     var generatedAt: Date = Date()
+    var taskAllocationsJSON: String = "[]"  // encoded [TaskAllocation]
 
     init(monthStartDate: Date) {
         self.monthStartDate = monthStartDate
@@ -48,4 +50,17 @@ struct WeeklyBreakdown: Codable {
     var weekStart: Date
     var totalHours: Double
     var avgFocusScore: Double
+}
+
+struct TaskAllocation: Codable {
+    var label: String
+    var hours: Double
+    var percentage: Double
+    var apps: [AppContribution]
+    var avgFocus: Double
+
+    struct AppContribution: Codable {
+        var name: String
+        var hours: Double
+    }
 }
