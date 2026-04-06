@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct AppSegmentBar: View {
-    let segments: [(appName: String, proportion: Double, color: Color)]
+    let segments: [AppBreakdownSegment]
     var height: CGFloat = 12
 
     var body: some View {

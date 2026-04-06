@@ -54,10 +54,9 @@ final class PermissionManager {
 
             await MainActor.run {
                 _ = checkScreenRecording()
-                if !screenRecordingGranted {
-                    NSWorkspace.shared.open(
-                        URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
-                    )
+                if !screenRecordingGranted,
+                   let settingsURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+                    NSWorkspace.shared.open(settingsURL)
                 }
             }
         }

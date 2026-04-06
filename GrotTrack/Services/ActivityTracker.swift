@@ -131,14 +131,36 @@ final class ActivityTracker {
         let appName = frontApp.localizedName ?? "Unknown"
         let bundleID = frontApp.bundleIdentifier ?? ""
 
-        // Check exclusion list
+        guard !isExcludedApp(bundleID: bundleID) else { return }
+
+        let windowTitle = extractWindowTitle(from: frontApp)
+        let (browserTabTitle, browserTabURL) = fetchBrowserTabInfo(bundleID: bundleID)
+        let currentBrowserTab = browserTabTitle ?? ""
+
+        handleChangeDetection(
+            appName: appName, bundleID: bundleID,
+            windowTitle: windowTitle,
+            browserTabTitle: browserTabTitle, browserTabURL: browserTabURL
+        )
+
+        // Update appState (always, regardless of event creation)
+        appState.currentAppName = appName
+        appState.currentBundleID = bundleID
+        appState.currentWindowTitle = windowTitle
+        appState.currentBrowserTab = currentBrowserTab
+        appState.currentMultitaskingScore = multitaskingDetector.currentScore
+        appState.currentFocusLevel = multitaskingDetector.focusLevel
+    }
+
+    private func isExcludedApp(bundleID: String) -> Bool {
         let excludedJSON = UserDefaults.standard.string(forKey: "excludedBundleIDs") ?? "[]"
         let excludedIDs = (try? JSONDecoder().decode([String].self, from: Data(excludedJSON.utf8))) ?? []
-        if excludedIDs.contains(bundleID) { return }
+        return excludedIDs.contains(bundleID)
+    }
 
-        // AXUIElement window title extraction
+    private func extractWindowTitle(from app: NSRunningApplication) -> String {
         var windowTitle = ""
-        let appElement = AXUIElementCreateApplication(frontApp.processIdentifier)
+        let appElement = AXUIElementCreateApplication(app.processIdentifier)
         var focusedWindow: AnyObject?
         let result = AXUIElementCopyAttributeValue(
             appElement,
@@ -156,25 +178,28 @@ final class ActivityTracker {
             )
             windowTitle = title as? String ?? ""
         }
+        return windowTitle
+    }
 
-        // Browser tab integration (Chrome)
-        var browserTabTitle: String?
-        var browserTabURL: String?
-        if ["com.google.Chrome", "com.google.Chrome.canary"].contains(bundleID) {
-            browserTabTitle = browserTabService?.activeTabTitle
-            browserTabURL = browserTabService?.activeTabURL
+    private func fetchBrowserTabInfo(bundleID: String) -> (title: String?, url: String?) {
+        guard ["com.google.Chrome", "com.google.Chrome.canary"].contains(bundleID) else {
+            return (nil, nil)
         }
+        return (browserTabService?.activeTabTitle, browserTabService?.activeTabURL)
+    }
 
-        let currentBrowserTab = browserTabTitle ?? ""
-        let currentBrowserURL = browserTabURL ?? ""
+    private func handleChangeDetection(
+        appName: String, bundleID: String,
+        windowTitle: String,
+        browserTabTitle: String?, browserTabURL: String?
+    ) {
         let isBrowserApp = Self.browserBundleIDs.contains(bundleID)
-
-        // Three-tier change detection
         let isAppChange = appName != previousAppName
+        let currentBrowserURL = browserTabURL ?? ""
+        let currentBrowserTab = browserTabTitle ?? ""
         let isBrowserURLChange = isBrowserApp && currentBrowserURL != previousBrowserURL
 
         if isAppChange || isBrowserURLChange {
-            // Tier 1/2: App changed or browser navigated — immediate new event
             clearPendingTitle()
             createNewEvent(
                 appName: appName, bundleID: bundleID,
@@ -182,27 +207,12 @@ final class ActivityTracker {
                 browserTabTitle: browserTabTitle, browserTabURL: browserTabURL
             )
         } else if windowTitle != previousWindowTitle || currentBrowserTab != previousBrowserTab {
-            // Tier 3: Title changed within same app — debounce
-            if pendingWindowTitle != windowTitle || pendingBrowserTab != currentBrowserTab {
-                // New pending title — start/reset debounce timer
-                pendingWindowTitle = windowTitle
-                pendingBrowserTab = currentBrowserTab
-                pendingTitleSince = Date()
-            } else if let since = pendingTitleSince,
-                      Date().timeIntervalSince(since) >= titleDebounceInterval {
-                // Pending title has been stable long enough — commit
-                createNewEvent(
-                    appName: appName, bundleID: bundleID,
-                    windowTitle: windowTitle,
-                    browserTabTitle: browserTabTitle, browserTabURL: browserTabURL
-                )
-                clearPendingTitle()
-            }
-            // else: still waiting for stability, do nothing
-        } else if let pending = pendingWindowTitle, pending == windowTitle,
-                  let since = pendingTitleSince,
-                  Date().timeIntervalSince(since) >= titleDebounceInterval {
-            // Title reverted to pending and is now stable — commit
+            handleTitleDebounce(
+                appName: appName, bundleID: bundleID,
+                windowTitle: windowTitle,
+                browserTabTitle: browserTabTitle, browserTabURL: browserTabURL
+            )
+        } else if pendingTitleIsStable(windowTitle) {
             createNewEvent(
                 appName: appName, bundleID: bundleID,
                 windowTitle: windowTitle,
@@ -210,14 +220,33 @@ final class ActivityTracker {
             )
             clearPendingTitle()
         }
+    }
 
-        // Update appState (always, regardless of event creation)
-        appState.currentAppName = appName
-        appState.currentBundleID = bundleID
-        appState.currentWindowTitle = windowTitle
-        appState.currentBrowserTab = currentBrowserTab
-        appState.currentMultitaskingScore = multitaskingDetector.currentScore
-        appState.currentFocusLevel = multitaskingDetector.focusLevel
+    private func pendingTitleIsStable(_ windowTitle: String) -> Bool {
+        guard let pending = pendingWindowTitle, pending == windowTitle,
+              let since = pendingTitleSince else { return false }
+        return Date().timeIntervalSince(since) >= titleDebounceInterval
+    }
+
+    private func handleTitleDebounce(
+        appName: String, bundleID: String,
+        windowTitle: String,
+        browserTabTitle: String?, browserTabURL: String?
+    ) {
+        let currentBrowserTab = browserTabTitle ?? ""
+        if pendingWindowTitle != windowTitle || pendingBrowserTab != currentBrowserTab {
+            pendingWindowTitle = windowTitle
+            pendingBrowserTab = currentBrowserTab
+            pendingTitleSince = Date()
+        } else if let since = pendingTitleSince,
+                  Date().timeIntervalSince(since) >= titleDebounceInterval {
+            createNewEvent(
+                appName: appName, bundleID: bundleID,
+                windowTitle: windowTitle,
+                browserTabTitle: browserTabTitle, browserTabURL: browserTabURL
+            )
+            clearPendingTitle()
+        }
     }
 
     // MARK: - Event Creation
