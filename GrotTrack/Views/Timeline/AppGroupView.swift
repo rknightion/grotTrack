@@ -126,8 +126,9 @@ struct AppGroupView: View {
                     .lineLimit(1)
                 }
 
-                if let url = activity.browserTabURL, !url.isEmpty {
-                    Link(destination: URL(string: url) ?? URL(string: "about:blank")!) {
+                if let url = activity.browserTabURL, !url.isEmpty,
+                   let linkURL = URL(string: url) ?? URL(string: "about:blank") {
+                    Link(destination: linkURL) {
                         Text(url)
                             .font(.caption2)
                             .lineLimit(1)

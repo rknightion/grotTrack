@@ -237,7 +237,7 @@ final class TimelineViewModel {
 
     // MARK: - App Breakdown (per hour group)
 
-    func appBreakdown(for group: HourGroup) -> [(appName: String, proportion: Double, color: Color)] {
+    func appBreakdown(for group: HourGroup) -> [AppBreakdownSegment] {
         let activities = group.activities
         guard !activities.isEmpty else { return [] }
 
@@ -251,7 +251,7 @@ final class TimelineViewModel {
 
         return durationByApp
             .sorted { $0.value > $1.value }
-            .map { (appName: $0.key, proportion: $0.value / total, color: Self.appColor(for: $0.key)) }
+            .map { AppBreakdownSegment(appName: $0.key, proportion: $0.value / total, color: Self.appColor(for: $0.key)) }
     }
 
     func sessionLabels(for hourGroup: HourGroup) -> [String] {

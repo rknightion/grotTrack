@@ -197,12 +197,18 @@ struct TimelineRailView: View {
         let startHour = max(0, calendar.component(.hour, from: firstTime) - 1)
         let endHour = min(23, calendar.component(.hour, from: lastTime) + 1)
 
-        let start = calendar.date(bySettingHour: startHour, minute: 0, second: 0, of: viewModel.selectedDate)!
+        let start = calendar.date(
+            bySettingHour: startHour, minute: 0, second: 0, of: viewModel.selectedDate
+        ) ?? startOfDay
         let end: Date
         if endHour >= 23 {
-            end = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: viewModel.selectedDate))!
+            end = calendar.date(
+                byAdding: .day, value: 1, to: calendar.startOfDay(for: viewModel.selectedDate)
+            ) ?? startOfDay.addingTimeInterval(86400)
         } else {
-            end = calendar.date(bySettingHour: endHour + 1, minute: 0, second: 0, of: viewModel.selectedDate)!
+            end = calendar.date(
+                bySettingHour: endHour + 1, minute: 0, second: 0, of: viewModel.selectedDate
+            ) ?? startOfDay.addingTimeInterval(86400)
         }
 
         return DayRange(startHour: startHour, endHour: endHour, startDate: start, endDate: end)
@@ -218,7 +224,9 @@ struct TimelineRailView: View {
 
     private func yPosition(forHour hour: Int, range: DayRange, height: CGFloat) -> CGFloat {
         let calendar = Calendar.current
-        let date = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: viewModel.selectedDate)!
+        guard let date = calendar.date(
+            bySettingHour: hour, minute: 0, second: 0, of: viewModel.selectedDate
+        ) else { return 0 }
         return yPosition(for: date, range: range, height: height)
     }
 }
