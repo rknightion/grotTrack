@@ -4,7 +4,7 @@ import SwiftData
 struct HourBlockView: View {
     let hourGroup: HourGroup
     let isExpanded: Bool
-    let appBreakdown: [(appName: String, proportion: Double, color: Color)]
+    let appBreakdown: [AppBreakdownSegment]
     var onToggleExpand: () -> Void
 
     @Environment(\.modelContext) private var context

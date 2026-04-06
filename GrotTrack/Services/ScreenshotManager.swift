@@ -2,6 +2,20 @@ import SwiftUI
 import SwiftData
 import ScreenCaptureKit
 
+struct ScreenshotResult {
+    let path: String
+    let thumbnailPath: String
+    let fileSize: Int64
+    let width: Int
+    let height: Int
+}
+
+struct StorageStats {
+    let count: Int
+    let totalBytes: Int64
+    let oldestDate: Date?
+}
+
 enum ScreenshotError: Error, LocalizedError {
     case noDisplay
     case captureFailed
@@ -112,7 +126,7 @@ final class ScreenshotManager {
         captureTimer = nil
     }
 
-    func captureScreenshot() async throws -> (path: String, thumbnailPath: String, fileSize: Int64) {
+    func captureScreenshot() async throws -> ScreenshotResult {
         isCurrentlyCapturing = true
         defer { isCurrentlyCapturing = false }
 
@@ -133,6 +147,13 @@ final class ScreenshotManager {
             return try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
         }.value
 
+        let result = try saveScreenshot(image: image)
+        persistScreenshotMetadata(result: result)
+        lastCaptureDate = Date()
+        return result
+    }
+
+    private func saveScreenshot(image: CGImage) throws -> ScreenshotResult {
         guard let resizedImage = image.resized(toFit: maxDimension) else {
             throw ScreenshotError.resizeFailed
         }
@@ -140,7 +161,6 @@ final class ScreenshotManager {
         let now = Date()
         let dateString = dateFormatter.string(from: now)
         let timeString = timeFormatter.string(from: now)
-
         try ensureDirectories(for: now)
 
         let screenshotRelativePath = "\(dateString)/\(timeString).webp"
@@ -161,40 +181,42 @@ final class ScreenshotManager {
         }
         try thumbnailData.write(to: thumbnailURL)
 
-        let fileSize = Int64(webpData.count)
+        return ScreenshotResult(
+            path: screenshotRelativePath,
+            thumbnailPath: thumbnailRelativePath,
+            fileSize: Int64(webpData.count),
+            width: resizedImage.width,
+            height: resizedImage.height
+        )
+    }
 
-        if let modelContext {
-            let screenshot = Screenshot(
-                filePath: screenshotRelativePath,
-                thumbnailPath: thumbnailRelativePath,
-                fileSize: fileSize
-            )
-            screenshot.width = resizedImage.width
-            screenshot.height = resizedImage.height
-            modelContext.insert(screenshot)
+    private func persistScreenshotMetadata(result: ScreenshotResult) {
+        guard let modelContext else { return }
+        let screenshot = Screenshot(
+            filePath: result.path,
+            thumbnailPath: result.thumbnailPath,
+            fileSize: result.fileSize
+        )
+        screenshot.width = result.width
+        screenshot.height = result.height
+        modelContext.insert(screenshot)
 
-            // Link to most recent ActivityEvent if it has no screenshot yet
-            var eventDescriptor = FetchDescriptor<ActivityEvent>(
-                sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
-            )
-            eventDescriptor.fetchLimit = 1
-            if let recentEvent = try? modelContext.fetch(eventDescriptor).first,
-               recentEvent.screenshotID == nil {
-                recentEvent.screenshotID = screenshot.id
-            }
-
-            try? modelContext.save()
-            onScreenshotCaptured?(screenshot.id)
+        var eventDescriptor = FetchDescriptor<ActivityEvent>(
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        eventDescriptor.fetchLimit = 1
+        if let recentEvent = try? modelContext.fetch(eventDescriptor).first,
+           recentEvent.screenshotID == nil {
+            recentEvent.screenshotID = screenshot.id
         }
 
-        lastCaptureDate = Date()
-
-        return (path: screenshotRelativePath, thumbnailPath: thumbnailRelativePath, fileSize: fileSize)
+        try? modelContext.save()
+        onScreenshotCaptured?(screenshot.id)
     }
 
     /// Calculate storage statistics by scanning screenshot and thumbnail directories.
-    func storageStats() -> (count: Int, totalBytes: Int64, oldestDate: Date?) {
-        let fm = FileManager.default
+    func storageStats() -> StorageStats {
+        let fileManager = FileManager.default
         var count = 0
         var totalBytes: Int64 = 0
         var oldestDate: Date?
@@ -202,17 +224,19 @@ final class ScreenshotManager {
         storageDateFormatter.dateFormat = "yyyy-MM-dd"
 
         for baseDir in [screenshotsDir, thumbnailsDir] {
-            guard let dateDirs = try? fm.contentsOfDirectory(
+            guard let dateDirs = try? fileManager.contentsOfDirectory(
                 at: baseDir,
                 includingPropertiesForKeys: [.fileSizeKey, .creationDateKey]
             ) else { continue }
             for dateDir in dateDirs {
                 if let folderDate = storageDateFormatter.date(from: dateDir.lastPathComponent) {
-                    if oldestDate == nil || folderDate < oldestDate! {
+                    if let existing = oldestDate {
+                        if folderDate < existing { oldestDate = folderDate }
+                    } else {
                         oldestDate = folderDate
                     }
                 }
-                guard let files = try? fm.contentsOfDirectory(
+                guard let files = try? fileManager.contentsOfDirectory(
                     at: dateDir,
                     includingPropertiesForKeys: [.fileSizeKey]
                 ) else { continue }
@@ -223,22 +247,32 @@ final class ScreenshotManager {
                 }
             }
         }
-        return (count, totalBytes, oldestDate)
+        return StorageStats(count: count, totalBytes: totalBytes, oldestDate: oldestDate)
     }
 
     /// Delete screenshots and thumbnails older than retention thresholds. Returns bytes freed.
     func cleanupOldFiles(screenshotRetentionDays: Int, thumbnailRetentionDays: Int, modelContext: ModelContext) -> Int64 {
-        let fm = FileManager.default
+        let fileManager = FileManager.default
         let cleanupDateFormatter = DateFormatter()
         cleanupDateFormatter.dateFormat = "yyyy-MM-dd"
         let now = Date()
         var freedBytes: Int64 = 0
 
-        let screenshotCutoff = Calendar.current.date(byAdding: .day, value: -screenshotRetentionDays, to: now)!
-        freedBytes += cleanDirectory(screenshotsDir, before: screenshotCutoff, dateFormatter: cleanupDateFormatter, fileManager: fm)
+        let screenshotCutoff = Calendar.current.date(
+            byAdding: .day, value: -screenshotRetentionDays, to: now
+        ) ?? now
+        freedBytes += cleanDirectory(
+            screenshotsDir, before: screenshotCutoff,
+            dateFormatter: cleanupDateFormatter, fileManager: fileManager
+        )
 
-        let thumbnailCutoff = Calendar.current.date(byAdding: .day, value: -thumbnailRetentionDays, to: now)!
-        freedBytes += cleanDirectory(thumbnailsDir, before: thumbnailCutoff, dateFormatter: cleanupDateFormatter, fileManager: fm)
+        let thumbnailCutoff = Calendar.current.date(
+            byAdding: .day, value: -thumbnailRetentionDays, to: now
+        ) ?? now
+        freedBytes += cleanDirectory(
+            thumbnailsDir, before: thumbnailCutoff,
+            dateFormatter: cleanupDateFormatter, fileManager: fileManager
+        )
 
         let predicate = #Predicate<Screenshot> { $0.timestamp < screenshotCutoff }
         let descriptor = FetchDescriptor<Screenshot>(predicate: predicate)

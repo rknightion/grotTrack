@@ -51,16 +51,36 @@ struct AppGroup: Identifiable {
     let hourlyPresence: [Int: TimeInterval] // hour -> duration
 }
 
+struct WindowTitleDuration: Identifiable {
+    var id: String { title }
+    let title: String
+    let duration: TimeInterval
+}
+
+struct AppDurationEntry: Identifiable {
+    var id: String { appName }
+    let appName: String
+    let duration: TimeInterval
+    let color: Color
+}
+
+struct AppBreakdownSegment: Identifiable {
+    var id: String { appName }
+    let appName: String
+    let proportion: Double
+    let color: Color
+}
+
 struct StatsData {
     let totalActiveTime: TimeInterval
     let appSwitchCount: Int
     let uniqueAppCount: Int
     let mostProductiveHour: Int?
     let longestFocusStreak: Int // consecutive focused hours
-    let topWindowTitles: [(title: String, duration: TimeInterval)]
+    let topWindowTitles: [WindowTitleDuration]
     let hourlyActivity: [Int: TimeInterval] // hour -> total seconds active
     let hourlyFocusScores: [Int: Double] // hour -> focus score
-    let appDurations: [(appName: String, duration: TimeInterval, color: Color)]
+    let appDurations: [AppDurationEntry]
 }
 
 @Observable
@@ -89,8 +109,8 @@ final class TimelineViewModel {
 
     // Search & filter
     var searchText: String = ""
-    var appFilter: String? = nil // nil means "All Apps"
-    var focusFilter: String? = nil // nil means "All Focus"
+    var appFilter: String? // nil means "All Apps"
+    var focusFilter: String? // nil means "All Focus"
 
     // Sessions data
     var sessions: [ActivitySession] = []
@@ -237,7 +257,7 @@ final class TimelineViewModel {
 
     // MARK: - App Breakdown (per hour group)
 
-    func appBreakdown(for group: HourGroup) -> [(appName: String, proportion: Double, color: Color)] {
+    func appBreakdown(for group: HourGroup) -> [AppBreakdownSegment] {
         let activities = group.activities
         guard !activities.isEmpty else { return [] }
 
@@ -251,7 +271,7 @@ final class TimelineViewModel {
 
         return durationByApp
             .sorted { $0.value > $1.value }
-            .map { (appName: $0.key, proportion: $0.value / total, color: Self.appColor(for: $0.key)) }
+            .map { AppBreakdownSegment(appName: $0.key, proportion: $0.value / total, color: Self.appColor(for: $0.key)) }
     }
 
     func sessionLabels(for hourGroup: HourGroup) -> [String] {
@@ -330,142 +350,6 @@ final class TimelineViewModel {
         return palette[hash % palette.count]
     }
 
-    // MARK: - App Groups (By App mode)
-
-    var appGroups: [AppGroup] {
-        guard !activityEvents.isEmpty else { return [] }
-
-        var grouped: [String: (bundleID: String, activities: [ActivityEvent], hourly: [Int: TimeInterval])] = [:]
-
-        let calendar = Calendar.current
-        for activity in activityEvents {
-            let hour = calendar.component(.hour, from: activity.timestamp)
-            var entry = grouped[activity.appName] ?? (bundleID: activity.bundleID, activities: [], hourly: [:])
-            entry.activities.append(activity)
-            entry.hourly[hour, default: 0] += activity.duration
-            grouped[activity.appName] = entry
-        }
-
-        let totalDuration = activityEvents.reduce(0.0) { $0 + $1.duration }
-
-        var groups = grouped.map { appName, data in
-            let appTotal = data.activities.reduce(0.0) { $0 + $1.duration }
-            return AppGroup(
-                id: appName,
-                appName: appName,
-                bundleID: data.bundleID,
-                totalDuration: appTotal,
-                percentageOfDay: totalDuration > 0 ? appTotal / totalDuration * 100 : 0,
-                activities: data.activities.sorted { $0.timestamp < $1.timestamp },
-                hourlyPresence: data.hourly
-            )
-        }
-
-        switch appSortOrder {
-        case .duration:
-            groups.sort { $0.totalDuration > $1.totalDuration }
-        case .alphabetical:
-            groups.sort { $0.appName.localizedCaseInsensitiveCompare($1.appName) == .orderedAscending }
-        case .recency:
-            groups.sort { first, second in
-                let firstLatest = first.activities.map(\.timestamp).max() ?? .distantPast
-                let secondLatest = second.activities.map(\.timestamp).max() ?? .distantPast
-                return firstLatest > secondLatest
-            }
-        case .frequency:
-            let allSorted = activityEvents.sorted { $0.timestamp < $1.timestamp }
-            var switchCounts: [String: Int] = [:]
-            var prevApp = ""
-            for activity in allSorted {
-                if activity.appName != prevApp {
-                    switchCounts[activity.appName, default: 0] += 1
-                    prevApp = activity.appName
-                }
-            }
-            groups.sort { (switchCounts[$0.appName] ?? 0) > (switchCounts[$1.appName] ?? 0) }
-        }
-
-        return groups
-    }
-
-    // MARK: - Stats
-
-    var statsData: StatsData {
-        let allActivities = activityEvents
-        let totalActive = allActivities.reduce(0.0) { $0 + $1.duration }
-
-        // App switch count
-        var switches = 0
-        var prevApp = ""
-        for activity in allActivities {
-            if activity.appName != prevApp && !prevApp.isEmpty {
-                switches += 1
-            }
-            prevApp = activity.appName
-        }
-
-        // Unique apps
-        let apps = Set(allActivities.map(\.appName))
-
-        // Hourly activity and focus from hour groups
-        let calendar = Calendar.current
-        var hourlyActivity: [Int: TimeInterval] = [:]
-        var hourlyFocusScores: [Int: Double] = [:]
-
-        for group in hourGroups {
-            let hour = group.id
-            hourlyActivity[hour] = group.totalDuration
-            hourlyFocusScores[hour] = 1.0 - group.multitaskingScore
-        }
-
-        // Most productive hour (longest active time)
-        let mostProductive = hourlyActivity.max(by: { $0.value < $1.value })?.key
-
-        // Longest focus streak (consecutive hours with multitaskingScore < 0.2)
-        let hourGroupsByHour = Dictionary(uniqueKeysWithValues: hourGroups.map { ($0.id, $0) })
-        var longestStreak = 0
-        var currentStreak = 0
-        for hour in 0..<24 {
-            if let group = hourGroupsByHour[hour], group.multitaskingScore < 0.2 {
-                currentStreak += 1
-                longestStreak = max(longestStreak, currentStreak)
-            } else if hourlyActivity[hour] != nil {
-                currentStreak = 0
-            }
-        }
-
-        // Top window titles
-        var titleDurations: [String: TimeInterval] = [:]
-        for activity in allActivities where !activity.windowTitle.isEmpty {
-            titleDurations[activity.windowTitle, default: 0] += activity.duration
-        }
-        let topTitles = titleDurations
-            .sorted { $0.value > $1.value }
-            .prefix(5)
-            .map { (title: $0.key, duration: $0.value) }
-
-        // App durations for pie chart
-        var appDurs: [String: TimeInterval] = [:]
-        for activity in allActivities {
-            appDurs[activity.appName, default: 0] += activity.duration
-        }
-        let appDurations = appDurs
-            .sorted { $0.value > $1.value }
-            .map { (appName: $0.key, duration: $0.value, color: Self.appColor(for: $0.key)) }
-
-        return StatsData(
-            totalActiveTime: totalActive,
-            appSwitchCount: switches,
-            uniqueAppCount: apps.count,
-            mostProductiveHour: mostProductive,
-            longestFocusStreak: longestStreak,
-            topWindowTitles: topTitles,
-            hourlyActivity: hourlyActivity,
-            hourlyFocusScores: hourlyFocusScores,
-            appDurations: appDurations
-        )
-    }
-
     // MARK: - Screenshot Lookup
 
     func thumbnailPath(for activity: ActivityEvent, context: ModelContext) -> String? {
@@ -481,159 +365,6 @@ final class TimelineViewModel {
             return screenshot.thumbnailPath
         }
         return nil
-    }
-
-    // MARK: - Export
-
-    func exportReport(format: ExportFormat) {
-        let panel = NSSavePanel()
-        panel.canCreateDirectories = true
-
-        let dateStr = formattedDate(selectedDate)
-        switch format {
-        case .json:
-            panel.allowedContentTypes = [.json]
-            panel.nameFieldStringValue = "activity_\(dateStr).json"
-        case .csv:
-            panel.allowedContentTypes = [.commaSeparatedText]
-            panel.nameFieldStringValue = "activity_\(dateStr).csv"
-        }
-
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-
-        let content: String
-        switch format {
-        case .json:
-            content = buildJSONExport()
-        case .csv:
-            content = buildCSVExport()
-        }
-
-        try? content.write(to: url, atomically: true, encoding: .utf8)
-    }
-
-    private func buildJSONExport() -> String {
-        let isoFormatter = ISO8601DateFormatter()
-        isoFormatter.formatOptions = [.withInternetDateTime]
-
-        let hourBlockEntries: [[String: Any]] = hourGroups.map { group in
-            let activities: [[String: Any]] = group.activities.map { activity in
-                var entry: [String: Any] = [
-                    "appName": activity.appName,
-                    "windowTitle": activity.windowTitle,
-                    "duration": activity.duration
-                ]
-                if let browserTitle = activity.browserTabTitle {
-                    entry["browserTabTitle"] = browserTitle
-                }
-                if let browserURL = activity.browserTabURL {
-                    entry["browserTabURL"] = browserURL
-                }
-                return entry
-            }
-
-            // Annotations for this hour
-            let hourAnnotations = annotations.filter { ann in
-                ann.timestamp >= group.hourStart && ann.timestamp < group.hourEnd
-            }
-            let annotationEntries: [[String: Any]] = hourAnnotations.map { ann in
-                [
-                    "text": ann.text,
-                    "timestamp": isoFormatter.string(from: ann.timestamp),
-                    "appName": ann.appName
-                ]
-            }
-
-            let focusScore = 1.0 - group.multitaskingScore
-            var hourBlock: [String: Any] = [
-                "startTime": isoFormatter.string(from: group.hourStart),
-                "endTime": isoFormatter.string(from: group.hourEnd),
-                "dominantApp": group.dominantApp,
-                "focusScore": (focusScore * 100).rounded() / 100,
-                "activities": activities
-            ]
-            if !annotationEntries.isEmpty {
-                hourBlock["annotations"] = annotationEntries
-            }
-            return hourBlock
-        }
-
-        let sessionEntries: [[String: Any]] = sessions.map { session in
-            [
-                "label": session.displayLabel,
-                "startTime": isoFormatter.string(from: session.startTime),
-                "endTime": isoFormatter.string(from: session.endTime),
-                "dominantApp": session.dominantApp,
-                "confidence": session.confidence ?? 0,
-                "focusScore": session.activities.isEmpty ? 0 :
-                    (1.0 - session.activities.reduce(0.0) { $0 + $1.multitaskingScore } / Double(session.activities.count))
-            ] as [String: Any]
-        }
-
-        let exportDict: [String: Any] = [
-            "date": formattedDate(selectedDate),
-            "totalHoursTracked": totalHoursTracked,
-            "topApp": topApp,
-            "focusScore": averageFocusScore,
-            "uniqueAppCount": uniqueAppCount,
-            "hourBlocks": hourBlockEntries,
-            "sessions": sessionEntries
-        ]
-
-        guard let jsonData = try? JSONSerialization.data(
-            withJSONObject: exportDict,
-            options: [.prettyPrinted, .sortedKeys]
-        ) else {
-            return "{}"
-        }
-
-        return String(data: jsonData, encoding: .utf8) ?? "{}"
-    }
-
-    private func buildCSVExport() -> String {
-        var rows: [String] = ["Hour,App,WindowTitle,Duration,BrowserTab,Session,Type"]
-
-        for group in hourGroups {
-            let hour = group.id
-            let startStr = String(format: "%02d:00", hour)
-            let endStr = String(format: "%02d:00", hour + 1)
-            let hourRange = "\(startStr)-\(endStr)"
-
-            for activity in group.activities {
-                let app = csvEscape(activity.appName)
-                let title = csvEscape(activity.windowTitle)
-                let duration = String(format: "%.0f", activity.duration)
-                let browser = csvEscape(activity.browserTabTitle ?? "")
-                let sessionLabel = sessions.first { session in
-                    activity.timestamp >= session.startTime && activity.timestamp < session.endTime
-                }?.suggestedLabel ?? ""
-                let session = csvEscape(sessionLabel)
-                rows.append("\(hourRange),\(app),\(title),\(duration),\(browser),\(session),activity")
-            }
-
-            let hourAnnotations = annotations.filter { $0.timestamp >= group.hourStart && $0.timestamp < group.hourEnd }
-            for ann in hourAnnotations {
-                let text = csvEscape(ann.text)
-                let annApp = csvEscape(ann.appName)
-                rows.append("\(hourRange),\(annApp),\(text),0,,\(csvEscape("")),annotation")
-            }
-        }
-
-        return rows.joined(separator: "\n")
-    }
-
-    private func csvEscape(_ value: String) -> String {
-        if value.contains(",") || value.contains("\"") || value.contains("\n") {
-            let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
-            return "\"\(escaped)\""
-        }
-        return value
-    }
-
-    private func formattedDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
     }
 
     // MARK: - Private

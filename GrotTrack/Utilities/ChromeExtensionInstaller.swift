@@ -1,5 +1,18 @@
 import Foundation
 
+struct ChromeHostManifest: Codable {
+    let name: String
+    let description: String
+    let path: String
+    let type: String
+    let allowedOrigins: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case name, description, path, type
+        case allowedOrigins
+    }
+}
+
 /// Installs and manages the Chrome Native Messaging Host manifest.
 @MainActor
 final class ChromeExtensionInstaller {
@@ -13,19 +26,6 @@ final class ChromeExtensionInstaller {
 
     static var nativeHostBinaryPath: String {
         Bundle.main.bundlePath + "/Contents/MacOS/GrotTrackNativeHost"
-    }
-
-    struct HostManifest: Codable {
-        let name: String
-        let description: String
-        let path: String
-        let type: String
-        let allowedOrigins: [String]
-
-        enum CodingKeys: String, CodingKey {
-            case name, description, path, type
-            case allowedOrigins = "allowedOrigins"
-        }
     }
 
     enum InstallationStatus: Equatable {
@@ -47,7 +47,7 @@ final class ChromeExtensionInstaller {
             origins = ["chrome-extension://EXTENSION_ID_PLACEHOLDER/"]
         }
 
-        let manifest = HostManifest(
+        let manifest = ChromeHostManifest(
             name: "com.grottrack.tabtracker",
             description: "GrotTrack native messaging host for browser tab tracking",
             path: Self.nativeHostBinaryPath,
@@ -75,7 +75,7 @@ final class ChromeExtensionInstaller {
         }
 
         guard let data = try? Data(contentsOf: manifestURL),
-              let manifest = try? JSONDecoder().decode(HostManifest.self, from: data) else {
+              let manifest = try? JSONDecoder().decode(ChromeHostManifest.self, from: data) else {
             return .corruptManifest
         }
 

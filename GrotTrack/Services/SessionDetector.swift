@@ -99,7 +99,7 @@ final class SessionDetector {
         guard !currentEvents.isEmpty else { return }
 
         let startTime = sessionStartTime ?? currentEvents[0].timestamp
-        let lastEvent = currentEvents.last!
+        guard let lastEvent = currentEvents.last else { return }
         let endTime = lastEvent.timestamp.addingTimeInterval(lastEvent.duration)
         let duration = endTime.timeIntervalSince(startTime)
 

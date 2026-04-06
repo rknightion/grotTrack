@@ -141,7 +141,7 @@ enum EntityExtractor {
     private static func extractGitBranches(from text: String) -> [ExtractedEntity] {
         var entities: [ExtractedEntity] = []
 
-        // Word like branch/checkout/merge/rebase followed by a branch name containing / or -
+        // swiftlint:disable:next line_length
         let branchPattern = /\b(?:branch|checkout|merge|rebase)\s+([a-zA-Z0-9][a-zA-Z0-9_.\-]*(?:\/[a-zA-Z0-9][a-zA-Z0-9_.\-]*|[a-zA-Z0-9_.\-]*-[a-zA-Z0-9][a-zA-Z0-9_.\-]*))/
         for match in text.matches(of: branchPattern) {
             entities.append(ExtractedEntity(type: .gitBranch, value: String(match.output.1)))

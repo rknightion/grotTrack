@@ -75,12 +75,18 @@ final class SessionClassifier {
     func buildEvidencePayload(for session: ActivitySession, enrichments: [ScreenshotEnrichment]) -> String {
         var lines: [String] = []
 
-        // Session metadata
+        appendSessionMetadata(session, to: &lines)
+        appendEnrichmentLines(enrichments, to: &lines)
+        appendAppUsageSummary(session, to: &lines)
+
+        return lines.joined(separator: "\n")
+    }
+
+    private func appendSessionMetadata(_ session: ActivitySession, to lines: inout [String]) {
         let appLine = "App: \(session.dominantApp)"
         let titlePart = session.dominantTitle.isEmpty ? nil : "Window: \"\(session.dominantTitle)\""
         lines.append([appLine, titlePart].compactMap { $0 }.joined(separator: " | "))
 
-        // Duration and time range
         let duration = session.endTime.timeIntervalSince(session.startTime)
         let durationMin = Int(duration / 60)
         let formatter = DateFormatter()
@@ -89,21 +95,25 @@ final class SessionClassifier {
         let endStr = formatter.string(from: session.endTime)
         lines.append("Duration: \(durationMin) min | Time: \(startStr)-\(endStr)")
 
-        // Browser URL
         if let url = session.browserTabURL, !url.isEmpty {
             lines.append("Browser URL: \(url)")
         }
 
-        // Browser tab title (if distinct from window title)
         if let tabTitle = session.browserTabTitle,
            !tabTitle.isEmpty,
            tabTitle != session.dominantTitle {
             lines.append("Browser tab: \(tabTitle)")
         }
+    }
 
-        // OCR text from enrichments — deduplicated top lines
-        let allTopLines = enrichments
-            .filter { $0.status == "completed" }
+    private func appendEnrichmentLines(
+        _ enrichments: [ScreenshotEnrichment],
+        to lines: inout [String]
+    ) {
+        let completedEnrichments = enrichments.filter { $0.status == "completed" }
+
+        // OCR text — deduplicated top lines
+        let allTopLines = completedEnrichments
             .flatMap { $0.topLines.split(separator: "\n").map(String.init) }
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
@@ -114,10 +124,8 @@ final class SessionClassifier {
             lines.append("Screen text: \(screenLines.joined(separator: " | "))")
         }
 
-        // Entities from enrichments — deduplicated, limited to 15
-        let allEntities = enrichments
-            .filter { $0.status == "completed" }
-            .flatMap { $0.entities }
+        // Entities — deduplicated, limited to 15
+        let allEntities = completedEnrichments.flatMap { $0.entities }
 
         var seenEntityValues = Set<String>()
         var uniqueEntities: [ExtractedEntity] = []
@@ -130,24 +138,31 @@ final class SessionClassifier {
         }
 
         if !uniqueEntities.isEmpty {
-            let entityStrings = uniqueEntities.map { "[\($0.type.rawValue): \($0.value)]" }
-            lines.append("Entities: \(entityStrings.joined(separator: ", "))")
+            let entityStrings = uniqueEntities
+                .map { "[\($0.type.rawValue): \($0.value)]" }
+            lines.append(
+                "Entities: \(entityStrings.joined(separator: ", "))"
+            )
         }
+    }
 
-        // App usage summary if multiple apps
-        if let activities = optionalActivities(for: session), !activities.isEmpty {
-            var durationByApp: [String: TimeInterval] = [:]
-            for event in activities {
-                durationByApp[event.appName, default: 0] += event.duration
-            }
-            if durationByApp.count > 1 {
-                let sorted = durationByApp.sorted { $0.value > $1.value }
-                let summary = sorted.map { "\($0.key) (\(Int($0.value))s)" }.joined(separator: ", ")
-                lines.append("Apps used: \(summary)")
-            }
+    private func appendAppUsageSummary(
+        _ session: ActivitySession,
+        to lines: inout [String]
+    ) {
+        guard let activities = optionalActivities(for: session),
+              !activities.isEmpty else { return }
+        var durationByApp: [String: TimeInterval] = [:]
+        for event in activities {
+            durationByApp[event.appName, default: 0] += event.duration
         }
-
-        return lines.joined(separator: "\n")
+        if durationByApp.count > 1 {
+            let sorted = durationByApp.sorted { $0.value > $1.value }
+            let summary = sorted
+                .map { "\($0.key) (\(Int($0.value))s)" }
+                .joined(separator: ", ")
+            lines.append("Apps used: \(summary)")
+        }
     }
 
     // MARK: - Private
@@ -175,7 +190,8 @@ final class SessionClassifier {
         let instructions = """
 You are classifying a user's computer activity session for a time-tracking application.
 Given the evidence below, determine what task the user was performing, what project it relates to, and suggest a concise timesheet label.
-Be specific about the task (e.g. "Code review" not "Development"). If you can identify a project name from file paths, URLs, or window titles, include it.
+Be specific about the task (e.g. "Code review" not "Development").
+If you can identify a project name from file paths, URLs, or window titles, include it.
 """
 
         let model = SystemLanguageModel.default
