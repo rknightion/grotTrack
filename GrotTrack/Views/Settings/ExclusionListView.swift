@@ -13,9 +13,20 @@ struct ExclusionListView: View {
     @AppStorage("excludedBundleIDs") private var excludedJSON: String = "[]"
     @State private var manualBundleID: String = ""
     @State private var runningApps: [RunningAppInfo] = []
+    @State private var filterText: String = ""
 
     private var excludedIDs: [String] {
         (try? JSONDecoder().decode([String].self, from: Data(excludedJSON.utf8))) ?? []
+    }
+
+    private var filteredExclusions: [String] {
+        let sorted = excludedIDs.sorted { displayName(for: $0).localizedCaseInsensitiveCompare(displayName(for: $1)) == .orderedAscending }
+        if filterText.isEmpty { return sorted }
+        let lowered = filterText.lowercased()
+        return sorted.filter {
+            displayName(for: $0).lowercased().contains(lowered) ||
+            $0.lowercased().contains(lowered)
+        }
     }
 
     var body: some View {
@@ -30,7 +41,11 @@ struct ExclusionListView: View {
                     Text("No apps excluded")
                         .foregroundStyle(.tertiary)
                 } else {
-                    ForEach(excludedIDs, id: \.self) { bundleID in
+                    if !excludedIDs.isEmpty {
+                        TextField("Filter excluded apps...", text: $filterText)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    ForEach(filteredExclusions, id: \.self) { bundleID in
                         HStack {
                             let icon = AppIconProvider.icon(forBundleID: bundleID)
                             Image(nsImage: icon)
