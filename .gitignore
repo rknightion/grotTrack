@@ -63,3 +63,4 @@ grot-track-extension/dist/
 *.log
 *.tmp
 .superpowers/
+.claude/worktrees/
