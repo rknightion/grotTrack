@@ -100,6 +100,13 @@ struct OnboardingView: View {
             }
             .padding(.top, 8)
 
+            Button("Skip Setup") {
+                completed = true
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .buttonStyle(.plain)
+
             Spacer()
         }
         .padding(.horizontal, 40)
@@ -168,26 +175,46 @@ struct OnboardingView: View {
             .padding(.vertical, 8)
 
             Button("Open Extension Folder") {
-                let extensionURL = URL(fileURLWithPath: Bundle.main.bundlePath)
-                    .deletingLastPathComponent()
-                    .deletingLastPathComponent()
-                    .deletingLastPathComponent()
+                let bundleResourceURL = Bundle.main.bundleURL
+                    .appendingPathComponent("Contents")
+                    .appendingPathComponent("Resources")
                     .appendingPathComponent("grot-track-extension")
-                // Fall back to a well-known project path if the bundle-relative one doesn't exist
-                let fallbackURL = URL(fileURLWithPath: "/Users/rob/repos/grotTrack/grot-track-extension")
-                let urlToOpen = FileManager.default.fileExists(atPath: extensionURL.path)
-                    ? extensionURL : fallbackURL
-                NSWorkspace.shared.open(urlToOpen)
+
+                // Try bundle-relative path first, then the dev build path
+                let candidates = [
+                    bundleResourceURL,
+                    Bundle.main.bundleURL
+                        .deletingLastPathComponent()
+                        .deletingLastPathComponent()
+                        .deletingLastPathComponent()
+                        .appendingPathComponent("grot-track-extension")
+                ]
+
+                if let validURL = candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) }) {
+                    NSWorkspace.shared.open(validURL)
+                } else {
+                    // Show in Finder pointing to expected location
+                    NSWorkspace.shared.open(bundleResourceURL.deletingLastPathComponent())
+                }
             }
             .buttonStyle(.bordered)
 
             HStack(spacing: 6) {
-                Circle()
-                    .fill(browserTabService.isConnected ? Color.green : Color.gray)
-                    .frame(width: 8, height: 8)
-                Text(browserTabService.isConnected ? "Connected" : "Not connected")
-                    .font(.caption)
-                    .foregroundStyle(browserTabService.isConnected ? .green : .secondary)
+                if browserTabService.isConnected {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 8, height: 8)
+                    Text("Connected")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                } else {
+                    Circle()
+                        .fill(Color.gray)
+                        .frame(width: 8, height: 8)
+                    Text("Waiting for Chrome \u{2014} open Chrome to test connection")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(.top, 4)
 

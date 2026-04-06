@@ -116,7 +116,7 @@ struct ScreenshotBrowserView: View {
             }
             .help("Open screenshots folder in Finder")
 
-            TextField("Search screenshots...", text: $viewModel.searchText)
+            TextField("Search apps, windows, OCR text, entities...", text: $viewModel.searchText)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 200)
         }

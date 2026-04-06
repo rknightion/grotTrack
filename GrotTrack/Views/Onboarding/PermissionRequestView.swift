@@ -8,7 +8,7 @@ struct PermissionRequestView: View {
         VStack(spacing: 20) {
             PermissionRow(
                 title: "Accessibility",
-                description: "Required to read window titles for accurate activity tracking",
+                description: "Without this, GrotTrack can only see which app is active \u{2014} not the window title or what you're working on.",
                 icon: "hand.raised.fill",
                 granted: permissionManager.accessibilityGranted
             ) {
@@ -17,7 +17,7 @@ struct PermissionRequestView: View {
 
             PermissionRow(
                 title: "Screen Recording",
-                description: "Required to capture periodic screenshots for time tracking",
+                description: "Without this, no screenshots will be captured and OCR-based features won't work.",
                 icon: "rectangle.inset.filled.and.person.filled",
                 granted: permissionManager.screenRecordingGranted
             ) {

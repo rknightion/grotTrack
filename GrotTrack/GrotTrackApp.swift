@@ -363,6 +363,7 @@ final class AppCoordinator {
 @main
 struct GrotTrackApp: App {
     @State private var coordinator = AppCoordinator()
+    @State private var showShortcutsSheet = false
 
     let container: ModelContainer
 
@@ -424,6 +425,9 @@ struct GrotTrackApp: App {
 
         Window("GrotTrack Timeline", id: "timeline") {
             TimelineView()
+                .sheet(isPresented: $showShortcutsSheet) {
+                    KeyboardShortcutsSheet()
+                }
         }
         .modelContainer(container)
         .defaultSize(width: 900, height: 700)
@@ -456,5 +460,13 @@ struct GrotTrackApp: App {
                 .environment(coordinator.activityTracker)
         }
         .modelContainer(container)
+        .commands {
+            CommandGroup(replacing: .help) {
+                Button("Keyboard Shortcuts") {
+                    showShortcutsSheet = true
+                }
+                .keyboardShortcut("/", modifiers: [.command, .shift])
+            }
+        }
     }
 }

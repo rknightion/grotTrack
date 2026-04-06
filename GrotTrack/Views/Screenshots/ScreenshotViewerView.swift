@@ -154,7 +154,7 @@ struct ScreenshotViewerView: View {
             }
             .padding(.bottom, 8)
         }
-        .frame(maxHeight: 180)
+        .frame(maxHeight: 280)
         .background(.ultraThinMaterial)
     }
 

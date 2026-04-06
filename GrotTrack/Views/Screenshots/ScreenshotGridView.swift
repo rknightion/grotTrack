@@ -24,14 +24,14 @@ struct ScreenshotGridView: View {
             }
 
             // Zoom slider
-            HStack(spacing: 6) {
+            HStack(spacing: 4) {
                 Image(systemName: "square.grid.3x3")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 Slider(value: $viewModel.zoomLevel, in: 0...1)
                     .frame(width: 100)
                 Image(systemName: "square.grid.2x2")
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
             .padding(8)

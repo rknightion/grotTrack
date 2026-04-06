@@ -40,6 +40,11 @@ struct TimelineView: View {
             viewContent
         }
         .frame(minWidth: 700, minHeight: 500)
+        .focusable()
+        .onKeyPress { keyPress in
+            guard keyPress.modifiers.contains(.command) else { return .ignored }
+            return handleCommandKey(keyPress)
+        }
         .onChange(of: viewModel.selectedDate) { _, newDate in
             viewModel.loadEvents(for: newDate, context: context)
         }
@@ -212,6 +217,35 @@ struct TimelineView: View {
                     proxy.scrollTo(currentHour, anchor: .center)
                 }
             }
+        }
+    }
+
+    // MARK: - Key Press Handling
+
+    private func handleCommandKey(_ keyPress: KeyPress) -> KeyPress.Result {
+        switch keyPress.characters {
+        case "[":
+            viewModel.selectedDate = Calendar.current.date(
+                byAdding: .day, value: -1, to: viewModel.selectedDate
+            ) ?? viewModel.selectedDate
+            return .handled
+        case "]":
+            viewModel.selectedDate = Calendar.current.date(
+                byAdding: .day, value: 1, to: viewModel.selectedDate
+            ) ?? viewModel.selectedDate
+            return .handled
+        case "t":
+            viewModel.selectedDate = Date()
+            return .handled
+        case "e":
+            if viewModel.expandedHourIDs.isEmpty {
+                viewModel.expandAll()
+            } else {
+                viewModel.collapseAll()
+            }
+            return .handled
+        default:
+            return .ignored
         }
     }
 

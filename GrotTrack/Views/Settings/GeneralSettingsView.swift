@@ -67,11 +67,23 @@ struct GeneralSettingsView: View {
                     Text("Pause/Resume")
                     Spacer()
                     ShortcutRecorderView(key: $pauseHotkeyKey, modifiers: $pauseHotkeyModifiers)
+                    Button("Reset") {
+                        pauseHotkeyKey = "g"
+                        pauseHotkeyModifiers = 393_216
+                    }
+                    .font(.caption)
+                    .disabled(pauseHotkeyKey == "g" && pauseHotkeyModifiers == 393_216)
                 }
                 HStack {
                     Text("Quick Annotation")
                     Spacer()
                     ShortcutRecorderView(key: $annotationHotkeyKey, modifiers: $annotationHotkeyModifiers)
+                    Button("Reset") {
+                        annotationHotkeyKey = "n"
+                        annotationHotkeyModifiers = 393_216
+                    }
+                    .font(.caption)
+                    .disabled(annotationHotkeyKey == "n" && annotationHotkeyModifiers == 393_216)
                 }
             }
         }
