@@ -111,7 +111,11 @@ struct SessionsView: View {
     }
 
     private var footerNote: some View {
-        Text("Sessions are auto-detected from app switches and temporal gaps, then classified by Apple Intelligence. Unclassified time shown as \"Uncategorized\".")
+        Text(
+            "Sessions are auto-detected from app switches and temporal gaps, "
+            + "then classified by Apple Intelligence. "
+            + "Unclassified time shown as \"Uncategorized\"."
+        )
             .font(.caption)
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
@@ -161,7 +165,7 @@ struct SessionsView: View {
                 duration: duration,
                 focusScore: focusScore,
                 color: TimelineViewModel.appColor(for: session.dominantApp),
-                isUncategorized: session.suggestedLabel == nil || session.suggestedLabel!.isEmpty
+                isUncategorized: session.suggestedLabel?.isEmpty ?? true
             ))
         }
 
@@ -170,9 +174,9 @@ struct SessionsView: View {
             rows.append(gap)
         }
 
-        return rows.sorted { r1, r2 in
+        return rows.sorted { lhs, rhs in
             // Sort by time range string (simple lexicographic on start time)
-            r1.timeRange < r2.timeRange
+            lhs.timeRange < rhs.timeRange
         }
     }
 
@@ -201,9 +205,10 @@ struct SessionsView: View {
         }
         blocks.append(current)
 
-        return blocks.map { block in
-            let start = block.first!.timestamp
-            let end = block.last!.timestamp.addingTimeInterval(block.last!.duration)
+        return blocks.compactMap { block in
+            guard let first = block.first, let last = block.last else { return nil }
+            let start = first.timestamp
+            let end = last.timestamp.addingTimeInterval(last.duration)
             let startStr = start.formatted(.dateTime.hour().minute())
             let endStr = end.formatted(.dateTime.hour().minute())
             let duration = end.timeIntervalSince(start)

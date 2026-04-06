@@ -64,13 +64,6 @@ struct AppDurationEntry: Identifiable {
     let color: Color
 }
 
-struct AppBreakdownSegment: Identifiable {
-    var id: String { appName }
-    let appName: String
-    let proportion: Double
-    let color: Color
-}
-
 struct StatsData {
     let totalActiveTime: TimeInterval
     let appSwitchCount: Int
