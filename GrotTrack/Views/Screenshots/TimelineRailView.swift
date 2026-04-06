@@ -8,7 +8,9 @@ struct TimelineRailView: View {
             let height = geometry.size.height
             ZStack(alignment: .topLeading) {
                 hourMarkers(height: height)
+                activitySectionLabel(height: height)
                 activitySegmentOverlay(height: height)
+                sessionSectionLabel(height: height)
                 sessionSegmentOverlay(height: height)
                 screenshotMarkers(height: height)
                 dragOverlay(height: height)
@@ -108,6 +110,34 @@ struct TimelineRailView: View {
                     viewModel.selectedIndex = index
                 }
                 .id("marker-\(index)")
+        }
+    }
+
+    // MARK: - Section Labels
+
+    @ViewBuilder
+    private func activitySectionLabel(height: CGFloat) -> some View {
+        if let firstSegment = viewModel.activitySegments.first {
+            let range = dayRange
+            let firstY = yPosition(for: firstSegment.startTime, range: range, height: height)
+            Text("ACTIVITY")
+                .font(.system(size: 8))
+                .tracking(1)
+                .foregroundStyle(.tertiary)
+                .offset(x: 56, y: firstY - 14)
+        }
+    }
+
+    @ViewBuilder
+    private func sessionSectionLabel(height: CGFloat) -> some View {
+        if let firstSegment = viewModel.sessionSegments.first {
+            let range = dayRange
+            let firstY = yPosition(for: firstSegment.startTime, range: range, height: height)
+            Text("SESSIONS")
+                .font(.system(size: 8))
+                .tracking(1)
+                .foregroundStyle(.tertiary)
+                .offset(x: 100, y: firstY - 14)
         }
     }
 
