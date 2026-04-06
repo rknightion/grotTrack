@@ -13,6 +13,8 @@ struct TrendsView: View {
 
             Divider()
 
+            freshnessBar
+
             reportContent
         }
         .frame(minWidth: 800, minHeight: 600)
@@ -31,6 +33,45 @@ struct TrendsView: View {
             if viewModel.selectedScope == .month {
                 viewModel.loadReport(context: context)
             }
+        }
+    }
+
+    // MARK: - Freshness Bar
+
+    @ViewBuilder
+    private var freshnessBar: some View {
+        if viewModel.hasReport {
+            let generatedAt: Date? = viewModel.selectedScope == .week
+                ? viewModel.weeklyReport?.generatedAt
+                : viewModel.monthlyReport?.generatedAt
+
+            HStack {
+                if let date = generatedAt {
+                    Text("Generated \(date, format: .relative(presentation: .numeric))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button {
+                    Task {
+                        await viewModel.generateReport(context: context)
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.clockwise")
+                        Text("Regenerate")
+                    }
+                    .font(.caption)
+                }
+                .disabled(viewModel.isGenerating)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+            .padding(.horizontal)
+            .padding(.top, 4)
         }
     }
 
