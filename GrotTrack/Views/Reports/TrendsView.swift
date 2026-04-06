@@ -110,6 +110,14 @@ struct TrendsView: View {
                     viewModel.navigateToNow()
                 }
                 .disabled(viewModel.isCurrentPeriod)
+
+                Button {
+                    viewModel.exportReport()
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .disabled(!viewModel.hasReport)
+                .help("Export report")
             }
         }
     }

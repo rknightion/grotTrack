@@ -1,5 +1,7 @@
 import SwiftUI
 import SwiftData
+import AppKit
+import UniformTypeIdentifiers
 
 enum ReportScope {
     case weekly
@@ -202,6 +204,54 @@ final class TrendReportViewModel {
         switch selectedScope {
         case .week: weeklyReport?.summary ?? ""
         case .month: monthlyReport?.summary ?? ""
+        }
+    }
+
+    // MARK: - Export
+
+    func exportReport() {
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        panel.allowedContentTypes = [.json]
+
+        let dateStr: String
+        if selectedScope == .week {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            dateStr = "week-\(formatter.string(from: selectedWeekStart))"
+        } else {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM"
+            dateStr = "month-\(formatter.string(from: selectedMonthStart))"
+        }
+        panel.nameFieldStringValue = "trends_\(dateStr).json"
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        var exportDict: [String: Any] = [
+            "scope": selectedScope.rawValue,
+            "totalHours": totalHours,
+            "avgFocusScore": avgFocusScore,
+            "topApp": topApp,
+            "daysTracked": daysTracked
+        ]
+
+        if !taskAllocations.isEmpty {
+            let tasks = taskAllocations.map { task -> [String: Any] in
+                [
+                    "label": task.label,
+                    "hours": task.hours,
+                    "percentage": task.percentage,
+                    "avgFocus": task.avgFocus,
+                    "apps": task.apps.map { ["name": $0.name, "hours": $0.hours] }
+                ]
+            }
+            exportDict["taskAllocations"] = tasks
+        }
+
+        if let jsonData = try? JSONSerialization.data(withJSONObject: exportDict, options: [.prettyPrinted, .sortedKeys]),
+           let content = String(data: jsonData, encoding: .utf8) {
+            try? content.write(to: url, atomically: true, encoding: .utf8)
         }
     }
 
