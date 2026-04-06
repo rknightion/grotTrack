@@ -200,12 +200,21 @@ struct OnboardingView: View {
             .buttonStyle(.bordered)
 
             HStack(spacing: 6) {
-                Circle()
-                    .fill(browserTabService.isConnected ? Color.green : Color.gray)
-                    .frame(width: 8, height: 8)
-                Text(browserTabService.isConnected ? "Connected" : "Not connected")
-                    .font(.caption)
-                    .foregroundStyle(browserTabService.isConnected ? .green : .secondary)
+                if browserTabService.isConnected {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 8, height: 8)
+                    Text("Connected")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                } else {
+                    Circle()
+                        .fill(Color.gray)
+                        .frame(width: 8, height: 8)
+                    Text("Waiting for Chrome \u{2014} open Chrome to test connection")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(.top, 4)
 

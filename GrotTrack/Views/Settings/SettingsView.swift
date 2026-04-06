@@ -102,13 +102,13 @@ struct BrowserIntegrationSettingsView: View {
         case .installed:
             return "Native messaging host installed and configured."
         case .notInstalled:
-            return "Native messaging host not installed."
+            return "Native messaging host not installed. Click 'Install / Update Native Host' above."
         case .corruptManifest:
-            return "Manifest file is corrupt. Reinstall the native host."
+            return "Host configuration is invalid. Click 'Install / Update Native Host' to reinstall."
         case .binaryMissing(let path):
-            return "Native host binary not found at: \(path)"
+            return "Native host binary not found at: \(path). Try reinstalling the native host."
         case .needsExtensionID:
-            return "Installed, but needs a real Chrome extension ID."
+            return "Host is installed but needs a Chrome extension ID. Paste your extension ID from chrome://extensions above."
         }
     }
 }
