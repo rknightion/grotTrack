@@ -95,6 +95,9 @@ final class TimelineViewModel {
     // Sessions data
     var sessions: [ActivitySession] = []
 
+    // Annotations
+    var annotations: [Annotation] = []
+
     // View mode
     var viewMode: ViewMode = .timeline
     var appSortOrder: AppSortOrder = .duration
@@ -125,6 +128,7 @@ final class TimelineViewModel {
         computeSummaryStats()
         screenshotCache.removeAll()
         loadSessions(for: date, context: context)
+        loadAnnotations(for: date, context: context)
         isLoading = false
     }
 
@@ -141,6 +145,21 @@ final class TimelineViewModel {
             sortBy: [SortDescriptor(\.startTime)]
         )
         sessions = (try? context.fetch(descriptor)) ?? []
+    }
+
+    func loadAnnotations(for date: Date, context: ModelContext) {
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else { return }
+
+        let predicate = #Predicate<Annotation> {
+            $0.timestamp >= startOfDay && $0.timestamp < endOfDay
+        }
+        let descriptor = FetchDescriptor<Annotation>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\.timestamp)]
+        )
+        annotations = (try? context.fetch(descriptor)) ?? []
     }
 
     // MARK: - Hour Groups
@@ -513,13 +532,41 @@ final class TimelineViewModel {
                 return entry
             }
 
+            // Annotations for this hour
+            let hourAnnotations = annotations.filter { ann in
+                ann.timestamp >= group.hourStart && ann.timestamp < group.hourEnd
+            }
+            let annotationEntries: [[String: Any]] = hourAnnotations.map { ann in
+                [
+                    "text": ann.text,
+                    "timestamp": isoFormatter.string(from: ann.timestamp),
+                    "appName": ann.appName
+                ]
+            }
+
             let focusScore = 1.0 - group.multitaskingScore
-            return [
+            var hourBlock: [String: Any] = [
                 "startTime": isoFormatter.string(from: group.hourStart),
                 "endTime": isoFormatter.string(from: group.hourEnd),
                 "dominantApp": group.dominantApp,
                 "focusScore": (focusScore * 100).rounded() / 100,
                 "activities": activities
+            ]
+            if !annotationEntries.isEmpty {
+                hourBlock["annotations"] = annotationEntries
+            }
+            return hourBlock
+        }
+
+        let sessionEntries: [[String: Any]] = sessions.map { session in
+            [
+                "label": session.displayLabel,
+                "startTime": isoFormatter.string(from: session.startTime),
+                "endTime": isoFormatter.string(from: session.endTime),
+                "dominantApp": session.dominantApp,
+                "confidence": session.confidence ?? 0,
+                "focusScore": session.activities.isEmpty ? 0 :
+                    (1.0 - session.activities.reduce(0.0) { $0 + $1.multitaskingScore } / Double(session.activities.count))
             ] as [String: Any]
         }
 
@@ -529,7 +576,8 @@ final class TimelineViewModel {
             "topApp": topApp,
             "focusScore": averageFocusScore,
             "uniqueAppCount": uniqueAppCount,
-            "hourBlocks": hourBlockEntries
+            "hourBlocks": hourBlockEntries,
+            "sessions": sessionEntries
         ]
 
         guard let jsonData = try? JSONSerialization.data(
@@ -543,22 +591,31 @@ final class TimelineViewModel {
     }
 
     private func buildCSVExport() -> String {
-        var rows: [String] = ["Hour,App,WindowTitle,Duration,BrowserTab,FocusScore"]
+        var rows: [String] = ["Hour,App,WindowTitle,Duration,BrowserTab,Session,Type"]
 
         for group in hourGroups {
             let hour = group.id
             let startStr = String(format: "%02d:00", hour)
             let endStr = String(format: "%02d:00", hour + 1)
             let hourRange = "\(startStr)-\(endStr)"
-            let focusScore = "\(Int((1.0 - group.multitaskingScore) * 100))%"
 
             for activity in group.activities {
                 let app = csvEscape(activity.appName)
                 let title = csvEscape(activity.windowTitle)
                 let duration = String(format: "%.0f", activity.duration)
                 let browser = csvEscape(activity.browserTabTitle ?? "")
+                let sessionLabel = sessions.first { s in
+                    activity.timestamp >= s.startTime && activity.timestamp < s.endTime
+                }?.suggestedLabel ?? ""
+                let session = csvEscape(sessionLabel)
+                rows.append("\(hourRange),\(app),\(title),\(duration),\(browser),\(session),activity")
+            }
 
-                rows.append("\(hourRange),\(app),\(title),\(duration),\(browser),\(focusScore)")
+            let hourAnnotations = annotations.filter { $0.timestamp >= group.hourStart && $0.timestamp < group.hourEnd }
+            for ann in hourAnnotations {
+                let text = csvEscape(ann.text)
+                let annApp = csvEscape(ann.appName)
+                rows.append("\(hourRange),\(annApp),\(text),0,,\(csvEscape("")),annotation")
             }
         }
 
