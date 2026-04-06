@@ -100,6 +100,13 @@ struct OnboardingView: View {
             }
             .padding(.top, 8)
 
+            Button("Skip Setup") {
+                completed = true
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .buttonStyle(.plain)
+
             Spacer()
         }
         .padding(.horizontal, 40)
