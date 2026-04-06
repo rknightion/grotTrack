@@ -10,12 +10,14 @@ enum ExportFormat: String, CaseIterable {
 enum ViewMode: String, CaseIterable {
     case timeline = "Timeline"
     case byApp = "By App"
+    case sessions = "Sessions"
     case stats = "Stats"
 
     var icon: String {
         switch self {
         case .timeline: "clock"
         case .byApp: "square.grid.2x2"
+        case .sessions: "person.crop.rectangle.stack"
         case .stats: "chart.bar"
         }
     }
@@ -70,8 +72,28 @@ final class TimelineViewModel {
     var totalHoursTracked: Double = 0
     var topApp: String = ""
     var averageFocusScore: Double = 0
-    var expandedHourIDs: Set<Int> = []
+    private var expandedHoursByDate: [String: Set<Int>] = [:]
+
+    var expandedHourIDs: Set<Int> {
+        get { expandedHoursByDate[dateKey(for: selectedDate)] ?? [] }
+        set { expandedHoursByDate[dateKey(for: selectedDate)] = newValue }
+    }
+
+    private func dateKey(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
     var uniqueAppCount: Int = 0
+
+    // Search & filter
+    var searchText: String = ""
+    var appFilter: String? = nil // nil means "All Apps"
+    var focusFilter: String? = nil // nil means "All Focus"
+
+    // Sessions data
+    var sessions: [ActivitySession] = []
 
     // View mode
     var viewMode: ViewMode = .timeline
@@ -102,7 +124,23 @@ final class TimelineViewModel {
         activityEvents = (try? context.fetch(descriptor)) ?? []
         computeSummaryStats()
         screenshotCache.removeAll()
+        loadSessions(for: date, context: context)
         isLoading = false
+    }
+
+    func loadSessions(for date: Date, context: ModelContext) {
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else { return }
+
+        let predicate = #Predicate<ActivitySession> {
+            $0.startTime >= startOfDay && $0.startTime < endOfDay
+        }
+        let descriptor = FetchDescriptor<ActivitySession>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\.startTime)]
+        )
+        sessions = (try? context.fetch(descriptor)) ?? []
     }
 
     // MARK: - Hour Groups
@@ -195,6 +233,73 @@ final class TimelineViewModel {
         return durationByApp
             .sorted { $0.value > $1.value }
             .map { (appName: $0.key, proportion: $0.value / total, color: Self.appColor(for: $0.key)) }
+    }
+
+    func sessionLabels(for hourGroup: HourGroup) -> [String] {
+        let hourStart = hourGroup.hourStart
+        let hourEnd = hourGroup.hourEnd
+        var labels: Set<String> = []
+        for session in sessions {
+            // Session overlaps this hour if it starts before hourEnd and ends after hourStart
+            if session.startTime < hourEnd && session.endTime > hourStart,
+               let label = session.suggestedLabel, !label.isEmpty {
+                labels.insert(label)
+            }
+        }
+        return Array(labels).sorted()
+    }
+
+    var uniqueApps: [String] {
+        Array(Set(activityEvents.map(\.appName))).sorted()
+    }
+
+    var filteredHourGroups: [HourGroup] {
+        var groups = hourGroups
+
+        // App filter
+        if let app = appFilter {
+            groups = groups.filter { group in
+                group.activities.contains { $0.appName == app }
+            }
+        }
+
+        // Focus filter
+        if let focus = focusFilter {
+            groups = groups.filter { group in
+                let focusScore = 1.0 - group.multitaskingScore
+                switch focus {
+                case "Focused": return focusScore >= 0.8
+                case "Moderate": return focusScore >= 0.5 && focusScore < 0.8
+                case "Distracted": return focusScore < 0.5
+                default: return true
+                }
+            }
+        }
+
+        // Search text
+        if !searchText.isEmpty {
+            let lowered = searchText.lowercased()
+            groups = groups.filter { group in
+                group.activities.contains { activity in
+                    activity.appName.lowercased().contains(lowered) ||
+                    activity.windowTitle.lowercased().contains(lowered) ||
+                    (activity.browserTabTitle?.lowercased().contains(lowered) ?? false) ||
+                    (activity.browserTabURL?.lowercased().contains(lowered) ?? false)
+                }
+            }
+        }
+
+        return groups
+    }
+
+    var filteredResultCount: Int {
+        filteredHourGroups.flatMap(\.activities).count
+    }
+
+    func dominantAppPercentage(for group: HourGroup) -> Int {
+        let breakdown = appBreakdown(for: group)
+        guard let first = breakdown.first else { return 0 }
+        return Int(first.proportion * 100)
     }
 
     static func appColor(for appName: String) -> Color {

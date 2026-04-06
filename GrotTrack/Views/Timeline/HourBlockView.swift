@@ -21,12 +21,23 @@ struct HourBlockView: View {
 
                 Spacer()
 
-                Text(durationLabel)
+                Text("\(durationLabel) · \(hourGroup.activities.count) events")
                     .font(.caption)
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
 
-                FocusIndicator(multitaskingScore: hourGroup.multitaskingScore, showLabel: true)
+                // Focus pill badge
+                let focusScore = 1.0 - hourGroup.multitaskingScore
+                let focusText = String(format: "%.0f%%", focusScore * 100)
+                let focusLabel = focusScore >= 0.8 ? "Focused" :
+                                 focusScore >= 0.5 ? "Moderate" : "Distracted"
+                Text("\(focusLabel) \(focusText)")
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(focusLevelColor.opacity(0.15), in: Capsule())
+                    .foregroundStyle(focusLevelColor)
 
                 Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                     .font(.caption)
@@ -40,7 +51,7 @@ struct HourBlockView: View {
                 AppSegmentBar(segments: appBreakdown)
             }
 
-            // Info row: app icon + dominant app
+            // Info row: app icon + dominant app + percentage + top title + session labels
             HStack(spacing: 6) {
                 let bundleID = hourGroup.activities
                     .first { $0.appName == hourGroup.dominantApp }?.bundleID
@@ -52,6 +63,37 @@ struct HourBlockView: View {
                 Text(hourGroup.dominantApp)
                     .font(.subheadline)
                     .bold()
+
+                let pct = viewModel.dominantAppPercentage(for: hourGroup)
+                if pct > 0 {
+                    Text("\(pct)%")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if !hourGroup.dominantTitle.isEmpty {
+                    Text("·")
+                        .foregroundStyle(.tertiary)
+                    Text(hourGroup.dominantTitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .italic()
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                // Session label chips
+                let labels = viewModel.sessionLabels(for: hourGroup)
+                ForEach(labels.prefix(2), id: \.self) { label in
+                    Text(label)
+                        .font(.system(size: 9))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.teal.opacity(0.15), in: Capsule())
+                        .foregroundStyle(.teal)
+                        .lineLimit(1)
+                }
             }
 
             // Expanded activities list
@@ -184,6 +226,13 @@ struct HourBlockView: View {
     }
 
     // MARK: - Computed Properties
+
+    private var focusLevelColor: Color {
+        let focusScore = 1.0 - hourGroup.multitaskingScore
+        if focusScore >= 0.8 { return .green }
+        if focusScore >= 0.5 { return .yellow }
+        return .red
+    }
 
     private var hourRangeLabel: String {
         let start = hourGroup.hourStart.formatted(.dateTime.hour().minute())
