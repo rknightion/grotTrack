@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/rknightion/grotTrack/compare/v0.10.0...v0.10.1) (2026-04-06)
+
+
+### Bug Fixes
+
+* remove stale Xcode 16 selection from release workflow ([0fabfa8](https://github.com/rknightion/grotTrack/commit/0fabfa8b93047efbf380f9f43cf755f6542ec5b5))
+
 ## [0.10.0](https://github.com/rknightion/grotTrack/compare/v0.9.1...v0.10.0) (2026-04-06)
 
 
