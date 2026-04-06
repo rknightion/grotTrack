@@ -1,5 +1,54 @@
 # Changelog
 
+## [0.10.0](https://github.com/rknightion/grotTrack/compare/v0.9.1...v0.10.0) (2026-04-06)
+
+
+### Features
+
+* add Cmd+[, Cmd+], Cmd+T, Cmd+E keyboard shortcuts to timeline ([1418a78](https://github.com/rknightion/grotTrack/commit/1418a78db4e9129d851e5b44268d4bc4298f610f))
+* add export button to trends view ([226f7d0](https://github.com/rknightion/grotTrack/commit/226f7d037b1cd497697cde922eb63a2c66a09b51))
+* add Help menu with keyboard shortcuts sheet ([fb86214](https://github.com/rknightion/grotTrack/commit/fb8621497cfa5ed4f6398d8691966460fda0f675))
+* add interactive hover tooltips to stats view charts ([226dcba](https://github.com/rknightion/grotTrack/commit/226dcbaa8f73ec2e2410e99767524c93407f20bb))
+* add keyboard shortcuts sheet view ([be0b558](https://github.com/rknightion/grotTrack/commit/be0b5586659909a75707bd7d4415aee3afc137db))
+* add report freshness bar with regenerate button ([b5b786c](https://github.com/rknightion/grotTrack/commit/b5b786cd173e3d6115d59c6bea24c2e531c1e26f))
+* add reset-to-default button for custom hotkeys ([d5e1ae2](https://github.com/rknightion/grotTrack/commit/d5e1ae2f47e7939f8228bd361d11ac72fcf0ecfd))
+* add search filter and alphabetical sorting to exclusion list ([684cf91](https://github.com/rknightion/grotTrack/commit/684cf91ccf7ea8a4b38b4ac2fc34a121348d7ac9))
+* add search/filter bar and sessions tab to timeline ([d8f0a67](https://github.com/rknightion/grotTrack/commit/d8f0a67a4ce54faca98a380d4f25cc634e6ea89a))
+* add section labels to timeline rail segments ([ac2130b](https://github.com/rknightion/grotTrack/commit/ac2130b86687962925c6ab471882e1b59900ea26))
+* add session loading, search/filter, and enrichment data to TimelineViewModel ([ac28188](https://github.com/rknightion/grotTrack/commit/ac281883e132a4d2c42f99e19d69719bbd1b3b3d))
+* add sessions case to ViewMode enum ([3dab9e3](https://github.com/rknightion/grotTrack/commit/3dab9e3e5b5d8933632b5618bfe01e13baae399d))
+* add Sessions view mode to timeline ([2aa83aa](https://github.com/rknightion/grotTrack/commit/2aa83aa787efec3942343f20a53a1c907c69f8c7))
+* add skip-all link to onboarding welcome page ([edbe1f0](https://github.com/rknightion/grotTrack/commit/edbe1f0da4014974e2bb86abc5b92ba92cf5e9fd))
+* add small/large grid icons to zoom slider endpoints ([17f4548](https://github.com/rknightion/grotTrack/commit/17f454896ac69cf7b189be21c26ac0bd2b20f8c7))
+* add TaskAllocation model and JSON fields to reports ([f0ac630](https://github.com/rknightion/grotTrack/commit/f0ac630c1abd4075d61a8c4d770e433e322c59a0))
+* display task-level breakdown in weekly and monthly reports ([47ef95d](https://github.com/rknightion/grotTrack/commit/47ef95d2c6c310dfe0aae035c343a18bce6adf70))
+* enrich collapsed hour blocks with event count, focus pill, app %, session labels ([a1dc4d1](https://github.com/rknightion/grotTrack/commit/a1dc4d1cca1b3d129689709a9518b7b9e0e14a22))
+* generate task allocations from sessions in reports ([ffe1998](https://github.com/rknightion/grotTrack/commit/ffe19981165e938f87d31c24190bc1c5d99848ea))
+* include annotations and sessions in JSON/CSV exports ([f87b800](https://github.com/rknightion/grotTrack/commit/f87b8009054bef8a5e03b76e7dd79e5e5bdf1cbc))
+* increase viewer context panel max height to 280px ([88d59bd](https://github.com/rknightion/grotTrack/commit/88d59bd3824a42b852394911b6d6f315aea2ead6))
+* persist expand/collapse state per date across navigation ([90868e7](https://github.com/rknightion/grotTrack/commit/90868e71c6886b015f6a25607d0821b9ca4c128f))
+* redesign popover with session-aware activity, focus pill, compact nav ([29a437b](https://github.com/rknightion/grotTrack/commit/29a437bbceb6f3f383d4660f374e95247f15db74))
+* show confirmation banner when permissions are granted ([6c36ed0](https://github.com/rknightion/grotTrack/commit/6c36ed093ce0d826dbfa034be5b89f07e1e87e1b))
+* show detailed diagnostic status for browser extension connection ([0637edd](https://github.com/rknightion/grotTrack/commit/0637eddf2253406dd26cb83e83ace593076f02da))
+* update search placeholder to describe searchable fields ([bc151e1](https://github.com/rknightion/grotTrack/commit/bc151e1922214fc913cc016aa43d5b32ef8796fa))
+* use specific impact-based permission descriptions in onboarding ([8d5454f](https://github.com/rknightion/grotTrack/commit/8d5454f6cc7a1a4ecfb90d9e2ce682609e53384e))
+
+
+### Bug Fixes
+
+* remove worktrees from index, add to gitignore ([9aab9a1](https://github.com/rknightion/grotTrack/commit/9aab9a1e06bb8d8476551b9e4727b43a23bffce5))
+* resolve 3 swiftlint errors from UX improvement pass ([b5ee874](https://github.com/rknightion/grotTrack/commit/b5ee874a02342b0e78c06112085d97162d6c5b34))
+* resolve all swiftlint warnings in app source code ([0d61e90](https://github.com/rknightion/grotTrack/commit/0d61e903082441dd3ac62d885e68f3be4fe9dcd9))
+* resolve swiftlint warnings in ViewModels and Services ([71efe35](https://github.com/rknightion/grotTrack/commit/71efe353851f86b04bbab9d0cfdca1cf1a0e4621))
+* resolve swiftlint warnings in Views ([bbd1af5](https://github.com/rknightion/grotTrack/commit/bbd1af50602f3600298c403efe1e3849d757b927))
+* use dynamic bundle-relative path for Chrome extension folder ([5eec2f4](https://github.com/rknightion/grotTrack/commit/5eec2f404484663c25ff5916a8b4c9693b280ae3))
+
+
+### Documentation
+
+* add three implementation plans for UX improvement pass ([ef4ee02](https://github.com/rknightion/grotTrack/commit/ef4ee0210916eecf50a8e1515df8600bf106a891))
+* add UX improvement pass design spec ([d3359c7](https://github.com/rknightion/grotTrack/commit/d3359c7b0fb5a87945a8b1ea666f6e86a1a5115b))
+
 ## [0.9.1](https://github.com/rknightion/grotTrack/compare/v0.9.0...v0.9.1) (2026-04-06)
 
 
