@@ -62,3 +62,4 @@ grot-track-extension/dist/
 # Temporary files
 *.log
 *.tmp
+.superpowers/
