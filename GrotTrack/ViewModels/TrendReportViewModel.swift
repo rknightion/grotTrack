@@ -27,6 +27,7 @@ final class TrendReportViewModel {
     var dailyAppHours: [DailyAppHours] = []
     var decodedAllocations: [AppAllocation] = []
     var weeklyBreakdowns: [WeeklyBreakdown] = []
+    var taskAllocations: [TaskAllocation] = []
 
     // Deltas (computed by comparing with previous period)
     var hoursDelta: Double?
@@ -260,6 +261,9 @@ final class TrendReportViewModel {
             appHoursJSON: report.dailyAppHoursJSON,
             breakdownJSON: nil
         )
+        if let data = report.taskAllocationsJSON.data(using: .utf8) {
+            taskAllocations = (try? JSONDecoder().decode([TaskAllocation].self, from: data)) ?? []
+        }
     }
 
     private func decodeMonthlyData() {
@@ -270,6 +274,9 @@ final class TrendReportViewModel {
             appHoursJSON: report.dailyAppHoursJSON,
             breakdownJSON: report.weeklyBreakdownJSON
         )
+        if let data = report.taskAllocationsJSON.data(using: .utf8) {
+            taskAllocations = (try? JSONDecoder().decode([TaskAllocation].self, from: data)) ?? []
+        }
     }
 
     private func decodeJSON(
@@ -304,6 +311,7 @@ final class TrendReportViewModel {
         dailyFocusPoints = []
         dailyAppHours = []
         weeklyBreakdowns = []
+        taskAllocations = []
         hoursDelta = nil
         focusDelta = nil
     }

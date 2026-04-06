@@ -126,6 +126,7 @@ struct TrendsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     summaryCards
+                    taskBreakdownSection
                     summaryText
                     calendarHeatmap
                     stackedBarChart
@@ -179,6 +180,56 @@ struct TrendsView: View {
                 value: "\(viewModel.daysTracked)",
                 icon: "calendar"
             )
+        }
+    }
+
+    // MARK: - Task Breakdown
+
+    @ViewBuilder
+    private var taskBreakdownSection: some View {
+        if !viewModel.taskAllocations.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Time by Task")
+                    .font(.headline)
+
+                ForEach(viewModel.taskAllocations, id: \.label) { task in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(task.label)
+                                .font(.body)
+                                .fontWeight(.medium)
+                                .foregroundStyle(task.label == "Uncategorized" ? .secondary : .primary)
+                                .italic(task.label == "Uncategorized")
+                            Spacer()
+                            Text(String(format: "%.1fh", task.hours))
+                                .font(.body)
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        }
+
+                        // Progress bar
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.secondary.opacity(0.15))
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(TimelineViewModel.appColor(for: task.label))
+                                    .frame(width: geo.size.width * (task.percentage / 100.0))
+                            }
+                        }
+                        .frame(height: 8)
+
+                        if task.label != "Uncategorized" {
+                            let appSummary = task.apps.prefix(3)
+                                .map { "\($0.name) \(String(format: "%.1fh", $0.hours))" }
+                                .joined(separator: ", ")
+                            Text("\(appSummary) · Avg focus: \(String(format: "%.0f%%", task.avgFocus * 100))")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+            }
         }
     }
 
