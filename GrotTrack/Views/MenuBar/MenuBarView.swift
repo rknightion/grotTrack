@@ -2,12 +2,20 @@ import SwiftUI
 import SwiftData
 import Combine
 
+private struct SessionSummary: Identifiable {
+    var id: String { label }
+    let label: String
+    let apps: String
+    let duration: TimeInterval
+    let sessionCount: Int
+}
+
 struct MenuBarView: View {
     @Bindable var coordinator: AppCoordinator
     @Environment(\.openWindow) private var openWindow
     @Environment(\.modelContext) private var context
     @State private var recentAppBreakdown: [(appName: String, bundleID: String, duration: TimeInterval)] = []
-    @State private var todaySessions: [(label: String, apps: String, duration: TimeInterval, sessionCount: Int)] = []
+    @State private var todaySessions: [SessionSummary] = []
     @State private var todayTotalDuration: TimeInterval = 0
 
     private var appState: AppState { coordinator.appState }
@@ -114,7 +122,7 @@ struct MenuBarView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                ForEach(todaySessions.prefix(5), id: \.label) { entry in
+                ForEach(Array(todaySessions.prefix(5))) { entry in
                     VStack(alignment: .leading, spacing: 1) {
                         HStack {
                             Text(entry.label)
@@ -313,7 +321,7 @@ struct MenuBarView: View {
         }
 
         todaySessions = byLabel
-            .map { (label: $0.key, apps: $0.value.apps.sorted().joined(separator: ", "),
+            .map { SessionSummary(label: $0.key, apps: $0.value.apps.sorted().joined(separator: ", "),
                     duration: $0.value.duration, sessionCount: $0.value.count) }
             .sorted { $0.duration > $1.duration }
 

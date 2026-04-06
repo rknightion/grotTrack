@@ -604,8 +604,8 @@ final class TimelineViewModel {
                 let title = csvEscape(activity.windowTitle)
                 let duration = String(format: "%.0f", activity.duration)
                 let browser = csvEscape(activity.browserTabTitle ?? "")
-                let sessionLabel = sessions.first { s in
-                    activity.timestamp >= s.startTime && activity.timestamp < s.endTime
+                let sessionLabel = sessions.first { session in
+                    activity.timestamp >= session.startTime && activity.timestamp < session.endTime
                 }?.suggestedLabel ?? ""
                 let session = csvEscape(sessionLabel)
                 rows.append("\(hourRange),\(app),\(title),\(duration),\(browser),\(session),activity")

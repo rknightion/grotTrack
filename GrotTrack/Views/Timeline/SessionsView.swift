@@ -190,13 +190,13 @@ struct SessionsView: View {
         var blocks: [[ActivityEvent]] = []
         var current: [ActivityEvent] = [sorted[0]]
 
-        for i in 1..<sorted.count {
-            let gap = sorted[i].timestamp.timeIntervalSince(sorted[i-1].timestamp)
+        for idx in 1..<sorted.count {
+            let gap = sorted[idx].timestamp.timeIntervalSince(sorted[idx-1].timestamp)
             if gap > 120 { // 2-minute gap threshold
                 blocks.append(current)
-                current = [sorted[i]]
+                current = [sorted[idx]]
             } else {
-                current.append(sorted[i])
+                current.append(sorted[idx])
             }
         }
         blocks.append(current)
