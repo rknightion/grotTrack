@@ -4,6 +4,9 @@ import Charts
 struct StatsView: View {
     let stats: StatsData
 
+    @State private var hoveredAppName: String?
+    @State private var hoveredHour: Int?
+
     var body: some View {
         if stats.totalActiveTime == 0 {
             ContentUnavailableView {
@@ -100,11 +103,21 @@ struct StatsView: View {
                             Text(entry.appName)
                                 .font(.caption)
                                 .lineLimit(1)
+                                .fontWeight(hoveredAppName == entry.appName ? .bold : .regular)
                             Spacer()
                             Text(formatDuration(entry.duration))
                                 .font(.caption2)
                                 .monospacedDigit()
                                 .foregroundStyle(.secondary)
+
+                            let total = stats.totalActiveTime
+                            let pct = total > 0 ? entry.duration / total * 100 : 0
+                            Text(String(format: "%.0f%%", pct))
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .onHover { isHovering in
+                            hoveredAppName = isHovering ? entry.appName : nil
                         }
                     }
                     if stats.appDurations.count > 8 {
@@ -147,6 +160,42 @@ struct StatsView: View {
             }
             .chartYAxisLabel("Minutes")
             .frame(height: 150)
+            .chartOverlay { proxy in
+                GeometryReader { geo in
+                    Rectangle()
+                        .fill(.clear)
+                        .contentShape(Rectangle())
+                        .onContinuousHover { phase in
+                            switch phase {
+                            case .active(let location):
+                                if let hourStr: String = proxy.value(atX: location.x) {
+                                    let hour = Int(hourStr.prefix(while: { $0 != ":" })) ?? -1
+                                    hoveredHour = hour
+                                }
+                            case .ended:
+                                hoveredHour = nil
+                            }
+                        }
+
+                    if let hour = hoveredHour {
+                        let minutes = (stats.hourlyActivity[hour] ?? 0) / 60
+                        let focus = stats.hourlyFocusScores[hour] ?? 0
+                        if let xPos = proxy.position(forX: "\(hour):00") {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(String(format: "%02d:00 – %02d:00", hour, hour + 1))
+                                    .font(.caption)
+                                    .bold()
+                                Text(String(format: "%.0f min active · Focus %.0f%%", minutes, focus * 100))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(8)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
+                            .position(x: min(max(xPos, 80), geo.size.width - 80), y: -20)
+                        }
+                    }
+                }
+            }
 
             if let best = stats.mostProductiveHour {
                 Text("Most active hour: \(best):00 – \(best + 1):00")
