@@ -10,12 +10,14 @@ enum ExportFormat: String, CaseIterable {
 enum ViewMode: String, CaseIterable {
     case timeline = "Timeline"
     case byApp = "By App"
+    case sessions = "Sessions"
     case stats = "Stats"
 
     var icon: String {
         switch self {
         case .timeline: "clock"
         case .byApp: "square.grid.2x2"
+        case .sessions: "person.crop.rectangle.stack"
         case .stats: "chart.bar"
         }
     }

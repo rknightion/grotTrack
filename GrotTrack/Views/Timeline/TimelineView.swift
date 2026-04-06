@@ -169,6 +169,12 @@ struct TimelineView: View {
                 appGroups: viewModel.appGroups,
                 viewModel: viewModel
             )
+        case .sessions:
+            ContentUnavailableView {
+                Label("Sessions", systemImage: "person.crop.rectangle.stack")
+            } description: {
+                Text("Sessions view coming soon.")
+            }
         case .stats:
             StatsView(stats: viewModel.statsData)
         }
