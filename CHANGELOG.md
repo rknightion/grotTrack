@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.1](https://github.com/rknightion/grotTrack/compare/v0.9.0...v0.9.1) (2026-04-06)
+
+
+### Miscellaneous
+
+* **deps:** lock file maintenance ([#25](https://github.com/rknightion/grotTrack/issues/25)) ([8e00a90](https://github.com/rknightion/grotTrack/commit/8e00a907790aed281a7a7c48e88d89e299b35f9e))
+* **deps:** update dependency @types/chrome to v0.1.39 ([#23](https://github.com/rknightion/grotTrack/issues/23)) ([dd7d72f](https://github.com/rknightion/grotTrack/commit/dd7d72fbd715abb8287f95d0974a54a5b848b401))
+
 ## [0.9.0](https://github.com/rknightion/grotTrack/compare/v0.8.0...v0.9.0) (2026-04-02)
 
 
