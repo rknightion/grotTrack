@@ -21,6 +21,49 @@ struct TimelineView: View {
                 .padding(.horizontal)
                 .padding(.bottom, 4)
 
+            // Search & Filter bar
+            HStack(spacing: 8) {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search apps, windows, URLs, annotations...", text: $viewModel.searchText)
+                        .textFieldStyle(.plain)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+
+                Picker("App", selection: Binding(
+                    get: { viewModel.appFilter ?? "All Apps" },
+                    set: { viewModel.appFilter = $0 == "All Apps" ? nil : $0 }
+                )) {
+                    Text("All Apps").tag("All Apps")
+                    ForEach(viewModel.uniqueApps, id: \.self) { app in
+                        Text(app).tag(app)
+                    }
+                }
+                .frame(width: 140)
+
+                Picker("Focus", selection: Binding(
+                    get: { viewModel.focusFilter ?? "All Focus" },
+                    set: { viewModel.focusFilter = $0 == "All Focus" ? nil : $0 }
+                )) {
+                    Text("All Focus").tag("All Focus")
+                    Text("Focused").tag("Focused")
+                    Text("Moderate").tag("Moderate")
+                    Text("Distracted").tag("Distracted")
+                }
+                .frame(width: 120)
+
+                if !viewModel.searchText.isEmpty || viewModel.appFilter != nil || viewModel.focusFilter != nil {
+                    Text("\(viewModel.filteredResultCount) results")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 4)
+
             Divider()
 
             // View mode picker
@@ -170,11 +213,7 @@ struct TimelineView: View {
                 viewModel: viewModel
             )
         case .sessions:
-            ContentUnavailableView {
-                Label("Sessions", systemImage: "person.crop.rectangle.stack")
-            } description: {
-                Text("Sessions view coming soon.")
-            }
+            SessionsView(viewModel: viewModel)
         case .stats:
             StatsView(stats: viewModel.statsData)
         }
@@ -186,10 +225,10 @@ struct TimelineView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 2) {
-                    ForEach(0..<24, id: \.self) { hour in
-                        let group = hourGroupForHour(hour)
+                    let filtered = viewModel.filteredHourGroups
 
-                        if let group {
+                    ForEach(0..<24, id: \.self) { hour in
+                        if let group = filtered.first(where: { $0.id == hour }) {
                             HourBlockView(
                                 hourGroup: group,
                                 isExpanded: viewModel.isExpanded(group.id),
@@ -203,10 +242,11 @@ struct TimelineView: View {
                                     ? Color.accentColor.opacity(0.05)
                                     : Color.clear
                             )
-                        } else {
+                        } else if viewModel.searchText.isEmpty && viewModel.appFilter == nil && viewModel.focusFilter == nil {
                             EmptyHourRow(hour: hour, date: viewModel.selectedDate)
                                 .id(hour)
                         }
+                        // When filtering, hide empty hours entirely
                     }
                 }
                 .padding(.horizontal)
@@ -222,10 +262,6 @@ struct TimelineView: View {
     }
 
     // MARK: - Helpers
-
-    private func hourGroupForHour(_ hour: Int) -> HourGroup? {
-        viewModel.hourGroups.first { $0.id == hour }
-    }
 
     private func isCurrentHour(_ hour: Int) -> Bool {
         Calendar.current.isDateInToday(viewModel.selectedDate) &&
