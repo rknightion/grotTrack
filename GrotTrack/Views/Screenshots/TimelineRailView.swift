@@ -3,6 +3,8 @@ import SwiftUI
 struct TimelineRailView: View {
     @Bindable var viewModel: ScreenshotBrowserViewModel
     @State private var visibleMidY: CGFloat = 0
+    @State private var isScrollingProgrammatically = false
+    @State private var baseZoom: CGFloat = 1.0
 
     var body: some View {
         ScrollViewReader { scrollProxy in
@@ -12,22 +14,31 @@ struct TimelineRailView: View {
                     .frame(height: baseHeight * viewModel.timelineZoom)
             }
             .gesture(
-                MagnificationGesture()
-                    .onChanged { scale in
-                        let newZoom = max(1.0, min(8.0, viewModel.timelineZoom * scale))
+                MagnifyGesture()
+                    .onChanged { value in
+                        let newZoom = max(1.0, min(8.0, baseZoom * value.magnification))
                         viewModel.timelineZoom = newZoom
+                    }
+                    .onEnded { value in
+                        baseZoom = max(1.0, min(8.0, baseZoom * value.magnification))
                     }
             )
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
                 geometry.contentOffset.y + geometry.visibleRect.height / 2
             } action: { _, newMidY in
                 visibleMidY = newMidY
-                selectNearestToScrollPosition(midY: newMidY)
+                if !isScrollingProgrammatically {
+                    selectNearestToScrollPosition(midY: newMidY)
+                }
             }
             .onChange(of: viewModel.selectedIndex) {
                 if viewModel.selectedScreenshot != nil {
+                    isScrollingProgrammatically = true
                     withAnimation(.easeInOut(duration: 0.2)) {
                         scrollProxy.scrollTo("marker-\(viewModel.selectedIndex)", anchor: .center)
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        isScrollingProgrammatically = false
                     }
                 }
             }
@@ -192,11 +203,14 @@ struct TimelineRailView: View {
         let detail = viewModel.timelineDetailLevel
         let markerSize: CGFloat = detail == .full ? 10 : (detail == .medium ? 8 : 6)
         let selectedSize: CGFloat = markerSize + 4
+        let primaryShots = viewModel.primaryScreenshots
 
-        return ForEach(viewModel.screenshots.indices, id: \.self) { index in
-            let screenshot = viewModel.screenshots[index]
+        return ForEach(primaryShots.indices, id: \.self) { index in
+            let screenshot = primaryShots[index]
             let yPos = yPosition(for: screenshot.timestamp, range: range, height: height)
-            let isSelected = index == viewModel.selectedIndex
+            let isSelected = viewModel.selectedScreenshot.map {
+                abs($0.timestamp.timeIntervalSince(screenshot.timestamp)) < 1.0
+            } ?? false
 
             Circle()
                 .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.5))
@@ -210,7 +224,7 @@ struct TimelineRailView: View {
                 }
                 .offset(x: 80, y: yPos - (isSelected ? selectedSize / 2 : markerSize / 2))
                 .onTapGesture {
-                    viewModel.selectedIndex = index
+                    viewModel.selectScreenshot(screenshot)
                 }
                 .id("marker-\(index)")
         }

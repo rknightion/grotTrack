@@ -6,7 +6,6 @@ struct ScreenshotViewerView: View {
     @State private var showOCR = false
     @State private var showActualSize = false
     @State private var maximizedDisplayIndex: Int?
-    @State private var splitRatio: CGFloat = 0.5
 
     var body: some View {
         HStack(spacing: 0) {
@@ -71,36 +70,34 @@ struct ScreenshotViewerView: View {
     }
 
     private func multiDisplaySplitView(displays: [Screenshot]) -> some View {
-        GeometryReader { _ in
-            HStack(spacing: 0) {
-                ForEach(Array(displays.enumerated()), id: \.element.id) { index, display in
-                    let url = viewModel.fullImageURL(for: display)
-                    ZStack(alignment: .topLeading) {
-                        if let nsImage = NSImage(contentsOf: url) {
-                            Image(nsImage: nsImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        } else {
-                            placeholderImage
-                        }
-
-                        Text("Display \(display.displayIndex + 1)")
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 4))
-                            .foregroundStyle(.white.opacity(0.8))
-                            .padding(8)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .onTapGesture(count: 2) {
-                        maximizedDisplayIndex = display.displayIndex
+        HStack(spacing: 0) {
+            ForEach(Array(displays.enumerated()), id: \.element.id) { index, display in
+                let url = viewModel.fullImageURL(for: display)
+                ZStack(alignment: .topLeading) {
+                    if let nsImage = NSImage(contentsOf: url) {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        placeholderImage
                     }
 
-                    if index < displays.count - 1 {
-                        Divider()
-                    }
+                    Text("Display \(display.displayIndex + 1)")
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 4))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .padding(8)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .onTapGesture(count: 2) {
+                    maximizedDisplayIndex = display.displayIndex
+                }
+
+                if index < displays.count - 1 {
+                    Divider()
                 }
             }
         }

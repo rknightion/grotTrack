@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 import ScreenCaptureKit
 
-struct ScreenshotResult {
+struct ScreenshotResult: Sendable {
     let path: String
     let thumbnailPath: String
     let fileSize: Int64
@@ -34,14 +34,15 @@ enum ScreenshotError: Error, LocalizedError {
     }
 }
 
-private struct CaptureSpec {
-    let filter: SCContentFilter
-    let config: SCStreamConfiguration
-    let displayID: UInt32
-    let index: Int
+private struct CaptureSpec: Sendable {
+    let displayID: CGDirectDisplayID
+    let width: Int
+    let height: Int
+    let displayIndex: Int
+    let scaleFactor: Int
 }
 
-private struct SaveConfig {
+private struct SaveConfig: Sendable {
     let dateString: String
     let timeString: String
     let maxDimension: CGFloat
@@ -183,39 +184,38 @@ final class ScreenshotManager {
             thumbnailsDir: thumbnailsDir
         )
 
-        // Build per-display capture specs with filters and configs
+        // Build per-display capture specs with only Sendable primitives
         var captureSpecs: [CaptureSpec] = []
         for (index, display) in sortedDisplays.enumerated() {
-            let filter = SCContentFilter(display: display, excludingWindows: [])
-            let config = SCStreamConfiguration()
-            config.width = display.width * scaleFactor
-            config.height = display.height * scaleFactor
-            config.pixelFormat = kCVPixelFormatType_32BGRA
-            captureSpecs.append(CaptureSpec(filter: filter, config: config, displayID: display.displayID, index: index))
+            captureSpecs.append(CaptureSpec(
+                displayID: display.displayID,
+                width: display.width,
+                height: display.height,
+                displayIndex: index,
+                scaleFactor: scaleFactor
+            ))
         }
 
         // Capture all displays in parallel
         let results: [ScreenshotResult] = try await withThrowingTaskGroup(of: ScreenshotResult.self) { group in
             for spec in captureSpecs {
-                nonisolated(unsafe) let filter = spec.filter
-                nonisolated(unsafe) let config = spec.config
-                let displayID = spec.displayID
-                let captureIndex = spec.index
                 group.addTask {
+                    let content = try await SCShareableContent.current
+                    guard let display = content.displays.first(where: { $0.displayID == spec.displayID }) else {
+                        throw ScreenshotError.noDisplay
+                    }
+                    let filter = SCContentFilter(display: display, excludingWindows: [])
+                    let config = SCStreamConfiguration()
+                    config.width = spec.width * spec.scaleFactor
+                    config.height = spec.height * spec.scaleFactor
+                    config.pixelFormat = kCVPixelFormatType_32BGRA
+
                     let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
-                    let saved = try ScreenshotManager.saveScreenshot(
+                    return try ScreenshotManager.saveScreenshot(
                         image: image,
-                        displayIndex: captureIndex,
+                        displayIndex: spec.displayIndex,
+                        displayID: spec.displayID,
                         config: saveConfig
-                    )
-                    return ScreenshotResult(
-                        path: saved.path,
-                        thumbnailPath: saved.thumbnailPath,
-                        fileSize: saved.fileSize,
-                        width: saved.width,
-                        height: saved.height,
-                        displayID: displayID,
-                        displayIndex: captureIndex
                     )
                 }
             }
@@ -237,6 +237,7 @@ final class ScreenshotManager {
     private nonisolated static func saveScreenshot(
         image: CGImage,
         displayIndex: Int,
+        displayID: CGDirectDisplayID,
         config: SaveConfig
     ) throws -> ScreenshotResult {
         guard let resizedImage = image.resized(toFit: config.maxDimension) else {
@@ -268,7 +269,7 @@ final class ScreenshotManager {
             fileSize: Int64(webpData.count),
             width: resizedImage.width,
             height: resizedImage.height,
-            displayID: 0,
+            displayID: displayID,
             displayIndex: displayIndex
         )
     }
