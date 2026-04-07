@@ -1,10 +1,11 @@
 import SwiftUI
 
+// swiftlint:disable:next type_body_length
 struct ScreenshotViewerView: View {
     @Bindable var viewModel: ScreenshotBrowserViewModel
     @State private var showOCR = false
     @State private var showActualSize = false
-    @State private var maximizedDisplayIndex: Int? = nil
+    @State private var maximizedDisplayIndex: Int?
     @State private var splitRatio: CGFloat = 0.5
 
     var body: some View {

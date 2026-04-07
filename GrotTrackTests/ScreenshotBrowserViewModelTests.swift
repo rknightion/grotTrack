@@ -2,6 +2,7 @@ import XCTest
 import SwiftData
 @testable import GrotTrack
 
+// swiftlint:disable identifier_name force_unwrapping
 @MainActor
 final class ScreenshotBrowserViewModelTests: XCTestCase {
 
@@ -360,3 +361,4 @@ final class ScreenshotBrowserViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.filteredScreenshots.first?.id, s1.id)
     }
 }
+// swiftlint:enable identifier_name force_unwrapping

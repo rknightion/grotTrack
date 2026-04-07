@@ -25,7 +25,7 @@ struct TimelineRailView: View {
                 selectNearestToScrollPosition(midY: newMidY)
             }
             .onChange(of: viewModel.selectedIndex) {
-                if let _ = viewModel.selectedScreenshot {
+                if viewModel.selectedScreenshot != nil {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         scrollProxy.scrollTo("marker-\(viewModel.selectedIndex)", anchor: .center)
                     }
@@ -103,22 +103,22 @@ struct TimelineRailView: View {
         }
 
         var hours: [Double] = []
-        var h = Double(range.startHour)
+        var hour = Double(range.startHour)
         let end = Double(range.endHour) + 1.0
-        while h <= end {
-            hours.append(h)
-            h += step
+        while hour <= end {
+            hours.append(hour)
+            hour += step
         }
         return hours
     }
 
     private func formatHourMarker(_ hour: Double) -> String {
-        let h = Int(hour)
-        let m = Int((hour - Double(h)) * 60)
-        if m == 0 {
-            return String(format: "%02d:00", h)
+        let hrs = Int(hour)
+        let mins = Int((hour - Double(hrs)) * 60)
+        if mins == 0 {
+            return String(format: "%02d:00", hrs)
         }
-        return String(format: "%02d:%02d", h, m)
+        return String(format: "%02d:%02d", hrs, mins)
     }
 
     // MARK: - Activity Segments
@@ -169,6 +169,7 @@ struct TimelineRailView: View {
                             .lineLimit(detail == .compact ? 1 : 2)
 
                         if detail == .full {
+                            // swiftlint:disable:next line_length
                             Text(segment.startTime.formatted(.dateTime.hour().minute()) + " - " + segment.endTime.formatted(.dateTime.hour().minute()))
                                 .font(.system(size: 8))
                                 .foregroundStyle(.secondary)
@@ -227,10 +228,10 @@ struct TimelineRailView: View {
 
     private func yPosition(forHour hour: Double, range: ScreenshotBrowserViewModel.ActiveHoursRange, height: CGFloat) -> CGFloat {
         let calendar = Calendar.current
-        let h = Int(hour)
-        let m = Int((hour - Double(h)) * 60)
+        let hrs = Int(hour)
+        let mins = Int((hour - Double(hrs)) * 60)
         guard let date = calendar.date(
-            bySettingHour: h, minute: m, second: 0, of: viewModel.selectedDate
+            bySettingHour: hrs, minute: mins, second: 0, of: viewModel.selectedDate
         ) else { return 0 }
         return yPosition(for: date, range: range, height: height)
     }

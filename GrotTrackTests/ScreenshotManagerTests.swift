@@ -12,6 +12,7 @@ final class ScreenshotManagerTests: XCTestCase {
 
     func testDisplaySuffixedThumbnailFilename() {
         let base = "2026-04-07/16-05-45"
-        XCTAssertEqual(ScreenshotManager.displaySuffixedPath(base: base, displayIndex: 1, ext: "webp", suffix: "_thumb"), "2026-04-07/16-05-45_d1_thumb.webp")
+        let result = ScreenshotManager.displaySuffixedPath(base: base, displayIndex: 1, ext: "webp", suffix: "_thumb")
+        XCTAssertEqual(result, "2026-04-07/16-05-45_d1_thumb.webp")
     }
 }

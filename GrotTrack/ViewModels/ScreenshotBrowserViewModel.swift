@@ -266,9 +266,9 @@ final class ScreenshotBrowserViewModel {
     /// All display screenshots at the same timestamp as the selected screenshot, sorted by displayIndex.
     var displaysForSelectedScreenshot: [Screenshot] {
         guard let selected = selectedScreenshot else { return [] }
-        let ts = selected.timestamp
+        let timestamp = selected.timestamp
         return screenshots
-            .filter { abs($0.timestamp.timeIntervalSince(ts)) < 1.0 }
+            .filter { abs($0.timestamp.timeIntervalSince(timestamp)) < 1.0 }
             .sorted { $0.displayIndex < $1.displayIndex }
     }
 
