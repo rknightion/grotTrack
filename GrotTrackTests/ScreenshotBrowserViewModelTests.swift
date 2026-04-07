@@ -187,6 +187,18 @@ final class ScreenshotBrowserViewModelTests: XCTestCase {
         XCTAssertEqual(ctx.topLines, "func testSomething()")
     }
 
+    func testScreenshotDisplayFieldsDefaultToZero() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+
+        let screenshot = Screenshot(filePath: "test.webp", thumbnailPath: "test.webp", fileSize: 100)
+        context.insert(screenshot)
+        try context.save()
+
+        XCTAssertEqual(screenshot.displayID, 0)
+        XCTAssertEqual(screenshot.displayIndex, 0)
+    }
+
     func testSearchFiltersScreenshots() throws {
         let container = try makeContainer()
         let context = container.mainContext
