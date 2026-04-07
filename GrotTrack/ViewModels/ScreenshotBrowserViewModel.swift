@@ -41,6 +41,12 @@ final class ScreenshotBrowserViewModel {
     var searchText: String = ""
     private var contextCache: [UUID: ScreenshotContext] = [:]
 
+    /// Screenshots from the primary display only (displayIndex == 0), used for timeline navigation.
+    /// Multi-display siblings are fetched on demand via displaysForSelectedScreenshot.
+    var primaryScreenshots: [Screenshot] {
+        screenshots.filter { $0.displayIndex == 0 }
+    }
+
     // MARK: - Data Loading
 
     func loadData(context: ModelContext) {
@@ -242,6 +248,15 @@ final class ScreenshotBrowserViewModel {
     var selectedScreenshot: Screenshot? {
         guard selectedIndex >= 0, selectedIndex < screenshots.count else { return nil }
         return screenshots[selectedIndex]
+    }
+
+    /// All display screenshots at the same timestamp as the selected screenshot, sorted by displayIndex.
+    var displaysForSelectedScreenshot: [Screenshot] {
+        guard let selected = selectedScreenshot else { return [] }
+        let ts = selected.timestamp
+        return screenshots
+            .filter { abs($0.timestamp.timeIntervalSince(ts)) < 1.0 }
+            .sorted { $0.displayIndex < $1.displayIndex }
     }
 
     func selectScreenshot(_ screenshot: Screenshot) {
