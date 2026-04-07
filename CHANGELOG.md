@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.11.0](https://github.com/rknightion/grotTrack/compare/v0.10.1...v0.11.0) (2026-04-07)
+
+
+### Features
+
+* add display grouping by timestamp to ScreenshotBrowserViewModel ([25c01a1](https://github.com/rknightion/grotTrack/commit/25c01a15554a0ec083aad141a355a80fd288b0e3))
+* add display-suffixed filename helper to ScreenshotManager ([8c6f30a](https://github.com/rknightion/grotTrack/commit/8c6f30a2db5b6fe3c9f27ad6411a57736fcad881))
+* add displayID and displayIndex fields to Screenshot model ([623818d](https://github.com/rknightion/grotTrack/commit/623818d948205cc0b6c11b3f126366d4090ee4c5))
+* add multi-display split pane with maximize/restore to viewer ([a8b6734](https://github.com/rknightion/grotTrack/commit/a8b6734080c7edb519f3025855ea021a696b88ff))
+* add timeline zoom state, active hours range, and nearest screenshot lookup ([64c7395](https://github.com/rknightion/grotTrack/commit/64c739561af9739c1e9bb808074724b8a642a5cd))
+* capture all connected displays in parallel with display metadata ([3ceb7e7](https://github.com/rknightion/grotTrack/commit/3ceb7e7a47168f1796aef069c98bafd2047b1b3e))
+* rewrite TimelineRailView with ScrollView, pinch zoom, and progressive detail ([e714cd0](https://github.com/rknightion/grotTrack/commit/e714cd09e96304629417852766343cf577e8c955))
+* sidebar zoom/scroll and multi-screen capture ([0a483e1](https://github.com/rknightion/grotTrack/commit/0a483e19e3d21c861a1ea112d8325a77229d85ba))
+* wire scroll-to-select — scrolling timeline drives screenshot selection ([63224a0](https://github.com/rknightion/grotTrack/commit/63224a08f704e95468b2ae23a24705e50e32f19b))
+
+
+### Bug Fixes
+
+* address code review issues — feedback loop, concurrency safety, zoom math, primary-only markers ([ff215b5](https://github.com/rknightion/grotTrack/commit/ff215b564cd25e5682f27e0d0414251c12a75c2a))
+
+
+### Miscellaneous
+
+* fix lint warnings from sidebar zoom and multi-screen changes ([cf19601](https://github.com/rknightion/grotTrack/commit/cf196013861a96a965c5c1d572d2cb23dfb6279c))
+
+
+### Documentation
+
+* add design spec for sidebar zoom/scroll and multi-screen capture ([3b79031](https://github.com/rknightion/grotTrack/commit/3b790318319b4c5ce28e5ea87f02ff0217c38bf0))
+* add implementation plan for sidebar zoom and multi-screen capture ([94b174a](https://github.com/rknightion/grotTrack/commit/94b174aaff75f068bfa8621b989bb3ad9b21fa61))
+* rewrite README with comprehensive feature set ([9e58c55](https://github.com/rknightion/grotTrack/commit/9e58c55210476319e2bbb755fd634fedee377fc4))
+
 ## [0.10.1](https://github.com/rknightion/grotTrack/compare/v0.10.0...v0.10.1) (2026-04-06)
 
 
