@@ -84,6 +84,10 @@ final class ScreenshotManager {
         try FileManager.default.createDirectory(at: thumbnailDateDir, withIntermediateDirectories: true)
     }
 
+    func displaySuffixedPath(base: String, displayIndex: Int, ext: String, suffix: String = "") -> String {
+        "\(base)_d\(displayIndex)\(suffix).\(ext)"
+    }
+
     func startCapturing() {
         isCapturing = true
 
