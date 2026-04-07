@@ -2,65 +2,167 @@ import SwiftUI
 
 struct TimelineRailView: View {
     @Bindable var viewModel: ScreenshotBrowserViewModel
+    @State private var visibleMidY: CGFloat = 0
+    @State private var isScrollingProgrammatically = false
+    @State private var baseZoom: CGFloat = 1.0
 
     var body: some View {
-        GeometryReader { geometry in
-            let height = geometry.size.height
-            ZStack(alignment: .topLeading) {
-                hourMarkers(height: height)
-                activitySectionLabel(height: height)
-                activitySegmentOverlay(height: height)
-                sessionSectionLabel(height: height)
-                sessionSegmentOverlay(height: height)
-                screenshotMarkers(height: height)
-                dragOverlay(height: height)
+        ScrollViewReader { scrollProxy in
+            ScrollView(.vertical, showsIndicators: true) {
+                timelineContent
+                    .scaleEffect(y: viewModel.timelineZoom, anchor: .top)
+                    .frame(height: baseHeight * viewModel.timelineZoom)
             }
-            .frame(width: geometry.size.width, height: height)
+            .gesture(
+                MagnifyGesture()
+                    .onChanged { value in
+                        let newZoom = max(1.0, min(8.0, baseZoom * value.magnification))
+                        viewModel.timelineZoom = newZoom
+                    }
+                    .onEnded { value in
+                        baseZoom = max(1.0, min(8.0, baseZoom * value.magnification))
+                    }
+            )
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y + geometry.visibleRect.height / 2
+            } action: { _, newMidY in
+                visibleMidY = newMidY
+                if !isScrollingProgrammatically {
+                    selectNearestToScrollPosition(midY: newMidY)
+                }
+            }
+            .onChange(of: viewModel.selectedIndex) {
+                if viewModel.selectedScreenshot != nil {
+                    isScrollingProgrammatically = true
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        scrollProxy.scrollTo("marker-\(viewModel.selectedIndex)", anchor: .center)
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        isScrollingProgrammatically = false
+                    }
+                }
+            }
         }
         .background(.ultraThinMaterial)
     }
 
+    private var baseHeight: CGFloat { 600 }
+
+    private func selectNearestToScrollPosition(midY: CGFloat) {
+        let range = viewModel.activeHoursRange
+        let totalHeight = baseHeight * viewModel.timelineZoom
+        guard totalHeight > 0 else { return }
+
+        let fraction = midY / totalHeight
+        let clamped = max(0, min(1, fraction))
+        let targetTime = range.startDate.addingTimeInterval(
+            clamped * range.endDate.timeIntervalSince(range.startDate)
+        )
+
+        if let idx = viewModel.nearestScreenshotIndex(to: targetTime),
+           idx != viewModel.selectedIndex {
+            viewModel.selectedIndex = idx
+        }
+    }
+
+    // MARK: - Timeline Content
+
+    private var timelineContent: some View {
+        let range = viewModel.activeHoursRange
+        return GeometryReader { geometry in
+            let height = geometry.size.height
+            ZStack(alignment: .topLeading) {
+                hourMarkers(range: range, height: height)
+                activitySegmentOverlay(range: range, height: height)
+                sessionSegmentOverlay(range: range, height: height)
+                screenshotMarkers(range: range, height: height)
+            }
+            .frame(width: geometry.size.width, height: height)
+        }
+        .frame(height: baseHeight)
+    }
+
     // MARK: - Hour Markers
 
-    private func hourMarkers(height: CGFloat) -> some View {
-        let range = dayRange
-        return ForEach(range.startHour...range.endHour, id: \.self) { hour in
+    private func hourMarkers(range: ScreenshotBrowserViewModel.ActiveHoursRange, height: CGFloat) -> some View {
+        let detail = viewModel.timelineDetailLevel
+        return ForEach(allMarkerHours(range: range, detail: detail), id: \.self) { hour in
             let yPos = yPosition(forHour: hour, range: range, height: height)
+            let isSubMarker = hour.truncatingRemainder(dividingBy: 1.0) != 0
+
             HStack(spacing: 4) {
-                Text(String(format: "%02d:00", hour))
-                    .font(.system(size: 10))
+                Text(formatHourMarker(hour))
+                    .font(.system(size: isSubMarker ? 8 : 10))
                     .monospacedDigit()
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(isSubMarker ? .quaternary : .tertiary)
                     .frame(width: 44, alignment: .trailing)
                 Rectangle()
-                    .fill(Color.gray.opacity(0.2))
+                    .fill(Color.gray.opacity(isSubMarker ? 0.1 : 0.2))
                     .frame(height: 1)
             }
             .offset(y: yPos - 6)
         }
     }
 
+    /// Returns fractional hours for markers. E.g. 9, 9.25, 9.5, 9.75, 10 for 15-min intervals.
+    private func allMarkerHours(range: ScreenshotBrowserViewModel.ActiveHoursRange, detail: TimelineDetailLevel) -> [Double] {
+        let step: Double
+        switch detail {
+        case .compact: step = 1.0
+        case .medium: step = 0.25  // 15-minute intervals
+        case .full: step = 1.0 / 12.0  // 5-minute intervals
+        }
+
+        var hours: [Double] = []
+        var hour = Double(range.startHour)
+        let end = Double(range.endHour) + 1.0
+        while hour <= end {
+            hours.append(hour)
+            hour += step
+        }
+        return hours
+    }
+
+    private func formatHourMarker(_ hour: Double) -> String {
+        let hrs = Int(hour)
+        let mins = Int((hour - Double(hrs)) * 60)
+        if mins == 0 {
+            return String(format: "%02d:00", hrs)
+        }
+        return String(format: "%02d:%02d", hrs, mins)
+    }
+
     // MARK: - Activity Segments
 
-    private func activitySegmentOverlay(height: CGFloat) -> some View {
-        let range = dayRange
+    private func activitySegmentOverlay(range: ScreenshotBrowserViewModel.ActiveHoursRange, height: CGFloat) -> some View {
+        let detail = viewModel.timelineDetailLevel
         return ForEach(viewModel.activitySegments) { segment in
             let startY = yPosition(for: segment.startTime, range: range, height: height)
             let endY = yPosition(for: segment.endTime, range: range, height: height)
             let segmentHeight = max(2, endY - startY)
 
-            RoundedRectangle(cornerRadius: 2)
-                .fill(segment.color.opacity(0.6))
-                .frame(width: 18, height: segmentHeight)
-                .offset(x: 56, y: startY)
-                .help("\(segment.appName): \(segment.windowTitle)")
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(segment.color.opacity(0.6))
+                    .frame(width: 18, height: segmentHeight)
+
+                if detail != .compact {
+                    Text(segment.appName)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .offset(x: 22)
+                }
+            }
+            .offset(x: 56, y: startY)
+            .help("\(segment.appName): \(segment.windowTitle)")
         }
     }
 
     // MARK: - Session Segments
 
-    private func sessionSegmentOverlay(height: CGFloat) -> some View {
-        let range = dayRange
+    private func sessionSegmentOverlay(range: ScreenshotBrowserViewModel.ActiveHoursRange, height: CGFloat) -> some View {
+        let detail = viewModel.timelineDetailLevel
         return ForEach(viewModel.sessionSegments) { segment in
             let startY = yPosition(for: segment.startTime, range: range, height: height)
             let endY = yPosition(for: segment.endTime, range: range, height: height)
@@ -71,13 +173,22 @@ struct TimelineRailView: View {
                 .fill(segment.color.opacity(0.3 + opacity * 0.5))
                 .frame(height: segmentHeight)
                 .overlay(alignment: .topLeading) {
-                    Text(segment.label)
-                        .font(.system(size: 10))
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-                        .padding(.leading, 6)
-                        .padding(.top, 4)
-                        .foregroundStyle(.primary.opacity(0.8))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(segment.label)
+                            .font(.system(size: 10))
+                            .fontWeight(.medium)
+                            .lineLimit(detail == .compact ? 1 : 2)
+
+                        if detail == .full {
+                            // swiftlint:disable:next line_length
+                            Text(segment.startTime.formatted(.dateTime.hour().minute()) + " - " + segment.endTime.formatted(.dateTime.hour().minute()))
+                                .font(.system(size: 8))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.leading, 6)
+                    .padding(.top, 4)
+                    .foregroundStyle(.primary.opacity(0.8))
                 }
                 .padding(.leading, 100)
                 .padding(.trailing, 12)
@@ -88,133 +199,40 @@ struct TimelineRailView: View {
 
     // MARK: - Screenshot Markers
 
-    private func screenshotMarkers(height: CGFloat) -> some View {
-        let range = dayRange
-        return ForEach(viewModel.screenshots.indices, id: \.self) { index in
-            let screenshot = viewModel.screenshots[index]
+    private func screenshotMarkers(range: ScreenshotBrowserViewModel.ActiveHoursRange, height: CGFloat) -> some View {
+        let detail = viewModel.timelineDetailLevel
+        let markerSize: CGFloat = detail == .full ? 10 : (detail == .medium ? 8 : 6)
+        let selectedSize: CGFloat = markerSize + 4
+        let primaryShots = viewModel.primaryScreenshots
+
+        return ForEach(primaryShots.indices, id: \.self) { index in
+            let screenshot = primaryShots[index]
             let yPos = yPosition(for: screenshot.timestamp, range: range, height: height)
-            let isSelected = index == viewModel.selectedIndex
+            let isSelected = viewModel.selectedScreenshot.map {
+                abs($0.timestamp.timeIntervalSince(screenshot.timestamp)) < 1.0
+            } ?? false
 
             Circle()
                 .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.5))
-                .frame(width: isSelected ? 10 : 6, height: isSelected ? 10 : 6)
+                .frame(width: isSelected ? selectedSize : markerSize, height: isSelected ? selectedSize : markerSize)
                 .overlay {
                     if isSelected {
                         Circle()
                             .stroke(Color.accentColor, lineWidth: 2)
-                            .frame(width: 14, height: 14)
+                            .frame(width: selectedSize + 4, height: selectedSize + 4)
                     }
                 }
-                .offset(x: 80, y: yPos - (isSelected ? 5 : 3))
+                .offset(x: 80, y: yPos - (isSelected ? selectedSize / 2 : markerSize / 2))
                 .onTapGesture {
-                    viewModel.selectedIndex = index
+                    viewModel.selectScreenshot(screenshot)
                 }
                 .id("marker-\(index)")
         }
     }
 
-    // MARK: - Section Labels
-
-    @ViewBuilder
-    private func activitySectionLabel(height: CGFloat) -> some View {
-        if let firstSegment = viewModel.activitySegments.first {
-            let range = dayRange
-            let firstY = yPosition(for: firstSegment.startTime, range: range, height: height)
-            Text("ACTIVITY")
-                .font(.system(size: 8))
-                .tracking(1)
-                .foregroundStyle(.tertiary)
-                .offset(x: 56, y: firstY - 14)
-        }
-    }
-
-    @ViewBuilder
-    private func sessionSectionLabel(height: CGFloat) -> some View {
-        if let firstSegment = viewModel.sessionSegments.first {
-            let range = dayRange
-            let firstY = yPosition(for: firstSegment.startTime, range: range, height: height)
-            Text("SESSIONS")
-                .font(.system(size: 8))
-                .tracking(1)
-                .foregroundStyle(.tertiary)
-                .offset(x: 100, y: firstY - 14)
-        }
-    }
-
-    // MARK: - Drag to Scrub
-
-    private func dragOverlay(height: CGFloat) -> some View {
-        let range = dayRange
-        return Color.clear
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        let fraction = value.location.y / height
-                        let clamped = max(0, min(1, fraction))
-                        let targetTime = range.startDate.addingTimeInterval(
-                            clamped * range.endDate.timeIntervalSince(range.startDate)
-                        )
-                        jumpToNearestScreenshot(at: targetTime)
-                    }
-            )
-    }
-
-    private func jumpToNearestScreenshot(at date: Date) {
-        guard !viewModel.screenshots.isEmpty else { return }
-        var bestIndex = 0
-        var bestDelta = abs(viewModel.screenshots[0].timestamp.timeIntervalSince(date))
-        for idx in 1..<viewModel.screenshots.count {
-            let delta = abs(viewModel.screenshots[idx].timestamp.timeIntervalSince(date))
-            if delta < bestDelta {
-                bestDelta = delta
-                bestIndex = idx
-            }
-        }
-        viewModel.selectedIndex = bestIndex
-    }
-
     // MARK: - Coordinate Mapping
 
-    private struct DayRange {
-        let startHour: Int
-        let endHour: Int
-        let startDate: Date
-        let endDate: Date
-    }
-
-    private var dayRange: DayRange {
-        let calendar = Calendar.current
-        let startOfDay = calendar.startOfDay(for: viewModel.selectedDate)
-
-        let firstTime = viewModel.screenshots.first?.timestamp
-            ?? viewModel.activityEvents.first?.timestamp
-            ?? startOfDay
-        let lastTime = viewModel.screenshots.last?.timestamp
-            ?? viewModel.activityEvents.last?.timestamp
-            ?? startOfDay.addingTimeInterval(86400)
-
-        let startHour = max(0, calendar.component(.hour, from: firstTime) - 1)
-        let endHour = min(23, calendar.component(.hour, from: lastTime) + 1)
-
-        let start = calendar.date(
-            bySettingHour: startHour, minute: 0, second: 0, of: viewModel.selectedDate
-        ) ?? startOfDay
-        let end: Date
-        if endHour >= 23 {
-            end = calendar.date(
-                byAdding: .day, value: 1, to: calendar.startOfDay(for: viewModel.selectedDate)
-            ) ?? startOfDay.addingTimeInterval(86400)
-        } else {
-            end = calendar.date(
-                bySettingHour: endHour + 1, minute: 0, second: 0, of: viewModel.selectedDate
-            ) ?? startOfDay.addingTimeInterval(86400)
-        }
-
-        return DayRange(startHour: startHour, endHour: endHour, startDate: start, endDate: end)
-    }
-
-    private func yPosition(for date: Date, range: DayRange, height: CGFloat) -> CGFloat {
+    private func yPosition(for date: Date, range: ScreenshotBrowserViewModel.ActiveHoursRange, height: CGFloat) -> CGFloat {
         let totalInterval = range.endDate.timeIntervalSince(range.startDate)
         guard totalInterval > 0 else { return 0 }
         let offset = date.timeIntervalSince(range.startDate)
@@ -222,10 +240,12 @@ struct TimelineRailView: View {
         return CGFloat(fraction) * height
     }
 
-    private func yPosition(forHour hour: Int, range: DayRange, height: CGFloat) -> CGFloat {
+    private func yPosition(forHour hour: Double, range: ScreenshotBrowserViewModel.ActiveHoursRange, height: CGFloat) -> CGFloat {
         let calendar = Calendar.current
+        let hrs = Int(hour)
+        let mins = Int((hour - Double(hrs)) * 60)
         guard let date = calendar.date(
-            bySettingHour: hour, minute: 0, second: 0, of: viewModel.selectedDate
+            bySettingHour: hrs, minute: mins, second: 0, of: viewModel.selectedDate
         ) else { return 0 }
         return yPosition(for: date, range: range, height: height)
     }

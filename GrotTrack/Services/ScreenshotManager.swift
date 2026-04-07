@@ -2,12 +2,14 @@ import SwiftUI
 import SwiftData
 import ScreenCaptureKit
 
-struct ScreenshotResult {
+struct ScreenshotResult: Sendable {
     let path: String
     let thumbnailPath: String
     let fileSize: Int64
     let width: Int
     let height: Int
+    let displayID: UInt32
+    let displayIndex: Int
 }
 
 struct StorageStats {
@@ -30,6 +32,24 @@ enum ScreenshotError: Error, LocalizedError {
         case .compressionFailed: "Image compression failed"
         }
     }
+}
+
+private struct CaptureSpec: Sendable {
+    let displayID: CGDirectDisplayID
+    let width: Int
+    let height: Int
+    let displayIndex: Int
+    let scaleFactor: Int
+}
+
+private struct SaveConfig: Sendable {
+    let dateString: String
+    let timeString: String
+    let maxDimension: CGFloat
+    let imageQuality: CGFloat
+    let thumbnailWidth: CGFloat
+    let screenshotsDir: URL
+    let thumbnailsDir: URL
 }
 
 @Observable
@@ -84,6 +104,10 @@ final class ScreenshotManager {
         try FileManager.default.createDirectory(at: thumbnailDateDir, withIntermediateDirectories: true)
     }
 
+    nonisolated static func displaySuffixedPath(base: String, displayIndex: Int, ext: String, suffix: String = "") -> String {
+        "\(base)_d\(displayIndex)\(suffix).\(ext)"
+    }
+
     func startCapturing() {
         isCapturing = true
 
@@ -126,36 +150,22 @@ final class ScreenshotManager {
         captureTimer = nil
     }
 
-    func captureScreenshot() async throws -> ScreenshotResult {
+    @discardableResult
+    // swiftlint:disable:next function_body_length
+    func captureScreenshot() async throws -> [ScreenshotResult] {
         isCurrentlyCapturing = true
         defer { isCurrentlyCapturing = false }
 
         let scaleFactor = Int(NSScreen.main?.backingScaleFactor ?? 2.0)
 
-        let image: CGImage = try await Task.detached {
-            let content = try await SCShareableContent.current
-            guard let display = content.displays.first else {
-                throw ScreenshotError.noDisplay
-            }
+        let content = try await SCShareableContent.current
+        guard !content.displays.isEmpty else {
+            throw ScreenshotError.noDisplay
+        }
 
-            let filter = SCContentFilter(display: display, excludingWindows: [])
-            let config = SCStreamConfiguration()
-            config.width = display.width * scaleFactor
-            config.height = display.height * scaleFactor
-            config.pixelFormat = kCVPixelFormatType_32BGRA
-
-            return try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
-        }.value
-
-        let result = try saveScreenshot(image: image)
-        persistScreenshotMetadata(result: result)
-        lastCaptureDate = Date()
-        return result
-    }
-
-    private func saveScreenshot(image: CGImage) throws -> ScreenshotResult {
-        guard let resizedImage = image.resized(toFit: maxDimension) else {
-            throw ScreenshotError.resizeFailed
+        // Sort displays left-to-right by physical position
+        let sortedDisplays = content.displays.sorted { lhs, rhs in
+            CGDisplayBounds(lhs.displayID).origin.x < CGDisplayBounds(rhs.displayID).origin.x
         }
 
         let now = Date()
@@ -163,17 +173,89 @@ final class ScreenshotManager {
         let timeString = timeFormatter.string(from: now)
         try ensureDirectories(for: now)
 
-        let screenshotRelativePath = "\(dateString)/\(timeString).webp"
-        let thumbnailRelativePath = "\(dateString)/\(timeString)_thumb.webp"
-        let screenshotURL = screenshotsDir.appendingPathComponent(screenshotRelativePath)
-        let thumbnailURL = thumbnailsDir.appendingPathComponent(thumbnailRelativePath)
+        // Pre-capture MainActor-isolated properties for use in task group
+        let saveConfig = SaveConfig(
+            dateString: dateString,
+            timeString: timeString,
+            maxDimension: maxDimension,
+            imageQuality: imageQuality,
+            thumbnailWidth: thumbnailWidth,
+            screenshotsDir: screenshotsDir,
+            thumbnailsDir: thumbnailsDir
+        )
 
-        guard let webpData = resizedImage.webpData(quality: imageQuality) else {
+        // Build per-display capture specs with only Sendable primitives
+        var captureSpecs: [CaptureSpec] = []
+        for (index, display) in sortedDisplays.enumerated() {
+            captureSpecs.append(CaptureSpec(
+                displayID: display.displayID,
+                width: display.width,
+                height: display.height,
+                displayIndex: index,
+                scaleFactor: scaleFactor
+            ))
+        }
+
+        // Capture all displays in parallel
+        let results: [ScreenshotResult] = try await withThrowingTaskGroup(of: ScreenshotResult.self) { group in
+            for spec in captureSpecs {
+                group.addTask {
+                    let content = try await SCShareableContent.current
+                    guard let display = content.displays.first(where: { $0.displayID == spec.displayID }) else {
+                        throw ScreenshotError.noDisplay
+                    }
+                    let filter = SCContentFilter(display: display, excludingWindows: [])
+                    let config = SCStreamConfiguration()
+                    config.width = spec.width * spec.scaleFactor
+                    config.height = spec.height * spec.scaleFactor
+                    config.pixelFormat = kCVPixelFormatType_32BGRA
+
+                    let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+                    return try ScreenshotManager.saveScreenshot(
+                        image: image,
+                        displayIndex: spec.displayIndex,
+                        displayID: spec.displayID,
+                        config: saveConfig
+                    )
+                }
+            }
+
+            var collected: [ScreenshotResult] = []
+            for try await result in group {
+                collected.append(result)
+            }
+            return collected.sorted { $0.displayIndex < $1.displayIndex }
+        }
+
+        for result in results {
+            persistScreenshotMetadata(result: result, timestamp: now)
+        }
+        lastCaptureDate = now
+        return results
+    }
+
+    private nonisolated static func saveScreenshot(
+        image: CGImage,
+        displayIndex: Int,
+        displayID: CGDirectDisplayID,
+        config: SaveConfig
+    ) throws -> ScreenshotResult {
+        guard let resizedImage = image.resized(toFit: config.maxDimension) else {
+            throw ScreenshotError.resizeFailed
+        }
+
+        let basePath = "\(config.dateString)/\(config.timeString)"
+        let screenshotRelativePath = ScreenshotManager.displaySuffixedPath(base: basePath, displayIndex: displayIndex, ext: "webp")
+        let thumbnailRelativePath = ScreenshotManager.displaySuffixedPath(base: basePath, displayIndex: displayIndex, ext: "webp", suffix: "_thumb")
+        let screenshotURL = config.screenshotsDir.appendingPathComponent(screenshotRelativePath)
+        let thumbnailURL = config.thumbnailsDir.appendingPathComponent(thumbnailRelativePath)
+
+        guard let webpData = resizedImage.webpData(quality: config.imageQuality) else {
             throw ScreenshotError.compressionFailed
         }
         try webpData.write(to: screenshotURL)
 
-        guard let thumbnailImage = resizedImage.resized(toFit: thumbnailWidth) else {
+        guard let thumbnailImage = resizedImage.resized(toFit: config.thumbnailWidth) else {
             throw ScreenshotError.resizeFailed
         }
         guard let thumbnailData = thumbnailImage.webpData(quality: 0.7) else {
@@ -186,28 +268,36 @@ final class ScreenshotManager {
             thumbnailPath: thumbnailRelativePath,
             fileSize: Int64(webpData.count),
             width: resizedImage.width,
-            height: resizedImage.height
+            height: resizedImage.height,
+            displayID: displayID,
+            displayIndex: displayIndex
         )
     }
 
-    private func persistScreenshotMetadata(result: ScreenshotResult) {
+    private func persistScreenshotMetadata(result: ScreenshotResult, timestamp: Date) {
         guard let modelContext else { return }
         let screenshot = Screenshot(
             filePath: result.path,
             thumbnailPath: result.thumbnailPath,
             fileSize: result.fileSize
         )
+        screenshot.timestamp = timestamp
         screenshot.width = result.width
         screenshot.height = result.height
+        screenshot.displayID = result.displayID
+        screenshot.displayIndex = result.displayIndex
         modelContext.insert(screenshot)
 
-        var eventDescriptor = FetchDescriptor<ActivityEvent>(
-            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
-        )
-        eventDescriptor.fetchLimit = 1
-        if let recentEvent = try? modelContext.fetch(eventDescriptor).first,
-           recentEvent.screenshotID == nil {
-            recentEvent.screenshotID = screenshot.id
+        // Only link to ActivityEvent for the primary display (index 0)
+        if result.displayIndex == 0 {
+            var eventDescriptor = FetchDescriptor<ActivityEvent>(
+                sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+            )
+            eventDescriptor.fetchLimit = 1
+            if let recentEvent = try? modelContext.fetch(eventDescriptor).first,
+               recentEvent.screenshotID == nil {
+                recentEvent.screenshotID = screenshot.id
+            }
         }
 
         try? modelContext.save()

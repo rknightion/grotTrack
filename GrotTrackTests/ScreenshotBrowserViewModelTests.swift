@@ -2,6 +2,7 @@ import XCTest
 import SwiftData
 @testable import GrotTrack
 
+// swiftlint:disable identifier_name force_unwrapping
 @MainActor
 final class ScreenshotBrowserViewModelTests: XCTestCase {
 
@@ -187,6 +188,141 @@ final class ScreenshotBrowserViewModelTests: XCTestCase {
         XCTAssertEqual(ctx.topLines, "func testSomething()")
     }
 
+    func testScreenshotDisplayFieldsDefaultToZero() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+
+        let screenshot = Screenshot(filePath: "test.webp", thumbnailPath: "test.webp", fileSize: 100)
+        context.insert(screenshot)
+        try context.save()
+
+        XCTAssertEqual(screenshot.displayID, 0)
+        XCTAssertEqual(screenshot.displayIndex, 0)
+    }
+
+    func testDisplayGroupingByTimestamp() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let ts = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: today)!
+
+        // Two displays captured at the same timestamp
+        let s1 = Screenshot(filePath: "09-00-00_d0.webp", thumbnailPath: "09-00-00_d0.webp", fileSize: 100)
+        s1.timestamp = ts
+        s1.displayIndex = 0
+
+        let s2 = Screenshot(filePath: "09-00-00_d1.webp", thumbnailPath: "09-00-00_d1.webp", fileSize: 100)
+        s2.timestamp = ts
+        s2.displayIndex = 1
+
+        // One display captured later
+        let s3 = Screenshot(filePath: "09-00-30_d0.webp", thumbnailPath: "09-00-30_d0.webp", fileSize: 100)
+        s3.timestamp = calendar.date(bySettingHour: 9, minute: 0, second: 30, of: today)!
+        s3.displayIndex = 0
+
+        context.insert(s1)
+        context.insert(s2)
+        context.insert(s3)
+        try context.save()
+
+        let viewModel = ScreenshotBrowserViewModel()
+        viewModel.selectedDate = today
+        viewModel.loadData(context: context)
+
+        let group = viewModel.displaysForSelectedScreenshot
+        // When s1 is selected (index 0), should find s2 as sibling
+        XCTAssertEqual(group.count, 2)
+        XCTAssertEqual(group[0].displayIndex, 0)
+        XCTAssertEqual(group[1].displayIndex, 1)
+    }
+
+    func testSingleDisplayShowsOneInGroup() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        let s1 = Screenshot(filePath: "a.webp", thumbnailPath: "a.webp", fileSize: 100)
+        s1.timestamp = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: today)!
+        // displayIndex defaults to 0, no sibling
+
+        context.insert(s1)
+        try context.save()
+
+        let viewModel = ScreenshotBrowserViewModel()
+        viewModel.selectedDate = today
+        viewModel.loadData(context: context)
+
+        let group = viewModel.displaysForSelectedScreenshot
+        XCTAssertEqual(group.count, 1)
+        XCTAssertEqual(group[0].id, s1.id)
+    }
+
+    func testTimelineZoomDetailLevel() throws {
+        let viewModel = ScreenshotBrowserViewModel()
+
+        viewModel.timelineZoom = 1.0
+        XCTAssertEqual(viewModel.timelineDetailLevel, .compact)
+
+        viewModel.timelineZoom = 2.5
+        XCTAssertEqual(viewModel.timelineDetailLevel, .medium)
+
+        viewModel.timelineZoom = 4.0
+        XCTAssertEqual(viewModel.timelineDetailLevel, .full)
+    }
+
+    func testActiveHoursRange() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        let s1 = Screenshot(filePath: "a.webp", thumbnailPath: "a.webp", fileSize: 100)
+        s1.timestamp = calendar.date(bySettingHour: 9, minute: 15, second: 0, of: today)!
+        let s2 = Screenshot(filePath: "b.webp", thumbnailPath: "b.webp", fileSize: 100)
+        s2.timestamp = calendar.date(bySettingHour: 16, minute: 45, second: 0, of: today)!
+
+        context.insert(s1)
+        context.insert(s2)
+        try context.save()
+
+        let viewModel = ScreenshotBrowserViewModel()
+        viewModel.selectedDate = today
+        viewModel.loadData(context: context)
+
+        let range = viewModel.activeHoursRange
+        XCTAssertEqual(range.startHour, 8)
+        XCTAssertEqual(range.endHour, 17)
+    }
+
+    func testNearestScreenshotIndex() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        let s1 = Screenshot(filePath: "a.webp", thumbnailPath: "a.webp", fileSize: 100)
+        s1.timestamp = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: today)!
+        let s2 = Screenshot(filePath: "b.webp", thumbnailPath: "b.webp", fileSize: 100)
+        s2.timestamp = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: today)!
+        let s3 = Screenshot(filePath: "c.webp", thumbnailPath: "c.webp", fileSize: 100)
+        s3.timestamp = calendar.date(bySettingHour: 11, minute: 0, second: 0, of: today)!
+
+        context.insert(s1)
+        context.insert(s2)
+        context.insert(s3)
+        try context.save()
+
+        let viewModel = ScreenshotBrowserViewModel()
+        viewModel.selectedDate = today
+        viewModel.loadData(context: context)
+
+        let target = calendar.date(bySettingHour: 9, minute: 45, second: 0, of: today)!
+        let idx = viewModel.nearestScreenshotIndex(to: target)
+        XCTAssertEqual(idx, 1) // 10:00 is closer to 9:45 than 9:00
+    }
+
     func testSearchFiltersScreenshots() throws {
         let container = try makeContainer()
         let context = container.mainContext
@@ -225,3 +361,4 @@ final class ScreenshotBrowserViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.filteredScreenshots.first?.id, s1.id)
     }
 }
+// swiftlint:enable identifier_name force_unwrapping
