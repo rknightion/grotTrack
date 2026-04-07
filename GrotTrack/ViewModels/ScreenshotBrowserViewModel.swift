@@ -26,6 +26,12 @@ struct ScreenshotContext {
     let sessionLabel: String?
 }
 
+enum TimelineDetailLevel {
+    case compact  // 1x: hour markers, color bars, small dots
+    case medium   // 2-3x: + app names, 15-min markers, window titles
+    case full     // 4x+: + 5-min markers, full titles, URLs
+}
+
 @Observable
 @MainActor
 final class ScreenshotBrowserViewModel {
@@ -33,6 +39,13 @@ final class ScreenshotBrowserViewModel {
     var mode: BrowserMode = .grid
     var selectedIndex: Int = 0
     var zoomLevel: Double = 0.5 // 0.0 = compact, 1.0 = large
+    var timelineZoom: CGFloat = 1.0
+
+    var timelineDetailLevel: TimelineDetailLevel {
+        if timelineZoom >= 4.0 { return .full }
+        if timelineZoom >= 2.0 { return .medium }
+        return .compact
+    }
 
     var screenshots: [Screenshot] = []
     var activityEvents: [ActivityEvent] = []
@@ -305,5 +318,61 @@ final class ScreenshotBrowserViewModel {
 
     var thumbnailWidth: CGFloat {
         120 + zoomLevel * 230
+    }
+
+    // MARK: - Active Hours Range
+
+    struct ActiveHoursRange {
+        let startHour: Int
+        let endHour: Int
+        let startDate: Date
+        let endDate: Date
+    }
+
+    var activeHoursRange: ActiveHoursRange {
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: selectedDate)
+
+        let firstTime = screenshots.first?.timestamp
+            ?? activityEvents.first?.timestamp
+            ?? startOfDay
+        let lastTime = screenshots.last?.timestamp
+            ?? activityEvents.last?.timestamp
+            ?? startOfDay.addingTimeInterval(86400)
+
+        let startHour = max(0, calendar.component(.hour, from: firstTime) - 1)
+        let endHour = min(23, calendar.component(.hour, from: lastTime) + 1)
+
+        let start = calendar.date(
+            bySettingHour: startHour, minute: 0, second: 0, of: selectedDate
+        ) ?? startOfDay
+        let end: Date
+        if endHour >= 23 {
+            end = calendar.date(
+                byAdding: .day, value: 1, to: startOfDay
+            ) ?? startOfDay.addingTimeInterval(86400)
+        } else {
+            end = calendar.date(
+                bySettingHour: endHour + 1, minute: 0, second: 0, of: selectedDate
+            ) ?? startOfDay.addingTimeInterval(86400)
+        }
+
+        return ActiveHoursRange(startHour: startHour, endHour: endHour, startDate: start, endDate: end)
+    }
+
+    // MARK: - Nearest Screenshot
+
+    func nearestScreenshotIndex(to date: Date) -> Int? {
+        guard !screenshots.isEmpty else { return nil }
+        var bestIndex = 0
+        var bestDelta = abs(screenshots[0].timestamp.timeIntervalSince(date))
+        for idx in 1..<screenshots.count {
+            let delta = abs(screenshots[idx].timestamp.timeIntervalSince(date))
+            if delta < bestDelta {
+                bestDelta = delta
+                bestIndex = idx
+            }
+        }
+        return bestIndex
     }
 }
