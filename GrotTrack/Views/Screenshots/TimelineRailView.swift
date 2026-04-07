@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TimelineRailView: View {
     @Bindable var viewModel: ScreenshotBrowserViewModel
+    @State private var visibleMidY: CGFloat = 0
 
     var body: some View {
         ScrollViewReader { scrollProxy in
@@ -17,6 +18,12 @@ struct TimelineRailView: View {
                         viewModel.timelineZoom = newZoom
                     }
             )
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y + geometry.visibleRect.height / 2
+            } action: { _, newMidY in
+                visibleMidY = newMidY
+                selectNearestToScrollPosition(midY: newMidY)
+            }
             .onChange(of: viewModel.selectedIndex) {
                 if let _ = viewModel.selectedScreenshot {
                     withAnimation(.easeInOut(duration: 0.2)) {
@@ -29,6 +36,23 @@ struct TimelineRailView: View {
     }
 
     private var baseHeight: CGFloat { 600 }
+
+    private func selectNearestToScrollPosition(midY: CGFloat) {
+        let range = viewModel.activeHoursRange
+        let totalHeight = baseHeight * viewModel.timelineZoom
+        guard totalHeight > 0 else { return }
+
+        let fraction = midY / totalHeight
+        let clamped = max(0, min(1, fraction))
+        let targetTime = range.startDate.addingTimeInterval(
+            clamped * range.endDate.timeIntervalSince(range.startDate)
+        )
+
+        if let idx = viewModel.nearestScreenshotIndex(to: targetTime),
+           idx != viewModel.selectedIndex {
+            viewModel.selectedIndex = idx
+        }
+    }
 
     // MARK: - Timeline Content
 
