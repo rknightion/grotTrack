@@ -229,11 +229,12 @@ struct TimelineView: View {
     private var timelineContent: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 2) {
+                VStack(spacing: 2) {
                     let filtered = viewModel.filteredHourGroups
+                    let groupsByHour = Dictionary(uniqueKeysWithValues: filtered.map { ($0.id, $0) })
 
-                    ForEach(0..<24, id: \.self) { hour in
-                        if let group = filtered.first(where: { $0.id == hour }) {
+                    ForEach(Array(0..<24), id: \.self) { hour in
+                        if let group = groupsByHour[hour] {
                             HourBlockView(
                                 hourGroup: group,
                                 isExpanded: viewModel.isExpanded(group.id),
