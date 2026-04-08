@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.11.2](https://github.com/rknightion/grotTrack/compare/v0.11.1...v0.11.2) (2026-04-08)
+
+
+### Bug Fixes
+
+* prevent App Nap from suspending activity tracking and screenshots ([188bb39](https://github.com/rknightion/grotTrack/commit/188bb396b66f3903c014a35c9da3499d0a3e84b1))
+* timeline scroll and zoom bugs ([98bf3f4](https://github.com/rknightion/grotTrack/commit/98bf3f48ee2ef34203b872d385854e5261353f78))
+
+
+### Performance
+
+* **timeline:** optimize hour lookup with dictionary ([9cca6ba](https://github.com/rknightion/grotTrack/commit/9cca6ba2ec23a48275985f7b7143a9cd294c819d))
+
 ## [0.11.1](https://github.com/rknightion/grotTrack/compare/v0.11.0...v0.11.1) (2026-04-08)
 
 
