@@ -1,6 +1,6 @@
 import SwiftUI
 import SwiftData
-import ScreenCaptureKit
+@preconcurrency import ScreenCaptureKit
 
 struct ScreenshotResult: Sendable {
     let path: String
@@ -34,12 +34,11 @@ enum ScreenshotError: Error, LocalizedError {
     }
 }
 
-private struct CaptureSpec: Sendable {
+private struct CaptureSpec {
     let displayID: CGDirectDisplayID
-    let width: Int
-    let height: Int
     let displayIndex: Int
-    let scaleFactor: Int
+    let filter: SCContentFilter
+    let config: SCStreamConfiguration
 }
 
 private struct SaveConfig: Sendable {
@@ -184,33 +183,21 @@ final class ScreenshotManager {
             thumbnailsDir: thumbnailsDir
         )
 
-        // Build per-display capture specs with only Sendable primitives
-        var captureSpecs: [CaptureSpec] = []
-        for (index, display) in sortedDisplays.enumerated() {
-            captureSpecs.append(CaptureSpec(
-                displayID: display.displayID,
-                width: display.width,
-                height: display.height,
-                displayIndex: index,
-                scaleFactor: scaleFactor
-            ))
+        // Build per-display capture specs on the main actor
+        let captureSpecs: [CaptureSpec] = sortedDisplays.enumerated().map { index, display in
+            let filter = SCContentFilter(display: display, excludingWindows: [])
+            let config = SCStreamConfiguration()
+            config.width = display.width * scaleFactor
+            config.height = display.height * scaleFactor
+            config.pixelFormat = kCVPixelFormatType_32BGRA
+            return CaptureSpec(displayID: display.displayID, displayIndex: index, filter: filter, config: config)
         }
 
         // Capture all displays in parallel
         let results: [ScreenshotResult] = try await withThrowingTaskGroup(of: ScreenshotResult.self) { group in
             for spec in captureSpecs {
                 group.addTask {
-                    let content = try await SCShareableContent.current
-                    guard let display = content.displays.first(where: { $0.displayID == spec.displayID }) else {
-                        throw ScreenshotError.noDisplay
-                    }
-                    let filter = SCContentFilter(display: display, excludingWindows: [])
-                    let config = SCStreamConfiguration()
-                    config.width = spec.width * spec.scaleFactor
-                    config.height = spec.height * spec.scaleFactor
-                    config.pixelFormat = kCVPixelFormatType_32BGRA
-
-                    let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+                    let image = try await SCScreenshotManager.captureImage(contentFilter: spec.filter, configuration: spec.config)
                     return try ScreenshotManager.saveScreenshot(
                         image: image,
                         displayIndex: spec.displayIndex,
