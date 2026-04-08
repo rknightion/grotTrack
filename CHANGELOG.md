@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/rknightion/grotTrack/compare/v0.11.0...v0.11.1) (2026-04-08)
+
+
+### Bug Fixes
+
+* resolve CI build failure — [@preconcurrency](https://github.com/preconcurrency) import for ScreenCaptureKit ([85d58a0](https://github.com/rknightion/grotTrack/commit/85d58a057391062df2ebc3be6a11862481be7b16))
+
 ## [0.11.0](https://github.com/rknightion/grotTrack/compare/v0.10.1...v0.11.0) (2026-04-07)
 
 
