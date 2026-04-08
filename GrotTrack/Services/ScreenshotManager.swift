@@ -149,6 +149,11 @@ final class ScreenshotManager {
         captureTimer = nil
     }
 
+    /// Allow external reset of capture-in-progress flag (used by watchdog recovery).
+    func resetCaptureState() {
+        isCurrentlyCapturing = false
+    }
+
     @discardableResult
     // swiftlint:disable:next function_body_length
     func captureScreenshot() async throws -> [ScreenshotResult] {

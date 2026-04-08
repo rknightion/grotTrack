@@ -36,6 +36,10 @@ final class AppCoordinator {
     // Idle observation
     private var idleObservationTask: Task<Void, Never>?
 
+    // App Nap prevention & watchdog
+    private var activityAssertion: NSObjectProtocol?
+    private var watchdogTimer: Timer?
+
     var activityTracker: ActivityTracker {
         if let tracker = _activityTracker { return tracker }
         let tracker = ActivityTracker(
@@ -87,6 +91,12 @@ final class AppCoordinator {
     func startTracking() {
         permissionManager.checkAllPermissions()
 
+        // Prevent macOS App Nap from suspending timers while tracking
+        activityAssertion = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiated, .idleSystemSleepDisabled],
+            reason: "GrotTrack is actively tracking screen activity and capturing screenshots"
+        )
+
         // Apply saved interval preferences from Settings
         let savedScreenshotInterval = UserDefaults.standard.double(forKey: "screenshotInterval")
         if savedScreenshotInterval > 0 {
@@ -113,6 +123,7 @@ final class AppCoordinator {
         startHourlyAggregation()
         startIdleObservation()
         enrichmentService.start()
+        startWatchdog()
     }
 
     func stopTracking() {
@@ -123,8 +134,14 @@ final class AppCoordinator {
         idleDetector.stop()
         stopHourlyAggregation()
         stopIdleObservation()
+        stopWatchdog()
         // Aggregate the current partial hour before stopping
         performHourlyAggregation()
+
+        if let assertion = activityAssertion {
+            ProcessInfo.processInfo.endActivity(assertion)
+            activityAssertion = nil
+        }
     }
 
     func togglePause() {
@@ -162,6 +179,56 @@ final class AppCoordinator {
         idleObservationTask?.cancel()
         idleObservationTask = nil
         appState.isIdle = false
+    }
+
+    // MARK: - Capture Watchdog
+
+    private func startWatchdog() {
+        watchdogTimer?.invalidate()
+        watchdogTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.checkCaptureHealth()
+            }
+        }
+    }
+
+    private func stopWatchdog() {
+        watchdogTimer?.invalidate()
+        watchdogTimer = nil
+    }
+
+    private func checkCaptureHealth() {
+        guard appState.isTracking, !appState.isPaused, !appState.isIdle else { return }
+
+        let now = Date()
+
+        // Check screenshot capture health
+        if screenshotManager.isCapturing {
+            let maxGap = screenshotManager.screenshotInterval * 3
+            let lastCapture = screenshotManager.lastCaptureDate ?? .distantPast
+            if now.timeIntervalSince(lastCapture) > maxGap {
+                print("[Watchdog] Screenshot capture stalled (last: \(lastCapture)) — restarting")
+                screenshotManager.resetCaptureState()
+                screenshotManager.stopCapturing()
+                screenshotManager.startCapturing()
+            }
+        }
+
+        // Check activity tracker health
+        if let modelContext {
+            var descriptor = FetchDescriptor<ActivityEvent>(
+                sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+            )
+            descriptor.fetchLimit = 1
+            if let lastEvent = try? modelContext.fetch(descriptor).first {
+                let maxGap = activityTracker.pollingInterval * 30 // ~90s at default 3s interval
+                if now.timeIntervalSince(lastEvent.timestamp) > maxGap {
+                    print("[Watchdog] Activity tracking stalled (last: \(lastEvent.timestamp)) — restarting")
+                    activityTracker.stopTracking()
+                    activityTracker.startTracking()
+                }
+            }
+        }
     }
 
     // MARK: - Annotation Panel
