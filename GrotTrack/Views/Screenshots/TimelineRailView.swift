@@ -10,10 +10,9 @@ struct TimelineRailView: View {
         ScrollViewReader { scrollProxy in
             ScrollView(.vertical, showsIndicators: true) {
                 timelineContent
-                    .scaleEffect(y: viewModel.timelineZoom, anchor: .top)
                     .frame(height: baseHeight * viewModel.timelineZoom)
             }
-            .gesture(
+            .simultaneousGesture(
                 MagnifyGesture()
                     .onChanged { value in
                         let newZoom = max(1.0, min(8.0, baseZoom * value.magnification))
@@ -79,7 +78,7 @@ struct TimelineRailView: View {
             }
             .frame(width: geometry.size.width, height: height)
         }
-        .frame(height: baseHeight)
+        .frame(height: baseHeight * viewModel.timelineZoom)
     }
 
     // MARK: - Hour Markers
