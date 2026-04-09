@@ -2,52 +2,56 @@ import SwiftUI
 
 struct TimelineRailView: View {
     @Bindable var viewModel: ScreenshotBrowserViewModel
-    @State private var visibleMidY: CGFloat = 0
-    @State private var isScrollingProgrammatically = false
     @State private var baseZoom: CGFloat = 1.0
+    @State private var railHeight: CGFloat = 0
 
     var body: some View {
-        ScrollViewReader { scrollProxy in
-            ScrollView(.vertical, showsIndicators: true) {
-                timelineContent
-                    .frame(height: baseHeight * viewModel.timelineZoom)
-            }
-            .simultaneousGesture(
-                MagnifyGesture()
-                    .onChanged { value in
-                        let newZoom = max(1.0, min(8.0, baseZoom * value.magnification))
-                        viewModel.timelineZoom = newZoom
-                    }
-                    .onEnded { value in
-                        baseZoom = max(1.0, min(8.0, baseZoom * value.magnification))
-                    }
-            )
-            .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                geometry.contentOffset.y + geometry.visibleRect.height / 2
-            } action: { _, newMidY in
-                visibleMidY = newMidY
-                if !isScrollingProgrammatically {
-                    selectNearestToScrollPosition(midY: newMidY)
+        ZStack {
+            ScrollViewReader { scrollProxy in
+                ScrollView(.vertical, showsIndicators: true) {
+                    timelineContent
+                        .frame(height: baseHeight * viewModel.timelineZoom)
+                }
+                .simultaneousGesture(
+                    MagnifyGesture()
+                        .onChanged { value in
+                            let raw = baseZoom * value.magnification
+                            let snapped = (raw / 0.05).rounded() * 0.05
+                            let newZoom = max(1.0, min(30.0, snapped))
+                            viewModel.timelineZoom = newZoom
+                        }
+                        .onEnded { value in
+                            baseZoom = max(1.0, min(30.0, baseZoom * value.magnification))
+                        }
+                )
+                .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                    geometry.contentOffset.y + geometry.visibleRect.height / 2
+                } action: { _, newMidY in
+                    selectNearestToPlayhead(midY: newMidY)
+                }
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { newHeight in
+                    railHeight = newHeight
                 }
             }
-            .onChange(of: viewModel.selectedIndex) {
-                if viewModel.selectedScreenshot != nil {
-                    isScrollingProgrammatically = true
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        scrollProxy.scrollTo("marker-\(viewModel.selectedIndex)", anchor: .center)
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        isScrollingProgrammatically = false
-                    }
-                }
-            }
+
+            // Playhead overlay — fixed at vertical center, does not scroll
+            playheadLine
         }
         .background(.ultraThinMaterial)
     }
 
     private var baseHeight: CGFloat { 600 }
 
-    private func selectNearestToScrollPosition(midY: CGFloat) {
+    private var playheadLine: some View {
+        Rectangle()
+            .fill(.white.opacity(0.6))
+            .frame(height: 1)
+            .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+    }
+
+    private func selectNearestToPlayhead(midY: CGFloat) {
         let range = viewModel.activeHoursRange
         let totalHeight = baseHeight * viewModel.timelineZoom
         guard totalHeight > 0 else { return }
