@@ -56,6 +56,12 @@ final class AppCoordinator {
     }
 
     func bootstrap() async {
+        // Prevent macOS from automatically terminating this background app
+        ProcessInfo.processInfo.disableAutomaticTermination(
+            "GrotTrack must remain running to track activity"
+        )
+        ProcessInfo.processInfo.disableSuddenTermination()
+
         // Wire screenshot capture callback → enrichment queue
         screenshotManager.onScreenshotCaptured = { [weak self] screenshotID in
             self?.enrichmentService.enqueue(screenshotID: screenshotID)
