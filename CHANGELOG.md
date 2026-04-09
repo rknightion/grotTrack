@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.12.0](https://github.com/rknightion/grotTrack/compare/v0.11.4...v0.12.0) (2026-04-09)
+
+
+### Features
+
+* add appcast generation and GitHub Pages deployment to release workflow ([bb7f59d](https://github.com/rknightion/grotTrack/commit/bb7f59d37ef24c94bfdad1f628065484828c321e))
+* add appcast generation script for Sparkle updates ([c10cb06](https://github.com/rknightion/grotTrack/commit/c10cb06e6c601ae1f6366ca2d1740e5f2072f12e))
+* add Check for Updates button to menu bar popover ([c64c02f](https://github.com/rknightion/grotTrack/commit/c64c02f265acc3b0069e4bc08f7bad1d333aeb15))
+* add expanded detail level for 10x+ timeline zoom ([121448d](https://github.com/rknightion/grotTrack/commit/121448d6d60bbbc7d7c20ab73104e9be062845b0))
+* add Sparkle appcast URL and EdDSA public key placeholder to Info.plist ([98fa720](https://github.com/rknightion/grotTrack/commit/98fa7203caa3b7319f10cd4be3da8d7d0c2be83c))
+* add Sparkle auto-update integration ([2a23337](https://github.com/rknightion/grotTrack/commit/2a23337b6c822ac2b84bd26c4a97c16ed48b7397))
+* add Sparkle SPM dependency for auto-update ([cc9682f](https://github.com/rknightion/grotTrack/commit/cc9682f96bbaebe27ba703e75e45a636c3d7846e))
+* add UpdateSettingsView with granular update controls ([593e813](https://github.com/rknightion/grotTrack/commit/593e813da64b29f0a9dfe2f2799e9e70450669b4))
+* anchor zoom to playhead position ([60b5431](https://github.com/rknightion/grotTrack/commit/60b54319e35717f84f644b677d43a13bea975df6))
+* create UpdaterService and wire into AppCoordinator ([02a2581](https://github.com/rknightion/grotTrack/commit/02a258156716a74c18867cfc78fcbcce60da0d73))
+* keyboard arrows scroll timeline to marker via playhead ([f23afd4](https://github.com/rknightion/grotTrack/commit/f23afd4855f2686188fa19764219fc03780e9e6f))
+* playhead-centric timeline UX ([5761181](https://github.com/rknightion/grotTrack/commit/576118138dba9a6aa97466d1a89aac60d08047c5))
+* replace bidirectional scroll-selection with playhead-centric model ([8a1f1aa](https://github.com/rknightion/grotTrack/commit/8a1f1aa55c31685aa532dbd4779e426e86b00695))
+* show inline metadata cards at 10x+ zoom ([595bd0f](https://github.com/rknightion/grotTrack/commit/595bd0fac248129d7cd53a084cb0595097aef5e9))
+
+
+### Bug Fixes
+
+* add CI signing validation and disable frequency picker when auto-check off ([6ba449e](https://github.com/rknightion/grotTrack/commit/6ba449ef2b583134acaddc0a0beb8bafce1b8a7b))
+* marker click scrolls to playhead instead of direct selection ([ef513b1](https://github.com/rknightion/grotTrack/commit/ef513b188beafa30f40a2420891a36190e91d1bb))
+* resolve index space mismatch and review feedback ([ef73c2c](https://github.com/rknightion/grotTrack/commit/ef73c2c17bd19a8d87914cbf51bf31f28f9d7451))
+
+
+### Miscellaneous
+
+* set Sparkle EdDSA public key for updates ([c6a3261](https://github.com/rknightion/grotTrack/commit/c6a32610760a3e8a2b0d43d63c54b887fd37905f))
+
+
+### Documentation
+
+* add auto-update design spec ([38dd2c3](https://github.com/rknightion/grotTrack/commit/38dd2c36c651b6f814be28a09f58f8d39f57dd5c))
+* add auto-update implementation plan ([fc5da32](https://github.com/rknightion/grotTrack/commit/fc5da32f53a9bc03f2480dafb42d2569e1055c54))
+* add timeline playhead UX design spec ([d78de3a](https://github.com/rknightion/grotTrack/commit/d78de3a967da25831ef9ff9913fa3f3c6463b628))
+* add timeline playhead UX implementation plan ([6c1b5aa](https://github.com/rknightion/grotTrack/commit/6c1b5aaf696650645ef4077eba1dc0930952abbc))
+
+
+### Tests
+
+* add tests for marker navigation index helpers ([167bb54](https://github.com/rknightion/grotTrack/commit/167bb540556468f22a7fab01344f1a6a968ea1f3))
+
 ## [0.11.4](https://github.com/rknightion/grotTrack/compare/v0.11.3...v0.11.4) (2026-04-09)
 
 
