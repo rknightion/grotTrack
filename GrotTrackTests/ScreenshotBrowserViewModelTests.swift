@@ -366,5 +366,47 @@ final class ScreenshotBrowserViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.filteredScreenshots.count, 1)
         XCTAssertEqual(viewModel.filteredScreenshots.first?.id, s1.id)
     }
+    func testNextPreviousMarkerIndex() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        for idx in 0..<3 {
+            let shot = Screenshot(filePath: "\(idx).webp", thumbnailPath: "\(idx).webp", fileSize: 100)
+            shot.timestamp = calendar.date(bySettingHour: 9, minute: idx * 10, second: 0, of: today)!
+            context.insert(shot)
+        }
+        try context.save()
+
+        let viewModel = ScreenshotBrowserViewModel()
+        viewModel.selectedDate = today
+        viewModel.loadData(context: context)
+
+        // At index 0
+        XCTAssertNil(viewModel.previousMarkerIndex)
+        XCTAssertEqual(viewModel.nextMarkerIndex, 1)
+
+        // At index 1
+        viewModel.selectedIndex = 1
+        XCTAssertEqual(viewModel.previousMarkerIndex, 0)
+        XCTAssertEqual(viewModel.nextMarkerIndex, 2)
+
+        // At last index
+        viewModel.selectedIndex = 2
+        XCTAssertEqual(viewModel.previousMarkerIndex, 1)
+        XCTAssertNil(viewModel.nextMarkerIndex)
+    }
+
+    func testScrollToMarkerRequestDefaults() throws {
+        let viewModel = ScreenshotBrowserViewModel()
+        XCTAssertNil(viewModel.scrollToMarkerRequest)
+
+        viewModel.scrollToMarkerRequest = 5
+        XCTAssertEqual(viewModel.scrollToMarkerRequest, 5)
+
+        viewModel.scrollToMarkerRequest = nil
+        XCTAssertNil(viewModel.scrollToMarkerRequest)
+    }
 }
 // swiftlint:enable identifier_name force_unwrapping
