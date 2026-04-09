@@ -13,6 +13,8 @@ struct SettingsView: View {
                 .tabItem { Label("Storage", systemImage: "externaldrive") }
             ExclusionListView()
                 .tabItem { Label("Exclusions", systemImage: "eye.slash") }
+            UpdateSettingsView()
+                .tabItem { Label("Updates", systemImage: "arrow.triangle.2.circlepath") }
             AboutSettingsView()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
