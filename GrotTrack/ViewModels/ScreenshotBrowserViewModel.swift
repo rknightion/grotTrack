@@ -27,9 +27,10 @@ struct ScreenshotContext {
 }
 
 enum TimelineDetailLevel {
-    case compact  // 1x: hour markers, color bars, small dots
-    case medium   // 2-3x: + app names, 15-min markers, window titles
-    case full     // 4x+: + 5-min markers, full titles, URLs
+    case compact   // 1x–2x: hour markers, color bars, small dots
+    case medium    // 2x–4x: + app names, 15-min markers, window titles
+    case full      // 4x–10x: + 5-min markers, full titles, URLs
+    case expanded  // 10x–30x: inline metadata cards replacing dots
 }
 
 @Observable
@@ -41,7 +42,12 @@ final class ScreenshotBrowserViewModel {
     var zoomLevel: Double = 0.5 // 0.0 = compact, 1.0 = large
     var timelineZoom: CGFloat = 1.0
 
+    /// Set by keyboard navigation to request the rail scroll to a specific marker.
+    /// The rail reads this, scrolls, and clears it.
+    var scrollToMarkerRequest: Int?
+
     var timelineDetailLevel: TimelineDetailLevel {
+        if timelineZoom >= 10.0 { return .expanded }
         if timelineZoom >= 4.0 { return .full }
         if timelineZoom >= 2.0 { return .medium }
         return .compact
@@ -288,6 +294,18 @@ final class ScreenshotBrowserViewModel {
         selectedIndex -= 1
     }
 
+    var nextMarkerIndex: Int? {
+        guard let current = currentPrimaryIndex else { return primaryScreenshots.isEmpty ? nil : 0 }
+        let next = current + 1
+        return next < primaryScreenshots.count ? next : nil
+    }
+
+    var previousMarkerIndex: Int? {
+        guard let current = currentPrimaryIndex else { return nil }
+        let prev = current - 1
+        return prev >= 0 ? prev : nil
+    }
+
     private func clampSelectedIndex() {
         if screenshots.isEmpty {
             selectedIndex = 0
@@ -374,5 +392,25 @@ final class ScreenshotBrowserViewModel {
             }
         }
         return bestIndex
+    }
+
+    func nearestPrimaryIndex(to date: Date) -> Int? {
+        let primaries = primaryScreenshots
+        guard !primaries.isEmpty else { return nil }
+        var bestIndex = 0
+        var bestDelta = abs(primaries[0].timestamp.timeIntervalSince(date))
+        for idx in 1..<primaries.count {
+            let delta = abs(primaries[idx].timestamp.timeIntervalSince(date))
+            if delta < bestDelta {
+                bestDelta = delta
+                bestIndex = idx
+            }
+        }
+        return bestIndex
+    }
+
+    var currentPrimaryIndex: Int? {
+        guard let selected = selectedScreenshot else { return nil }
+        return primaryScreenshots.firstIndex { abs($0.timestamp.timeIntervalSince(selected.timestamp)) < 1.0 }
     }
 }

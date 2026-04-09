@@ -2,52 +2,87 @@ import SwiftUI
 
 struct TimelineRailView: View {
     @Bindable var viewModel: ScreenshotBrowserViewModel
-    @State private var visibleMidY: CGFloat = 0
-    @State private var isScrollingProgrammatically = false
     @State private var baseZoom: CGFloat = 1.0
+    @State private var lastScrollMetrics = ScrollMetrics(contentOffsetY: 0, visibleHeight: 0, contentHeight: 0)
+
+    private struct ScrollMetrics: Equatable {
+        let contentOffsetY: CGFloat
+        let visibleHeight: CGFloat
+        let contentHeight: CGFloat
+
+        var playheadFraction: CGFloat {
+            guard contentHeight > 0 else { return 0 }
+            return (contentOffsetY + visibleHeight / 2) / contentHeight
+        }
+    }
 
     var body: some View {
-        ScrollViewReader { scrollProxy in
-            ScrollView(.vertical, showsIndicators: true) {
-                timelineContent
-                    .frame(height: baseHeight * viewModel.timelineZoom)
-            }
-            .simultaneousGesture(
-                MagnifyGesture()
-                    .onChanged { value in
-                        let newZoom = max(1.0, min(8.0, baseZoom * value.magnification))
-                        viewModel.timelineZoom = newZoom
-                    }
-                    .onEnded { value in
-                        baseZoom = max(1.0, min(8.0, baseZoom * value.magnification))
-                    }
-            )
-            .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                geometry.contentOffset.y + geometry.visibleRect.height / 2
-            } action: { _, newMidY in
-                visibleMidY = newMidY
-                if !isScrollingProgrammatically {
-                    selectNearestToScrollPosition(midY: newMidY)
+        ZStack {
+            ScrollViewReader { scrollProxy in
+                ScrollView(.vertical, showsIndicators: true) {
+                    timelineContent
+                        .frame(height: baseHeight * viewModel.timelineZoom)
                 }
-            }
-            .onChange(of: viewModel.selectedIndex) {
-                if viewModel.selectedScreenshot != nil {
-                    isScrollingProgrammatically = true
+                .simultaneousGesture(
+                    MagnifyGesture()
+                        .onChanged { value in
+                            let raw = baseZoom * value.magnification
+                            let snapped = (raw / 0.05).rounded() * 0.05
+                            let newZoom = max(1.0, min(30.0, snapped))
+                            guard newZoom != viewModel.timelineZoom else { return }
+                            viewModel.timelineZoom = newZoom
+                        }
+                        .onEnded { value in
+                            baseZoom = max(1.0, min(30.0, baseZoom * value.magnification))
+                        }
+                )
+                .onScrollGeometryChange(for: ScrollMetrics.self) { geometry in
+                    ScrollMetrics(
+                        contentOffsetY: geometry.contentOffset.y,
+                        visibleHeight: geometry.visibleRect.height,
+                        contentHeight: geometry.contentSize.height
+                    )
+                } action: { _, newMetrics in
+                    lastScrollMetrics = newMetrics
+                    let midY = newMetrics.contentOffsetY + newMetrics.visibleHeight / 2
+                    selectNearestToPlayhead(midY: midY)
+                }
+                .onChange(of: viewModel.timelineZoom) { _, _ in
+                    guard lastScrollMetrics.contentHeight > 0 else { return }
+                    let fraction = lastScrollMetrics.playheadFraction
+                    let range = viewModel.activeHoursRange
+                    let targetTime = range.startDate.addingTimeInterval(
+                        fraction * range.endDate.timeIntervalSince(range.startDate)
+                    )
+                    if let idx = viewModel.nearestPrimaryIndex(to: targetTime) {
+                        scrollProxy.scrollTo("marker-\(idx)", anchor: .center)
+                    }
+                }
+                .onChange(of: viewModel.scrollToMarkerRequest) { _, newIndex in
+                    guard let index = newIndex else { return }
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        scrollProxy.scrollTo("marker-\(viewModel.selectedIndex)", anchor: .center)
+                        scrollProxy.scrollTo("marker-\(index)", anchor: .center)
                     }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        isScrollingProgrammatically = false
-                    }
+                    viewModel.scrollToMarkerRequest = nil
                 }
             }
+
+            // Playhead overlay — fixed at vertical center, does not scroll
+            playheadLine
         }
         .background(.ultraThinMaterial)
     }
 
     private var baseHeight: CGFloat { 600 }
 
-    private func selectNearestToScrollPosition(midY: CGFloat) {
+    private var playheadLine: some View {
+        Rectangle()
+            .fill(.white.opacity(0.6))
+            .frame(height: 1)
+            .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+    }
+
+    private func selectNearestToPlayhead(midY: CGFloat) {
         let range = viewModel.activeHoursRange
         let totalHeight = baseHeight * viewModel.timelineZoom
         guard totalHeight > 0 else { return }
@@ -58,9 +93,11 @@ struct TimelineRailView: View {
             clamped * range.endDate.timeIntervalSince(range.startDate)
         )
 
-        if let idx = viewModel.nearestScreenshotIndex(to: targetTime),
-           idx != viewModel.selectedIndex {
-            viewModel.selectedIndex = idx
+        if let idx = viewModel.nearestPrimaryIndex(to: targetTime) {
+            let primary = viewModel.primaryScreenshots[idx]
+            if viewModel.selectedScreenshot.map({ abs($0.timestamp.timeIntervalSince(primary.timestamp)) >= 1.0 }) ?? true {
+                viewModel.selectScreenshot(primary)
+            }
         }
     }
 
@@ -110,6 +147,7 @@ struct TimelineRailView: View {
         case .compact: step = 1.0
         case .medium: step = 0.25  // 15-minute intervals
         case .full: step = 1.0 / 12.0  // 5-minute intervals
+        case .expanded: step = 1.0 / 12.0  // 5-minute intervals (inline cards at this zoom)
         }
 
         var hours: [Double] = []
@@ -178,7 +216,7 @@ struct TimelineRailView: View {
                             .fontWeight(.medium)
                             .lineLimit(detail == .compact ? 1 : 2)
 
-                        if detail == .full {
+                        if detail == .full || detail == .expanded {
                             // swiftlint:disable:next line_length
                             Text(segment.startTime.formatted(.dateTime.hour().minute()) + " - " + segment.endTime.formatted(.dateTime.hour().minute()))
                                 .font(.system(size: 8))
@@ -200,33 +238,114 @@ struct TimelineRailView: View {
 
     private func screenshotMarkers(range: ScreenshotBrowserViewModel.ActiveHoursRange, height: CGFloat) -> some View {
         let detail = viewModel.timelineDetailLevel
-        let markerSize: CGFloat = detail == .full ? 10 : (detail == .medium ? 8 : 6)
-        let selectedSize: CGFloat = markerSize + 4
         let primaryShots = viewModel.primaryScreenshots
 
-        return ForEach(primaryShots.indices, id: \.self) { index in
-            let screenshot = primaryShots[index]
-            let yPos = yPosition(for: screenshot.timestamp, range: range, height: height)
-            let isSelected = viewModel.selectedScreenshot.map {
-                abs($0.timestamp.timeIntervalSince(screenshot.timestamp)) < 1.0
-            } ?? false
+        return GeometryReader { geometry in
+            ForEach(primaryShots.indices, id: \.self) { index in
+                let screenshot = primaryShots[index]
+                let yPos = yPosition(for: screenshot.timestamp, range: range, height: height)
+                let isSelected = viewModel.selectedScreenshot.map {
+                    abs($0.timestamp.timeIntervalSince(screenshot.timestamp)) < 1.0
+                } ?? false
 
-            Circle()
-                .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.5))
-                .frame(width: isSelected ? selectedSize : markerSize, height: isSelected ? selectedSize : markerSize)
-                .overlay {
-                    if isSelected {
-                        Circle()
-                            .stroke(Color.accentColor, lineWidth: 2)
-                            .frame(width: selectedSize + 4, height: selectedSize + 4)
-                    }
+                if detail == .expanded {
+                    expandedMarkerCard(
+                        screenshot: screenshot,
+                        index: index,
+                        yPos: yPos,
+                        isSelected: isSelected,
+                        railWidth: geometry.size.width
+                    )
+                } else {
+                    let markerSize: CGFloat = detail == .full ? 10 : (detail == .medium ? 8 : 6)
+                    let selectedSize: CGFloat = markerSize + 4
+
+                    Circle()
+                        .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.5))
+                        .frame(width: isSelected ? selectedSize : markerSize,
+                               height: isSelected ? selectedSize : markerSize)
+                        .overlay {
+                            if isSelected {
+                                Circle()
+                                    .stroke(Color.accentColor, lineWidth: 2)
+                                    .frame(width: selectedSize + 4, height: selectedSize + 4)
+                            }
+                        }
+                        .offset(x: 80, y: yPos - (isSelected ? selectedSize / 2 : markerSize / 2))
+                        .onTapGesture {
+                            viewModel.scrollToMarkerRequest = index
+                        }
+                        .id("marker-\(index)")
                 }
-                .offset(x: 80, y: yPos - (isSelected ? selectedSize / 2 : markerSize / 2))
-                .onTapGesture {
-                    viewModel.selectScreenshot(screenshot)
-                }
-                .id("marker-\(index)")
+            }
         }
+        .frame(height: height)
+    }
+
+    // MARK: - Expanded Metadata Cards
+
+    @ViewBuilder
+    private func expandedMarkerCard(
+        screenshot: Screenshot,
+        index: Int,
+        yPos: CGFloat,
+        isSelected: Bool,
+        railWidth: CGFloat
+    ) -> some View {
+        let ctx = viewModel.screenshotContext(for: screenshot)
+        let cardHeight: CGFloat = 24
+        let cardX: CGFloat = 80
+        let cardWidth = max(0, railWidth - cardX - 12)
+
+        HStack(spacing: 6) {
+            Image(nsImage: AppIconProvider.icon(forBundleID: ctx.bundleID))
+                .resizable()
+                .frame(width: 16, height: 16)
+
+            Text(ctx.appName)
+                .font(.system(size: 10, weight: .medium))
+                .lineLimit(1)
+
+            if !ctx.windowTitle.isEmpty {
+                Text("— \(ctx.windowTitle)")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Text(screenshot.timestamp.formatted(.dateTime.hour().minute().second()))
+                .font(.system(size: 9))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 6)
+        .frame(width: cardWidth, height: cardHeight)
+        .background {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(isSelected
+                    ? Color.accentColor.opacity(0.2)
+                    : activityColor(for: screenshot).opacity(0.1))
+        }
+        .overlay(alignment: .leading) {
+            if isSelected {
+                Rectangle()
+                    .fill(Color.accentColor)
+                    .frame(width: 2, height: cardHeight)
+            }
+        }
+        .offset(x: cardX, y: yPos - cardHeight / 2)
+        .onTapGesture {
+            viewModel.scrollToMarkerRequest = index
+        }
+        .id("marker-\(index)")
+    }
+
+    private func activityColor(for screenshot: Screenshot) -> Color {
+        let ctx = viewModel.screenshotContext(for: screenshot)
+        guard !ctx.appName.isEmpty else { return .gray }
+        return TimelineViewModel.appColor(for: ctx.appName)
     }
 
     // MARK: - Coordinate Mapping

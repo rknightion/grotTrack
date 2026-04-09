@@ -19,19 +19,27 @@ struct ScreenshotViewerView: View {
         }
         .focusable()
         .onKeyPress(.leftArrow) {
-            viewModel.selectPrevious()
+            if let idx = viewModel.previousMarkerIndex {
+                viewModel.scrollToMarkerRequest = idx
+            }
             return .handled
         }
         .onKeyPress(.rightArrow) {
-            viewModel.selectNext()
+            if let idx = viewModel.nextMarkerIndex {
+                viewModel.scrollToMarkerRequest = idx
+            }
             return .handled
         }
         .onKeyPress(.upArrow) {
-            viewModel.selectPrevious()
+            if let idx = viewModel.previousMarkerIndex {
+                viewModel.scrollToMarkerRequest = idx
+            }
             return .handled
         }
         .onKeyPress(.downArrow) {
-            viewModel.selectNext()
+            if let idx = viewModel.nextMarkerIndex {
+                viewModel.scrollToMarkerRequest = idx
+            }
             return .handled
         }
         .onKeyPress(.space) {
@@ -174,7 +182,11 @@ struct ScreenshotViewerView: View {
 
     private var navigationOverlay: some View {
         HStack {
-            Button { viewModel.selectPrevious() } label: {
+            Button {
+                if let idx = viewModel.previousMarkerIndex {
+                    viewModel.scrollToMarkerRequest = idx
+                }
+            } label: {
                 Image(systemName: "chevron.left")
                     .font(.title2).fontWeight(.semibold)
                     .foregroundStyle(.white)
@@ -182,13 +194,17 @@ struct ScreenshotViewerView: View {
                     .background(.black.opacity(0.4), in: Circle())
             }
             .buttonStyle(.plain)
-            .disabled(viewModel.selectedIndex <= 0)
-            .opacity(viewModel.selectedIndex <= 0 ? 0.3 : 1.0)
+            .disabled(viewModel.currentPrimaryIndex == nil || viewModel.previousMarkerIndex == nil)
+            .opacity(viewModel.previousMarkerIndex == nil ? 0.3 : 1.0)
             .padding(.leading, 12)
 
             Spacer()
 
-            Button { viewModel.selectNext() } label: {
+            Button {
+                if let idx = viewModel.nextMarkerIndex {
+                    viewModel.scrollToMarkerRequest = idx
+                }
+            } label: {
                 Image(systemName: "chevron.right")
                     .font(.title2).fontWeight(.semibold)
                     .foregroundStyle(.white)
@@ -196,8 +212,8 @@ struct ScreenshotViewerView: View {
                     .background(.black.opacity(0.4), in: Circle())
             }
             .buttonStyle(.plain)
-            .disabled(viewModel.selectedIndex >= viewModel.screenshots.count - 1)
-            .opacity(viewModel.selectedIndex >= viewModel.screenshots.count - 1 ? 0.3 : 1.0)
+            .disabled(viewModel.currentPrimaryIndex == nil || viewModel.nextMarkerIndex == nil)
+            .opacity(viewModel.nextMarkerIndex == nil ? 0.3 : 1.0)
             .padding(.trailing, 12)
         }
     }
