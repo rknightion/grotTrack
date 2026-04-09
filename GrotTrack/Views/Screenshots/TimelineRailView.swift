@@ -277,7 +277,7 @@ struct TimelineRailView: View {
                         }
                         .offset(x: 80, y: yPos - (isSelected ? selectedSize / 2 : markerSize / 2))
                         .onTapGesture {
-                            viewModel.selectScreenshot(screenshot)
+                            viewModel.scrollToMarkerRequest = index
                         }
                         .id("marker-\(index)")
                 }
@@ -341,7 +341,7 @@ struct TimelineRailView: View {
         }
         .offset(x: cardX, y: yPos - cardHeight / 2)
         .onTapGesture {
-            viewModel.selectScreenshot(screenshot)
+            viewModel.scrollToMarkerRequest = index
         }
         .id("marker-\(index)")
     }
