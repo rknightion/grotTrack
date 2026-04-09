@@ -110,6 +110,7 @@ struct TimelineRailView: View {
         case .compact: step = 1.0
         case .medium: step = 0.25  // 15-minute intervals
         case .full: step = 1.0 / 12.0  // 5-minute intervals
+        case .expanded: step = 1.0 / 12.0  // 5-minute intervals (inline cards at this zoom)
         }
 
         var hours: [Double] = []

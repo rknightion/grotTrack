@@ -27,9 +27,10 @@ struct ScreenshotContext {
 }
 
 enum TimelineDetailLevel {
-    case compact  // 1x: hour markers, color bars, small dots
-    case medium   // 2-3x: + app names, 15-min markers, window titles
-    case full     // 4x+: + 5-min markers, full titles, URLs
+    case compact   // 1x–2x: hour markers, color bars, small dots
+    case medium    // 2x–4x: + app names, 15-min markers, window titles
+    case full      // 4x–10x: + 5-min markers, full titles, URLs
+    case expanded  // 10x–30x: inline metadata cards replacing dots
 }
 
 @Observable
@@ -42,6 +43,7 @@ final class ScreenshotBrowserViewModel {
     var timelineZoom: CGFloat = 1.0
 
     var timelineDetailLevel: TimelineDetailLevel {
+        if timelineZoom >= 10.0 { return .expanded }
         if timelineZoom >= 4.0 { return .full }
         if timelineZoom >= 2.0 { return .medium }
         return .compact

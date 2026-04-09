@@ -270,6 +270,12 @@ final class ScreenshotBrowserViewModelTests: XCTestCase {
 
         viewModel.timelineZoom = 4.0
         XCTAssertEqual(viewModel.timelineDetailLevel, .full)
+
+        viewModel.timelineZoom = 10.0
+        XCTAssertEqual(viewModel.timelineDetailLevel, .expanded)
+
+        viewModel.timelineZoom = 30.0
+        XCTAssertEqual(viewModel.timelineDetailLevel, .expanded)
     }
 
     func testActiveHoursRange() throws {
