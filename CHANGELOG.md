@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.11.3](https://github.com/rknightion/grotTrack/compare/v0.11.2...v0.11.3) (2026-04-09)
+
+
+### Bug Fixes
+
+* disable macOS Automatic Termination that was killing the app ([b8365aa](https://github.com/rknightion/grotTrack/commit/b8365aa27b724fa86a051f63076c8e4075a788e1))
+* move startup logic to init() so tracking starts without menu bar interaction ([dd0b6cc](https://github.com/rknightion/grotTrack/commit/dd0b6cc40a359b5e44763d9aef732d55ad9baa76))
+
+
+### Miscellaneous
+
+* **deps:** update dependency @types/chrome to v0.1.40 ([#31](https://github.com/rknightion/grotTrack/issues/31)) ([89d5e9f](https://github.com/rknightion/grotTrack/commit/89d5e9ffac95c6352946ef028e29d7bc2e3213b9))
+
 ## [0.11.2](https://github.com/rknightion/grotTrack/compare/v0.11.1...v0.11.2) (2026-04-08)
 
 
