@@ -1,0 +1,26 @@
+name: Fetch Notarization Log
+
+on:
+  workflow_dispatch:
+    inputs:
+      submission_id:
+        description: 'Notarization submission ID'
+        required: true
+
+jobs:
+  fetch-log:
+    runs-on: macos-latest
+    steps:
+      - name: Fetch notarization log
+        run: |
+          xcrun notarytool log "${{ inputs.submission_id }}" \
+            --apple-id "${{ secrets.APPLE_ID }}" \
+            --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+            --password "${{ secrets.NOTARY_PASSWORD }}" \
+            notarization-log.json
+
+      - name: Upload log
+        uses: actions/upload-artifact@v4
+        with:
+          name: notarization-log
+          path: notarization-log.json
