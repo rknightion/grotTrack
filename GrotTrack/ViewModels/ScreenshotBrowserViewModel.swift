@@ -42,6 +42,10 @@ final class ScreenshotBrowserViewModel {
     var zoomLevel: Double = 0.5 // 0.0 = compact, 1.0 = large
     var timelineZoom: CGFloat = 1.0
 
+    /// Set by keyboard navigation to request the rail scroll to a specific marker.
+    /// The rail reads this, scrolls, and clears it.
+    var scrollToMarkerRequest: Int?
+
     var timelineDetailLevel: TimelineDetailLevel {
         if timelineZoom >= 10.0 { return .expanded }
         if timelineZoom >= 4.0 { return .full }
@@ -288,6 +292,16 @@ final class ScreenshotBrowserViewModel {
     func selectPrevious() {
         guard selectedIndex > 0 else { return }
         selectedIndex -= 1
+    }
+
+    var nextMarkerIndex: Int? {
+        let next = selectedIndex + 1
+        return next < primaryScreenshots.count ? next : nil
+    }
+
+    var previousMarkerIndex: Int? {
+        let prev = selectedIndex - 1
+        return prev >= 0 ? prev : nil
     }
 
     private func clampSelectedIndex() {

@@ -59,6 +59,13 @@ struct TimelineRailView: View {
                         scrollProxy.scrollTo("marker-\(idx)", anchor: .center)
                     }
                 }
+                .onChange(of: viewModel.scrollToMarkerRequest) { _, newIndex in
+                    guard let index = newIndex else { return }
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        scrollProxy.scrollTo("marker-\(index)", anchor: .center)
+                    }
+                    viewModel.scrollToMarkerRequest = nil
+                }
                 .onGeometryChange(for: CGFloat.self) { proxy in
                     proxy.size.height
                 } action: { newHeight in

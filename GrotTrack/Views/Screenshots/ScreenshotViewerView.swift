@@ -19,19 +19,27 @@ struct ScreenshotViewerView: View {
         }
         .focusable()
         .onKeyPress(.leftArrow) {
-            viewModel.selectPrevious()
+            if let idx = viewModel.previousMarkerIndex {
+                viewModel.scrollToMarkerRequest = idx
+            }
             return .handled
         }
         .onKeyPress(.rightArrow) {
-            viewModel.selectNext()
+            if let idx = viewModel.nextMarkerIndex {
+                viewModel.scrollToMarkerRequest = idx
+            }
             return .handled
         }
         .onKeyPress(.upArrow) {
-            viewModel.selectPrevious()
+            if let idx = viewModel.previousMarkerIndex {
+                viewModel.scrollToMarkerRequest = idx
+            }
             return .handled
         }
         .onKeyPress(.downArrow) {
-            viewModel.selectNext()
+            if let idx = viewModel.nextMarkerIndex {
+                viewModel.scrollToMarkerRequest = idx
+            }
             return .handled
         }
         .onKeyPress(.space) {
