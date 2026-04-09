@@ -10,6 +10,9 @@ packages:
   libwebp:
     url: https://github.com/SDWebImage/libwebp-Xcode.git
     from: "1.5.0"
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle.git
+    from: "2.6.0"
 
 settings:
   base:
@@ -30,6 +33,7 @@ targets:
         copy:
           destination: executables
       - package: libwebp
+      - package: Sparkle
     settings:
       base:
         MARKETING_VERSION: "0.11.4" # x-release-please-version
