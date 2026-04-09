@@ -206,13 +206,23 @@ struct MenuBarView: View {
                 .help("Settings")
             }
 
-            Button("Quit GrotTrack") {
-                NSApplication.shared.terminate(nil)
+            HStack {
+                Button("Check for Updates...") {
+                    coordinator.updaterService.checkForUpdates()
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Button("Quit GrotTrack") {
+                    NSApplication.shared.terminate(nil)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .buttonStyle(.plain)
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .buttonStyle(.plain)
-            .frame(maxWidth: .infinity, alignment: .center)
         }
         .padding()
         .onAppear {
