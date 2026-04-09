@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/rknightion/grotTrack/compare/v0.12.0...v0.12.1) (2026-04-09)
+
+
+### Bug Fixes
+
+* enable hardened runtime for all targets in release archive ([6a5b1c7](https://github.com/rknightion/grotTrack/commit/6a5b1c7a179ac7f45b8b15ab8c9f347a2dab449d))
+
 ## [0.12.0](https://github.com/rknightion/grotTrack/compare/v0.11.4...v0.12.0) (2026-04-09)
 
 
