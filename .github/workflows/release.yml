@@ -1,0 +1,308 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@16a9c90856f42705d54a6fda1823352bdc62cf38 # v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  test-gate:
+    name: Test Before Release
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Cache Homebrew bottles
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: ~/Library/Caches/Homebrew/downloads
+          key: brew-xcodegen-v1
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Cache DerivedData
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: deriveddata-${{ hashFiles('**/*.swift', 'project.yml') }}
+          restore-keys: |
+            deriveddata-
+
+      - name: Run Tests
+        run: |
+          xcodebuild test \
+            -project GrotTrack.xcodeproj \
+            -scheme GrotTrackTests \
+            -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_ALLOWED=NO
+
+  build-release:
+    name: Build Release Artifacts
+    needs: [release-please, test-gate]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Cache Homebrew bottles
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: ~/Library/Caches/Homebrew/downloads
+          key: brew-xcodegen-v1
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Cache DerivedData
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: deriveddata-${{ hashFiles('**/*.swift', 'project.yml') }}
+          restore-keys: |
+            deriveddata-
+
+      - name: Import signing certificate
+        uses: apple-actions/import-codesign-certs@fe74d46e82474f87e1ba79832ad28a4013d0e33a # v6
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Build Release Archive
+        run: |
+          xcodebuild archive \
+            -project GrotTrack.xcodeproj \
+            -scheme GrotTrack \
+            -archivePath build/GrotTrack.xcarchive \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} \
+            CODE_SIGNING_ALLOWED=YES \
+            ENABLE_HARDENED_RUNTIME=YES
+
+      - name: Re-sign Sparkle framework binaries
+        run: |
+          APP="build/GrotTrack.xcarchive/Products/Applications/GrotTrack.app"
+          SPARKLE="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
+          IDENTITY="Developer ID Application"
+
+          # Sign Sparkle's embedded components (innermost first)
+          codesign --force --options runtime --timestamp \
+            --sign "$IDENTITY" "$SPARKLE/XPCServices/Downloader.xpc"
+          codesign --force --options runtime --timestamp \
+            --sign "$IDENTITY" "$SPARKLE/XPCServices/Installer.xpc"
+          codesign --force --options runtime --timestamp \
+            --sign "$IDENTITY" "$SPARKLE/Autoupdate"
+          codesign --force --options runtime --timestamp \
+            --sign "$IDENTITY" "$SPARKLE/Updater.app"
+          # Re-sign the framework itself
+          codesign --force --options runtime --timestamp \
+            --sign "$IDENTITY" "$APP/Contents/Frameworks/Sparkle.framework"
+          # Re-sign the main app (outermost last)
+          codesign --force --options runtime --timestamp \
+            --sign "$IDENTITY" \
+            --entitlements GrotTrack/GrotTrack.entitlements \
+            "$APP"
+
+          # Verify signatures
+          codesign --verify --deep --strict "$APP"
+          echo "All signatures valid"
+
+      - name: Notarize App
+        run: |
+          ditto -c -k --keepParent \
+            build/GrotTrack.xcarchive/Products/Applications/GrotTrack.app \
+            GrotTrack-for-notary.zip
+          xcrun notarytool submit GrotTrack-for-notary.zip \
+            --apple-id ${{ secrets.APPLE_ID }} \
+            --team-id ${{ secrets.APPLE_TEAM_ID }} \
+            --password ${{ secrets.NOTARY_PASSWORD }} \
+            --wait
+          xcrun stapler staple \
+            build/GrotTrack.xcarchive/Products/Applications/GrotTrack.app
+
+      - name: Package App
+        run: |
+          ditto -c -k --keepParent \
+            build/GrotTrack.xcarchive/Products/Applications/GrotTrack.app \
+            GrotTrack.zip
+
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: grot-track-extension/package-lock.json
+
+      - name: Install icon dependencies
+        run: npm ci
+
+      - name: Generate icons
+        run: node scripts/generate-icons.mjs
+
+      - name: Build Chrome Extension
+        run: |
+          cd grot-track-extension
+          npm ci
+          npx wxt zip
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: |
+            GrotTrack.zip
+            grot-track-extension/.output/*.zip
+
+  update-appcast:
+    name: Update Appcast Feed
+    needs: [release-please, build-release]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Download release artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "${{ needs.release-please.outputs.tag_name }}" \
+            --pattern "GrotTrack.zip" --dir .
+
+      - name: Install Sparkle tools
+        run: |
+          SPARKLE_VERSION="2.6.4"
+          curl -L -o Sparkle.tar.xz \
+            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
+          mkdir sparkle-tools
+          tar xf Sparkle.tar.xz -C sparkle-tools
+
+      - name: Verify Sparkle tools
+        run: ls sparkle-tools/bin/sign_update && ./sparkle-tools/bin/sign_update --help || true
+
+      - name: Sign update with EdDSA
+        id: sign
+        env:
+          SPARKLE_EDDSA_KEY: ${{ secrets.SPARKLE_EDDSA_KEY }}
+        run: |
+          SIGN_OUTPUT=$(echo "$SPARKLE_EDDSA_KEY" | ./sparkle-tools/bin/sign_update GrotTrack.zip -f -)
+          # sign_update outputs: sparkle:edSignature="<sig>" length="<len>"
+          SIGNATURE=$(echo "$SIGN_OUTPUT" | sed -n 's/.*edSignature="\([^"]*\)".*/\1/p')
+          LENGTH=$(echo "$SIGN_OUTPUT" | sed -n 's/.*length="\([^"]*\)".*/\1/p')
+          if [ -z "$SIGNATURE" ] || [ -z "$LENGTH" ]; then
+            echo "::error::Failed to parse signature or length from sign_update output"
+            echo "sign_update output was: $SIGN_OUTPUT"
+            exit 1
+          fi
+          echo "signature=$SIGNATURE" >> "$GITHUB_OUTPUT"
+          echo "length=$LENGTH" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout gh-pages (preserving script from main)
+        run: |
+          cp scripts/update-appcast.sh /tmp/update-appcast.sh
+          git fetch origin gh-pages || true
+          git checkout gh-pages || git checkout --orphan gh-pages
+          mkdir -p scripts
+          cp /tmp/update-appcast.sh scripts/update-appcast.sh
+          chmod +x scripts/update-appcast.sh
+
+      - name: Generate appcast entry
+        run: |
+          VERSION="${{ needs.release-please.outputs.tag_name }}"
+          VERSION="${VERSION#v}"  # strip leading 'v'
+          ./scripts/update-appcast.sh \
+            "$VERSION" \
+            "${{ steps.sign.outputs.signature }}" \
+            "${{ steps.sign.outputs.length }}"
+
+      - name: Commit and push appcast
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add appcast.xml
+          git commit -m "chore: update appcast for ${{ needs.release-please.outputs.tag_name }}"
+          git push origin gh-pages
+
+  publish-extension:
+    name: Publish Chrome Extension
+    needs: [release-please, build-release]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: grot-track-extension/package-lock.json
+
+      - name: Install icon dependencies
+        run: npm ci
+
+      - name: Generate icons
+        run: node scripts/generate-icons.mjs
+
+      - name: Build extension zip
+        working-directory: grot-track-extension
+        run: |
+          npm ci
+          npx wxt zip
+
+      - name: Upload to Chrome Web Store
+        working-directory: grot-track-extension
+        env:
+          EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+        run: |
+          npx chrome-webstore-upload-cli@3 upload \
+            --source .output/*.zip \
+            --extension-id "$EXTENSION_ID" \
+            --client-id "$CLIENT_ID" \
+            --client-secret "$CLIENT_SECRET" \
+            --refresh-token "$REFRESH_TOKEN"
+
+      - name: Publish on Chrome Web Store
+        working-directory: grot-track-extension
+        env:
+          EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+        run: |
+          npx chrome-webstore-upload-cli@3 publish \
+            --extension-id "$EXTENSION_ID" \
+            --client-id "$CLIENT_ID" \
+            --client-secret "$CLIENT_SECRET" \
+            --refresh-token "$REFRESH_TOKEN"

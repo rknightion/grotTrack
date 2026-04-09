@@ -1,0 +1,80 @@
+name: GrotTrack
+options:
+  bundleIdPrefix: com.grottrack
+  deploymentTarget:
+    macOS: "26.0"
+  xcodeVersion: "16.0"
+  createIntermediateGroups: true
+
+packages:
+  libwebp:
+    url: https://github.com/SDWebImage/libwebp-Xcode.git
+    from: "1.5.0"
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle.git
+    from: "2.6.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+
+targets:
+  GrotTrack:
+    type: application
+    platform: macOS
+    sources:
+      - path: GrotTrack
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - target: GrotTrackNativeHost
+        copy:
+          destination: executables
+      - package: libwebp
+      - package: Sparkle
+    settings:
+      base:
+        MARKETING_VERSION: "0.12.2" # x-release-please-version
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_FILE: GrotTrack/Info.plist
+        CODE_SIGN_ENTITLEMENTS: GrotTrack/GrotTrack.entitlements
+        PRODUCT_BUNDLE_IDENTIFIER: com.grottrack.app
+        GENERATE_INFOPLIST_FILE: false
+        PRODUCT_NAME: GrotTrack
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: D3CJ67Z95V
+        ENABLE_HARDENED_RUNTIME: YES
+
+  GrotTrackNativeHost:
+    type: tool
+    platform: macOS
+    sources:
+      - path: GrotTrackNativeHost
+        excludes:
+          - "**/.DS_Store"
+      - path: GrotTrack/Services/NativeMessageHost.swift
+      - path: GrotTrack/Utilities/SharedConstants.swift
+    settings:
+      base:
+        PRODUCT_NAME: GrotTrackNativeHost
+        PRODUCT_BUNDLE_IDENTIFIER: com.grottrack.nativehost
+        SWIFT_VERSION: "6.0"
+        MACOSX_DEPLOYMENT_TARGET: "26.0"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: YES
+
+  GrotTrackTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: GrotTrackTests
+    dependencies:
+      - target: GrotTrack
+    settings:
+      base:
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/GrotTrack.app/Contents/MacOS/GrotTrack"
+        GENERATE_INFOPLIST_FILE: true

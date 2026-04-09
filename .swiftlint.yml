@@ -1,0 +1,29 @@
+included:
+  - GrotTrack
+  - GrotTrackTests
+  - GrotTrackNativeHost
+
+excluded:
+  - GrotTrack.xcodeproj
+
+disabled_rules:
+  - trailing_comma
+  - opening_brace
+
+opt_in_rules:
+  - empty_count
+  - empty_string
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+
+line_length:
+  warning: 150
+  error: 200
+
+type_body_length:
+  warning: 300
+  error: 500
+
+file_length:
+  warning: 500
+  error: 1000

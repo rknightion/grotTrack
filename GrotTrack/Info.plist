@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$(MARKETING_VERSION)</string>
+    <key>CFBundleVersion</key>
+    <string>$(CURRENT_PROJECT_VERSION)</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSSupportsAutomaticTermination</key>
+    <false/>
+    <key>NSSupportsSuddenTermination</key>
+    <false/>
+    <key>NSAccessibilityUsageDescription</key>
+    <string>GrotTrack needs accessibility access to read window titles for time tracking.</string>
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>GrotTrack needs screen recording permission to capture periodic screenshots for time tracking.</string>
+    <key>SUFeedURL</key>
+    <string>https://rknightion.github.io/grotTrack/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>28QdbUiH86BRDCohNCF2S3bWVgNQbV3HqqJemATZiiE=</string>
+</dict>
+</plist>

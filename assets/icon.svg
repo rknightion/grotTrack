@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Grot-inspired mascot with clock/time motif -->
+
+  <!-- Tail (behind body) -->
+  <path d="M790 700 C860 700 920 640 900 570 C880 500 830 490 810 520"
+        stroke="#E09020" stroke-width="48" stroke-linecap="round" fill="none"/>
+
+  <!-- Body - rounded blob shape -->
+  <path d="M500 920 C260 920 140 740 140 520 C140 300 280 160 500 160
+           C720 160 860 300 860 520 C860 740 740 920 500 920Z"
+        fill="#F5A623"/>
+
+  <!-- Spots on body -->
+  <circle cx="340" cy="720" r="30" fill="#E9A830" opacity="0.7"/>
+  <circle cx="620" cy="740" r="22" fill="#E9A830" opacity="0.7"/>
+
+  <!-- Spikes on top -->
+  <polygon points="340,200 390,50 440,200" fill="#E86825"/>
+  <polygon points="450,170 500,10 550,170" fill="#E86825"/>
+  <polygon points="560,200 610,50 660,200" fill="#E86825"/>
+
+  <!-- Visor/goggles -->
+  <rect x="190" y="370" width="580" height="180" rx="90" fill="#2B4ACF"/>
+
+  <!-- Clock face inside visor -->
+  <circle cx="480" cy="460" r="62" stroke="rgba(255,255,255,0.35)" stroke-width="4" fill="none"/>
+  <!-- Hour markers -->
+  <circle cx="480" cy="404" r="4" fill="rgba(255,255,255,0.5)"/>
+  <circle cx="536" cy="460" r="4" fill="rgba(255,255,255,0.5)"/>
+  <circle cx="480" cy="516" r="4" fill="rgba(255,255,255,0.5)"/>
+  <circle cx="424" cy="460" r="4" fill="rgba(255,255,255,0.5)"/>
+  <!-- Hour hand (pointing to ~10) -->
+  <line x1="480" y1="460" x2="458" y2="412" stroke="white" stroke-width="8" stroke-linecap="round"/>
+  <!-- Minute hand (pointing to ~2) -->
+  <line x1="480" y1="460" x2="524" y2="430" stroke="white" stroke-width="5" stroke-linecap="round"/>
+  <!-- Center dot -->
+  <circle cx="480" cy="460" r="6" fill="white"/>
+
+  <!-- Mouth/nose dot -->
+  <circle cx="470" cy="650" r="22" fill="#D48A1A"/>
+
+  <!-- Subtle smile -->
+  <path d="M440 670 Q470 695 500 670" stroke="#D48A1A" stroke-width="6" fill="none" stroke-linecap="round"/>
+</svg>

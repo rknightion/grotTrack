@@ -1,0 +1,589 @@
+================================================================================
+                        GrotTrack - Architecture Document
+                        macOS Time Tracking Application
+================================================================================
+
+App Name:       GrotTrack
+Platform:       macOS 26.0+ (Tahoe)
+Language:       Swift 6 (Approachable Concurrency)
+UI Framework:   SwiftUI
+Architecture:   MVVM with @Observable
+
+
+================================================================================
+1. HIGH-LEVEL ARCHITECTURE
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            GrotTrack App                                    │
+│                                                                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────────────────────┐   │
+│  │   SwiftUI    │  │  MenuBarExtra │  │      Settings Window            │   │
+│  │   Popover    │  │  (StatusItem) │  │  (Prefs, Storage, Exclusions)   │   │
+│  └──────┬───────┘  └──────┬───────┘  └───────────────┬─────────────────┘   │
+│         │                 │                           │                      │
+│  ┌──────▼─────────────────▼───────────────────────────▼──────────────────┐  │
+│  │                     AppState (@Observable)                             │  │
+│  │   isTracking, isPaused, currentActivity, dailySummary                 │  │
+│  └──────────────────────────┬────────────────────────────────────────────┘  │
+│                              │                                              │
+│  ┌──────────────────────────▼────────────────────────────────────────────┐  │
+│  │                        Service Layer                                   │  │
+│  │                                                                        │  │
+│  │  ┌─────────────────┐  ┌──────────────────┐  ┌─────────────────────┐   │  │
+│  │  │ ActivityTracker  │  │ ScreenshotManager│  │MultitaskingDetector │   │  │
+│  │  │ - AXUIElement    │  │ - SCScreenshot   │  │ - Rolling window    │   │  │
+│  │  │ - NSWorkspace    │  │ - WebP compress  │  │ - Switch frequency  │   │  │
+│  │  │ - CGWindowList   │  │ - File storage   │  │ - Focus scoring     │   │  │
+│  │  │ - BrowserTab     │  │                  │  │ - CGWindowList      │   │  │
+│  │  │   Service        │  │                  │  │   window counting   │   │  │
+│  │  │   (Native Msg)   │  │                  │  │                     │   │  │
+│  │  └────────┬─────────┘  └────────┬─────────┘  └──────────┬──────────┘  │  │
+│  │           │                     │                        │             │  │
+│  │  ┌────────▼─────────────────────▼────────────────────────▼──────────┐  │  │
+│  │  │              Enrichment Layer (post-capture pipeline)            │  │  │
+│  │  │  ScreenshotEnrichmentService  EntityExtractor  SessionDetector   │  │  │
+│  │  │  SessionClassifier (Apple Intelligence / FoundationModels)       │  │  │
+│  │  └──────────────────────────────────┬───────────────────────────────┘  │  │
+│  │                                     │                                   │  │
+│  │  ┌──────────────────────────────────▼───────────────────────────────┐  │  │
+│  │  │                  Persistence Layer                                │  │  │
+│  │  │  SwiftData ModelContainer         FileManager                    │  │  │
+│  │  │  - ActivityEvent                  - Screenshots/YYYY-MM-DD/      │  │  │
+│  │  │  - TimeBlock                      - Thumbnails/YYYY-MM-DD/       │  │  │
+│  │  │  - Annotation                     - Exports/                     │  │  │
+│  │  │  - Screenshot (metadata)                                         │  │  │
+│  │  │  - ScreenshotEnrichment                                          │  │  │
+│  │  │  - ActivitySession                                               │  │  │
+│  │  └──────────────────────────────────────────────────────────────────┘  │  │
+│  └────────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  ┌────────────────────────────────────────────────────────────────────────┐  │
+│  │              Chrome Extension (Native Messaging)                       │  │
+│  │  ┌──────────────────┐    stdio     ┌─────────────────────────────┐    │  │
+│  │  │  background.js   │◄────────────►│  NativeMessageHost.swift    │    │  │
+│  │  │  (tab queries)   │   JSON msgs  │  (stdin/stdout broker)      │    │  │
+│  │  └──────────────────┘              └──────────────┬──────────────┘    │  │
+│  │                                                   │                    │  │
+│  │                                    ┌──────────────▼──────────────┐    │  │
+│  │                                    │  BrowserTabService.swift    │    │  │
+│  │                                    │  (tab data to tracker)      │    │  │
+│  │                                    └─────────────────────────────┘    │  │
+│  └────────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+2. TECHNOLOGY CHOICES
+================================================================================
+
+Component           Choice                          Rationale
+─────────────────── ─────────────────────────────── ───────────────────────────────────────────
+Language            Swift 6                         Approachable Concurrency, native macOS API
+                    (Approachable Concurrency)      access, data-race safety by default
+UI Framework        SwiftUI + MenuBarExtra          Declarative UI, native menu bar support
+                                                    (macOS 13+), minimal boilerplate
+Architecture        MVVM with @Observable           Clean separation, testable ViewModels
+Persistence         SwiftData                       Modern Swift ORM, integrates with SwiftUI,
+                                                    automatic migrations, @Query support
+Screenshots         ScreenCaptureKit                Modern macOS 14+ API, Apple-recommended,
+                    (SCScreenshotManager)           efficient capture
+Window Tracking     AXUIElement + NSWorkspace       AX for window titles, NSWorkspace for
+                    + CGWindowListCopyWindowInfo     app switch notifications, CGWindowList for
+                                                    complete visible window enumeration
+Browser Tabs        Chrome Extension +              Reliable tab title/URL access via native
+                    Native Messaging Host           messaging protocol; no Apple Events needed
+Launch at Login     SMAppService                    Modern API (macOS 13+), no helper app
+                                                    needed
+Minimum Target      macOS 15.0 (Sequoia)            Required for Swift 6 Approachable
+                                                    Concurrency, mature SwiftData
+
+
+================================================================================
+3. DATA MODEL
+================================================================================
+
+┌──────────────────────┐         ┌────────────────────────┐
+│    ActivityEvent     │         │      Screenshot        │
+│──────────────────────│         │────────────────────────│
+│ id: UUID             │         │ id: UUID               │
+│ timestamp: Date      │    1:1  │ timestamp: Date        │
+│ appName: String      │◄───────►│ filePath: String       │
+│ bundleID: String     │         │ thumbnailPath: String  │
+│ windowTitle: String  │         │ fileSize: Int64        │
+│ browserTabTitle: String?       │ width: Int             │
+│ browserTabURL: String?│        │ height: Int            │
+│ duration: TimeInterval│        └────────────────────────┘
+│ screenshotID: UUID?  │
+└──────────┬───────────┘
+           │ many:1
+           ▼
+┌──────────────────────┐
+│      TimeBlock       │
+│──────────────────────│
+│ id: UUID             │
+│ startTime: Date      │
+│ endTime: Date        │
+│ dominantApp: String  │
+│ dominantTitle: String│
+│ multitaskingScore: Double
+│ activities: [ActivityEvent]
+└──────────┬───────────┘
+           │ many:1
+           ▼
+AppAllocation (Codable struct, not a @Model):
+  - appName: String
+  - hours: Double
+  - percentage: Double
+  - description: String
+
+┌──────────────────────────────────────────────┐
+│              Annotation                       │
+│──────────────────────────────────────────────│
+│ id: UUID                                      │
+│ timestamp: Date                               │
+│ text: String                                  │
+│ appName: String                               │
+│ bundleID: String                              │
+│ windowTitle: String                           │
+│ browserTabTitle: String?                      │
+│ browserTabURL: String?                        │
+└──────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────┐
+│              WeeklyReport                     │
+│──────────────────────────────────────────────│
+│ id: UUID                                      │
+│ weekStartDate: Date                           │
+│ totalHoursTracked: Double                     │
+│ appAllocationsJSON: String                    │
+│   (encoded [AppAllocation])                   │
+│ dailyFocusScoresJSON: String                  │
+│   (encoded [DailyFocusPoint])                 │
+│ dailyAppHoursJSON: String                     │
+│   (encoded [DailyAppHours])                   │
+│ summary: String                               │
+│ generatedAt: Date                             │
+└──────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────┐
+│              MonthlyReport                    │
+│──────────────────────────────────────────────│
+│ id: UUID                                      │
+│ monthStartDate: Date                          │
+│ weeklyBreakdownJSON: String                   │
+│   (encoded [WeeklyBreakdown])                 │
+└──────────────────────────────────────────────┘
+
+Supporting Codable structs (not @Model):
+
+DailyFocusPoint:
+  - date: Date
+  - focusScore: Double
+
+DailyAppHours:
+  - date: Date
+  - appHours: [String: Double]
+
+WeeklyBreakdown:
+  - weekStart: Date
+  - totalHours: Double
+  - avgFocusScore: Double
+
+
+================================================================================
+4. PERMISSION FLOW
+================================================================================
+
+App Launch
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│ 1. Check Accessibility Permission       │
+│    AXIsProcessTrusted()                 │
+│    Required for: window titles          │
+└────────┬───────────────┬────────────────┘
+         │ Granted        │ Not Granted
+         ▼                ▼
+    Continue          ┌───────────────────────┐
+                      │ Show onboarding       │
+                      │ AXIsProcessTrusted-   │
+                      │ WithOptions(prompt)   │
+                      └───────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│ 2. Check Screen Recording Permission   │
+│    CGPreflightScreenCaptureAccess()     │
+│    Required for: screenshot capture     │
+└────────┬───────────────┬────────────────┘
+         │ Granted        │ Not Granted
+         ▼                ▼
+    Continue          CGRequestScreenCaptureAccess()
+                      shows system dialog
+
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│ 3. Start permission monitoring          │
+│    Poll every 5s (both permissions)     │
+│    + DistributedNotification observer   │
+│      for accessibility changes          │
+│    Show status indicators in Settings   │
+└─────────────────────────────────────────┘
+
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│ 4. Graceful degradation on startTracking│
+│    Re-check before starting services    │
+│    Skip ActivityTracker if no access.   │
+│    Skip ScreenshotManager if no screen  │
+│    recording. IdleDetector always runs. │
+└─────────────────────────────────────────┘
+
+Note: Both permission checks are synchronous. No Automation
+(Apple Events) permission is required. Browser tab access is
+handled via Chrome Extension + Native Messaging.
+
+
+================================================================================
+5. SCREENSHOT MANAGEMENT
+================================================================================
+
+Capture Settings:
+  - Interval: every 30 seconds (configurable 15-120s)
+  - Resolution: scale to max 1280px long edge (proportional)
+  - Format: WebP at 80% quality
+  - Thumbnail: 320px long edge, WebP 70% quality
+
+Storage Location:
+  ~/Library/Application Support/GrotTrack/
+  ├── GrotTrack.store              (SwiftData SQLite database)
+  ├── Screenshots/
+  │   └── YYYY-MM-DD/
+  │       ├── HH-MM-SS.webp       (~30-50KB each)
+  │       └── ...
+  ├── Thumbnails/
+  │   └── YYYY-MM-DD/
+  │       ├── HH-MM-SS_thumb.webp (~3-7KB each)
+  │       └── ...
+  └── Exports/
+      └── report_YYYY-MM-DD.json
+
+Retention Policy:
+  - Full screenshots: 7 days (configurable)
+  - Thumbnails: 30 days (configurable)
+  - Cleanup: runs automatically at app launch
+  - User can trigger manual cleanup from Settings
+
+Estimated Storage:
+  - ~30-50KB per screenshot (1280px WebP 80%)
+  - ~8 hours tracking/day = 960 screenshots/day (at 30s interval)
+  - ~30-50MB/day, ~210-350MB/week
+  - 7-day retention keeps ~210-350MB on disk
+
+
+================================================================================
+6. ENRICHMENT PIPELINE
+================================================================================
+
+After each screenshot is captured, an optional enrichment pipeline runs
+asynchronously to extract richer context from the image and activity stream.
+
+Services:
+
+  ScreenshotEnrichmentService
+    Orchestrates the pipeline for a single screenshot. Runs OCR via
+    VNRecognizeTextRequest, calls EntityExtractor, and persists a
+    ScreenshotEnrichment record. Triggered by ScreenshotManager after save.
+
+  EntityExtractor
+    Parses raw OCR text to identify structured entities: file paths, URLs,
+    git branches, ticket references, and domain terms. Returns [ExtractedEntity].
+
+  SessionDetector
+    Groups consecutive ActivityEvents into ActivitySession records based on
+    temporal gaps and dominant-app transitions. Runs at hour boundaries and
+    on demand. Sessions span [startTime, endTime] with a dominant app and
+    optional title.
+
+  SessionClassifier
+    Optionally enriches ActivitySession records with a human-readable label
+    (e.g. "Code Review", "Writing", "Communication") using Apple Intelligence
+    (FoundationModels). Falls back gracefully when the model is unavailable.
+
+Data flow:
+  capture → OCR (VNRecognizeTextRequest) → EntityExtractor
+      → ScreenshotEnrichment saved to SwiftData
+      → SessionDetector groups events → ActivitySession saved
+      → SessionClassifier labels session (best-effort, Apple Intelligence)
+
+New SwiftData models:
+
+  ScreenshotEnrichment (@Model)
+    screenshotID: UUID        links to Screenshot.id
+    ocrText: String           full OCR transcript
+    topLines: String          first ~3 lines (summary display)
+    entitiesJSON: String      encoded [ExtractedEntity]
+    status: String            pending | running | completed | failed
+    analysisVersion: Int      schema version for re-processing
+
+  ActivitySession (@Model)
+    id: UUID
+    startTime / endTime: Date
+    dominantApp: String
+    dominantBundleID: String
+    eventCount: Int
+    label: String?            classifier output (nil until classified)
+    confidence: Double?       classifier confidence [0, 1]
+
+Graceful degradation tiers:
+  Core (always on):   OCR + EntityExtractor — requires Screen Recording only
+  Full (when avail):  + Apple Intelligence classification via FoundationModels
+  The pipeline writes whatever it can; UI displays partial enrichment gracefully.
+
+
+================================================================================
+7. MULTITASKING DETECTION
+================================================================================
+
+Algorithm: Rolling Window Analysis
+
+Window Size: 5 minutes (300 seconds)
+Tracked Data: [(timestamp, bundleID)] array of app switches
+
+Data Sources:
+  - NSWorkspace.didActivateApplicationNotification  (app switches)
+  - AXUIElement                                     (focused window title)
+  - CGWindowListCopyWindowInfo(.optionOnScreenOnly)  (visible window count,
+                                                      per-app window positions,
+                                                      overlapping detection)
+
+CGWindowList Enrichment:
+  The CGWindowListCopyWindowInfo API provides a snapshot of all on-screen
+  windows. This is used to:
+  1. Count total visible windows across all apps (higher count = more
+     multitasking potential)
+  2. Detect side-by-side window arrangements (suggests intentional
+     multi-window work)
+  3. Identify small utility windows vs full-size work windows
+  4. Provide ground-truth window data even when AX focus events are missed
+
+Score Calculation:
+  uniqueApps    = count of distinct bundle IDs in window
+  switchCount   = total number of app switches in window
+  switchRate    = switchCount / windowSizeMinutes
+  visibleApps   = count of visible apps from VisibleWindowTracker
+
+  switchComponent  = (switchRate / 20.0) * 0.4
+  uniqueComponent  = (uniqueApps / 10.0) * 0.3
+  visibleComponent = (min(visibleApps, 8) / 8.0) * 0.3
+  rawScore = switchComponent + uniqueComponent + visibleComponent
+  score    = clamp(rawScore, 0.0, 1.0)
+
+Thresholds:
+  0.0 - 0.2  = Focused (green)     - 1-2 apps, few switches
+  0.2 - 0.5  = Moderate (yellow)   - 3-4 apps, regular switching
+  0.5 - 1.0  = Heavy (red)         - 5+ apps, rapid switching
+
+The score is stored on each ActivityEvent and TimeBlock.
+
+Timeline Data Flow:
+  The timeline view reads ActivityEvents directly from SwiftData (not
+  TimeBlocks). Events are grouped into in-memory HourGroup structs for
+  hourly display. SwiftData save notifications trigger debounced (2s)
+  live updates when viewing today's date. TimeBlocks are created at hour
+  boundaries by TimeBlockAggregator and used only by ReportGenerator for
+  weekly/monthly trend reports. The menu bar shows a compact app breakdown
+  (top 5 apps by duration) from ActivityEvents of the last 2 hours,
+  also updated via debounced observation (5s).
+
+
+================================================================================
+7. CHROME EXTENSION ARCHITECTURE
+================================================================================
+
+The Chrome Extension replaces the old JXA (JavaScript for Automation) approach
+for reading browser tabs. This eliminates the need for Automation permission
+and provides more reliable, richer tab data.
+
+Design: Event-driven push. The extension listens for Chrome tab events and
+pushes active tab data to the native host, which relays it to the main app
+via DistributedNotificationCenter. ActivityTracker reads cached tab data on
+each poll cycle.
+
+Components:
+
+  grot-track-extension/           # WXT (TypeScript/Vite) Chrome Extension
+  ├── wxt.config.ts               # WXT config, manifest generation
+  ├── entrypoints/
+  │   ├── background.ts           # Service worker: pushes active tab data
+  │   │                           #   to native host on tab/window events
+  │   └── popup/                  # Status popup (connected/disconnected)
+
+  GrotTrack/Services/
+  ├── NativeMessageHost.swift     # Launched by Chrome via native messaging;
+  │                               # reads JSON from stdin, posts to main app
+  │                               # via NSDistributedNotificationCenter
+  └── BrowserTabService.swift     # Listens for distributed notifications;
+                                  # caches latest tab data for ActivityTracker
+
+  GrotTrackNativeHost/
+  └── main.swift                  # CLI entry point; runs NativeMessageHost
+                                  # message loop (embedded in app bundle)
+
+Communication Flow (event-driven push):
+
+  Chrome tab event                 Extension              NativeMessageHost
+       │                          background.ts           (CLI subprocess)
+       │                              │                        │
+       ├─ onActivated               │                        │
+       ├─ onUpdated (active tab)    │                        │
+       └─ onFocusChanged            │                        │
+           │                        │                        │
+           └─ sendActiveTabInfo() ──┤                        │
+              (debounced 300ms)     │                        │
+                                    │  [4-byte len][JSON]    │
+                                    │  on native port ──────►│
+                                    │                        │ readMessage()
+                                    │                        │ postToMainApp()
+                                    │                        │   │
+                                    │                   DistributedNotification
+                                    │                        │   │
+                                                             ▼   ▼
+                                                    BrowserTabService
+                                                    │
+                                                    └─ activeTab = BrowserTab(...)
+
+  (On next poll cycle, 3-5s later)
+  ActivityTracker reads browserTabService.activeTabTitle / .activeTabURL
+
+Native Messaging Host Config:
+  Installed at: ~/Library/Application Support/Google/Chrome/
+                NativeMessagingHosts/com.grottrack.tabtracker.json
+  Points to:    GrotTrack.app/Contents/MacOS/GrotTrackNativeHost
+  Allowed origins: ["chrome-extension://<extension-id>/"]
+
+Message Format (extension → native host):
+  {
+    "type": "activeTab",
+    "title": "GitHub - Pull Request #42",
+    "url": "https://github.com/...",
+    "tabId": 123,
+    "windowId": 456,
+    "timestamp": 1712145600000
+  }
+
+Extension Permissions (manifest.json):
+  - "tabs"                    (read tab titles and URLs)
+  - "nativeMessaging"         (communicate with host app)
+
+
+================================================================================
+8. XCODE PROJECT STRUCTURE
+================================================================================
+
+GrotTrack/
+├── GrotTrack.xcodeproj
+├── GrotTrack/
+│   ├── GrotTrackApp.swift                    # @main, MenuBarExtra + Window scenes
+│   ├── Info.plist                            # LSUIElement=true, usage descriptions
+│   ├── GrotTrack.entitlements                # App Sandbox
+│   │
+│   ├── Models/
+│   │   ├── ActivityEvent.swift               # @Model: window/app tracking events
+│   │   ├── Screenshot.swift                  # @Model: screenshot metadata
+│   │   ├── TimeBlock.swift                   # @Model: hourly aggregated blocks
+│   │   ├── DailyReport.swift                 # AppAllocation Codable struct (shared by trend reports)
+│   │   ├── Annotation.swift                  # @Model: user-entered notes with context
+│   │   └── TrendModels.swift                 # @Model: WeeklyReport, MonthlyReport,
+│   │                                         #   and supporting Codable structs
+│   │
+│   ├── ViewModels/
+│   │   ├── AppState.swift                    # @Observable: global app state
+│   │   ├── TimelineViewModel.swift           # @Observable: timeline data queries
+│   │   └── TrendReportViewModel.swift        # @Observable: unified trend reports (week/month)
+│   │
+│   ├── Services/
+│   │   ├── ActivityTracker.swift             # AXUIElement + NSWorkspace + CGWindowList
+│   │   ├── ScreenshotManager.swift           # ScreenCaptureKit + storage
+│   │   ├── MultitaskingDetector.swift        # Rolling window + CGWindowList analysis
+│   │   ├── TimeBlockAggregator.swift         # Hourly event grouping
+│   │   ├── ReportGenerator.swift             # Trend report generation (weekly/monthly)
+│   │   ├── PermissionManager.swift           # Permission checking + requesting
+│   │   ├── NativeMessageHost.swift           # Chrome native messaging stdin/stdout
+│   │   └── BrowserTabService.swift           # Tab data manager, feeds ActivityTracker
+│   │
+│   ├── Views/
+│   │   ├── MenuBar/
+│   │   │   └── MenuBarView.swift             # Popover content for menu bar
+│   │   ├── Timeline/
+│   │   │   ├── TimelineView.swift            # Full timeline window
+│   │   │   ├── HourBlockView.swift           # Hourly bar visualization
+│   │   │   └── TimeBlockView.swift           # Individual activity segment
+│   │   ├── Reports/
+│   │   │   ├── TrendsView.swift              # Unified trend view (week/month scope)
+│   │   │   └── AppBreakdownView.swift        # Pie/bar chart app breakdown
+│   │   ├── Settings/
+│   │   │   ├── SettingsView.swift            # TabView settings window
+│   │   │   ├── ExclusionListView.swift       # App exclusion management
+│   │   │   └── StorageSettingsView.swift     # Storage/retention settings
+│   │   ├── Components/
+│   │   │   ├── AnnotationInputView.swift     # Floating NSPanel annotation text input
+│   │   │   ├── ShortcutRecorderView.swift    # Hotkey recording widget
+│   │   │   └── CalendarHeatmapView.swift     # Monthly calendar heatmap
+│   │   └── Onboarding/
+│   │       ├── OnboardingView.swift          # First-launch walkthrough
+│   │       └── PermissionRequestView.swift   # Permission grant UI
+│   │
+│   ├── Utilities/
+│   │   └── Extensions/
+│   │       └── CGImage+Extensions.swift      # Resize, WebP conversion
+│   │
+│   └── Assets.xcassets/                      # App icons, colors
+│
+├── GrotTrackExtension/
+│   ├── manifest.json                         # Chrome Extension manifest v3
+│   └── background.js                         # Service worker: tab queries via
+│                                             #   chrome.tabs API, native messaging
+│
+└── GrotTrackTests/
+    ├── ActivityTrackerTests.swift
+    ├── MultitaskingDetectorTests.swift
+    └── TimeBlockAggregatorTests.swift
+
+
+================================================================================
+9. KEY DESIGN DECISIONS
+================================================================================
+
+Decision                    Choice              Rationale
+────────────────────────── ──────────────────── ──────────────────────────────────
+Swift version               Swift 6              Approachable Concurrency, compile-
+                                                 time data-race safety
+Minimum macOS               15.0 (Sequoia)       Swift 6 runtime, mature SwiftData,
+                                                 latest ScreenCaptureKit
+Polling interval            3-5 seconds          Balance between accuracy and CPU
+Screenshot interval         30 seconds           ~960/day, manageable storage
+Screenshot quality          WebP 80%, 1280px     ~30-50KB each, compact storage
+Data persistence            SwiftData            Modern, minimal boilerplate
+Local-only                  No external APIs     All data stays on-device; reports
+                                                 generated from local activity data
+Multitasking detection      Rolling window +     App switches + visible window
+                            CGWindowList         count for richer signal
+Multitasking window         5 minutes            Smooths brief app switches
+Browser tab access          Chrome Extension +   No Automation permission needed;
+                            Native Messaging     richer data (title + URL + active)
+Menu bar style              MenuBarExtra         Native SwiftUI, no AppKit needed
+App visibility              LSUIElement=true      Menu bar only, no Dock icon
+Launch at login             SMAppService         Modern API, no helper app
+Screenshot retention        7 days full, 30 thumb Balances evidence vs storage
+App exclusions              Bundle ID list       Precise, no ambiguity
+Export formats              JSON + CSV           Machine-readable + spreadsheet
+Annotation hotkey           Ctrl+Shift+N         Configurable; uses NSPanel with
+                            (configurable)       nonactivatingPanel style for minimal
+                                                 workflow disruption
+Trend reports               Cached SwiftData     WeeklyReport/MonthlyReport persisted;
+                            models               unified TrendsView with scope picker;
+                                                 period-over-period deltas at view time

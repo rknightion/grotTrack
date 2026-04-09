@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>GrotTrack Updates</title>
+    <item>
+      <title>Version 0.12.2</title>
+      <sparkle:version>0.12.2</sparkle:version>
+      <sparkle:shortVersionString>0.12.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <pubDate>Thu, 09 Apr 2026 16:35:18 +0000</pubDate>
+      <enclosure
+        url="https://github.com/rknightion/grotTrack/releases/download/v0.12.2/GrotTrack.zip"
+        sparkle:edSignature="p48HD7XemK3X2ijLdqoKcm2msyX/lzpPpbEC2tmt1LlklejVaiQRfhrRAKEIAXjE99Wvmlesh85BUz2UbUuyAA=="
+        length="3411070"
+        type="application/octet-stream"/>
+    </item>
+  </channel>
+</rss>

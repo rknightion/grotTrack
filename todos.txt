@@ -1,0 +1,1295 @@
+================================================================================
+           GrotTrack - Step-by-Step Development Guide (todos.txt)
+         Feed each phase to an LLM coding assistant for implementation
+================================================================================
+
+
+================================================================================
+PHASE 1: PROJECT SCAFFOLDING & MENU BAR SHELL [COMPLETE]
+================================================================================
+Goal: A running macOS app that shows an icon in the menu bar with a basic
+dropdown menu. No Dock icon.
+
+Step 1.1: Create Xcode Project
+  - Create new Xcode project: macOS > App
+  - Product Name: GrotTrack
+  - Organization Identifier: com.grottrack
+  - Interface: SwiftUI
+  - Language: Swift 6
+  - Storage: None (we'll add SwiftData in Phase 5)
+  - Deployment Target: macOS 15.0
+  - In Build Settings, set Swift Language Version to Swift 6
+
+Step 1.2: Configure Info.plist
+  - Add key: LSUIElement = YES (Boolean)
+    This hides the app from the Dock and makes it a menu-bar-only app.
+  - Add key: NSAccessibilityUsageDescription = "GrotTrack needs accessibility
+    access to read window titles for time tracking."
+  - Add key: NSScreenCaptureUsageDescription = "GrotTrack needs screen recording
+    permission to capture periodic screenshots for time tracking."
+
+Step 1.3: Create AppState
+  - Create file: ViewModels/AppState.swift
+  - Define @Observable @MainActor class:
+    ```swift
+    import SwiftUI
+
+    @Observable
+    @MainActor
+    final class AppState {
+        var isTracking: Bool = false
+        var isPaused: Bool = false
+        var currentAppName: String = ""
+        var currentWindowTitle: String = ""
+        var currentBrowserTab: String = ""
+        var trackingStartTime: Date?
+
+        var statusText: String {
+            if !isTracking { return "Not Tracking" }
+            if isPaused { return "Paused" }
+            return "\(currentAppName)"
+        }
+    }
+    ```
+
+Step 1.4: Create MenuBarView
+  - Create file: Views/MenuBar/MenuBarView.swift
+  - Simple popover layout:
+    - Top: current status (tracking/paused/idle)
+    - Current app name + window title
+    - Toggle button: Start/Stop Tracking
+    - Pause/Resume button (only when tracking)
+    - Divider
+    - "View Timeline" button (placeholder for Phase 6)
+    - "Settings" button (placeholder for Phase 11)
+    - Divider
+    - "Quit GrotTrack" button: NSApplication.shared.terminate(nil)
+
+Step 1.5: Configure GrotTrackApp.swift
+  - Replace default WindowGroup with MenuBarExtra:
+    ```swift
+    import SwiftUI
+
+    @main
+    struct GrotTrackApp: App {
+        @State private var appState = AppState()
+
+        var body: some Scene {
+            MenuBarExtra {
+                MenuBarView(appState: appState)
+                    .frame(width: 300)
+            } label: {
+                Image(systemName: appState.isTracking ?
+                    (appState.isPaused ? "clock.badge.exclamationmark" : "clock.fill") :
+                    "clock")
+            }
+            .menuBarExtraStyle(.window)
+        }
+    }
+    ```
+
+Step 1.6: Create directory structure
+  - Ensure these folders exist in the Xcode project:
+    Models/, ViewModels/, Services/, Views/MenuBar/, Views/Timeline/,
+    Views/Customers/, Views/Reports/, Views/Settings/, Views/Onboarding/,
+    Utilities/Extensions/, GrotTrackExtension/
+  - Add all folders to the Xcode project navigator
+
+VERIFY: Build and run. App should:
+  - Show clock icon in the menu bar
+  - NOT appear in the Dock
+  - Show popover when clicked with status text and Quit button
+  - Quit cleanly when "Quit GrotTrack" is clicked
+
+
+================================================================================
+PHASE 2: WINDOW/APP TRACKING WITH ACCESSIBILITY API + CGWindowList [COMPLETE]
+================================================================================
+Goal: Track which app and window is in the foreground. Use CGWindowListCopyWindowInfo
+to enumerate visible windows. Display in the menu bar popover in real-time.
+
+Step 2.1: Create PermissionManager
+  - Create file: Services/PermissionManager.swift
+  - @Observable @MainActor class with properties:
+    - accessibilityGranted: Bool = false
+    - screenRecordingGranted: Bool = false
+  - Method checkAccessibility() -> Bool:
+    - import ApplicationServices
+    - Call AXIsProcessTrusted()
+    - Update accessibilityGranted
+    - Return result
+  - Method requestAccessibility():
+    - let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue(): true] as CFDictionary
+    - AXIsProcessTrustedWithOptions(options)
+    - This shows the system dialog directing user to System Settings
+  - Method checkAllPermissions():
+    - Call checkAccessibility()
+    - (Screen recording check added in Phase 4)
+
+Step 2.2: Create VisibleWindowTracker
+  - Create file: Services/VisibleWindowTracker.swift
+  - Uses CGWindowListCopyWindowInfo to enumerate visible windows (no JXA needed):
+    ```swift
+    import CoreGraphics
+
+    struct VisibleWindow: Sendable {
+        let ownerName: String
+        let ownerPID: pid_t
+        let title: String
+        let bounds: CGRect
+        let layer: Int
+    }
+
+    @MainActor
+    final class VisibleWindowTracker {
+        func visibleWindows() -> [VisibleWindow] {
+            let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+            guard let infoList = CGWindowListCopyWindowInfo(options, kCGNullWindowID)
+                    as? [[String: Any]] else { return [] }
+            return infoList.compactMap { info in
+                guard let name = info[kCGWindowOwnerName as String] as? String,
+                      let pid = info[kCGWindowOwnerPID as String] as? pid_t,
+                      let title = info[kCGWindowName as String] as? String,
+                      let boundsDict = info[kCGWindowBounds as String] as? [String: CGFloat],
+                      let layer = info[kCGWindowLayer as String] as? Int,
+                      layer == 0  // normal windows only
+                else { return nil }
+                let bounds = CGRect(x: boundsDict["X"] ?? 0,
+                                    y: boundsDict["Y"] ?? 0,
+                                    width: boundsDict["Width"] ?? 0,
+                                    height: boundsDict["Height"] ?? 0)
+                return VisibleWindow(ownerName: name, ownerPID: pid,
+                                     title: title, bounds: bounds, layer: layer)
+            }
+        }
+
+        /// Count of distinct apps with visible windows right now.
+        func visibleAppCount() -> Int {
+            Set(visibleWindows().map(\.ownerName)).count
+        }
+    }
+    ```
+
+Step 2.3: Create ActivityTracker
+  - Create file: Services/ActivityTracker.swift
+  - @Observable @MainActor class with properties:
+    - private var pollingTimer: Timer?
+    - private let pollingInterval: TimeInterval = 3.0
+    - private weak var appState: AppState?
+    - private var workspaceObserver: Any?
+    - private let visibleWindowTracker = VisibleWindowTracker()
+  - init(appState: AppState):
+    - Store reference to appState
+  - Method startTracking():
+    - Set up Timer.scheduledTimer repeating every pollingInterval
+    - On each tick, call pollCurrentWindow()
+    - Subscribe to NSWorkspace.didActivateApplicationNotification
+    - Set appState.isTracking = true, trackingStartTime = Date()
+  - Method stopTracking():
+    - Invalidate timer
+    - Remove notification observer
+    - Set appState.isTracking = false
+  - Method pollCurrentWindow():
+    - Get frontmost app: NSWorkspace.shared.frontmostApplication
+    - Extract: localizedName, bundleIdentifier
+    - Get window title via AXUIElement:
+      ```swift
+      let appElement = AXUIElementCreateApplication(app.processIdentifier)
+      var focusedWindow: AnyObject?
+      AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString,
+                                     &focusedWindow)
+      var title: AnyObject?
+      AXUIElementCopyAttributeValue(focusedWindow as! AXUIElement,
+                                     kAXTitleAttribute as CFString, &title)
+      let windowTitle = title as? String ?? ""
+      ```
+    - Query visibleWindowTracker.visibleAppCount() and store for multitasking
+    - Update appState: currentAppName, currentWindowTitle
+
+Step 2.4: Wire up tracking to UI
+  - In GrotTrackApp.swift, create ActivityTracker instance
+  - In MenuBarView, show appState.currentAppName and appState.currentWindowTitle
+  - Start/Stop button calls activityTracker.startTracking() / .stopTracking()
+  - On app launch, call permissionManager.checkAllPermissions()
+  - If accessibility not granted, show alert with "Grant Permission" button
+
+VERIFY: Build and run, grant Accessibility permission in System Settings.
+  - Menu bar popover should show the current app name updating in real-time
+  - Window title should update as you switch windows
+  - Switching apps should trigger immediate update via notification
+  - visibleWindowTracker.visibleWindows() should return non-empty results
+
+
+================================================================================
+PHASE 3: CHROME EXTENSION FOR BROWSER TABS [COMPLETE]
+================================================================================
+Goal: Get active browser tab title + URL via a Chrome extension communicating
+with a native messaging host, replacing the old JXA/BrowserTabReader approach.
+This avoids the Automation permission entirely.
+
+Utilise WXT (https://wxt.dev/) as the extension SDK to support common functionality. 
+
+Step 3.1: Create Chrome Extension (MV3)
+  - Create directory: GrotTrackExtension/
+  - Create file: GrotTrackExtension/manifest.json
+    ```json
+    {
+      "manifest_version": 3,
+      "name": "GrotTrack Tab Tracker",
+      "version": "1.0",
+      "description": "Sends active tab info to GrotTrack native app",
+      "permissions": ["tabs", "nativeMessaging"],
+      "background": {
+        "service_worker": "background.js"
+      }
+    }
+    ```
+
+Step 3.2: Create background.js
+  - Create file: GrotTrackExtension/background.js
+  - Monitors active tab changes and sends title+URL to native host:
+    ```javascript
+    const HOST_NAME = "com.grottrack.tabtracker";
+
+    function sendTab(tab) {
+      if (!tab || !tab.url) return;
+      chrome.runtime.sendNativeMessage(
+        HOST_NAME,
+        { title: tab.title || "", url: tab.url },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            console.warn("Native messaging error:", chrome.runtime.lastError.message);
+          }
+        }
+      );
+    }
+
+    chrome.tabs.onActivated.addListener((activeInfo) => {
+      chrome.tabs.get(activeInfo.tabId, (tab) => {
+        if (tab) sendTab(tab);
+      });
+    });
+
+    chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+      if (changeInfo.status === "complete" && tab.active) {
+        sendTab(tab);
+      }
+    });
+
+    chrome.windows.onFocusChanged.addListener((windowId) => {
+      if (windowId === chrome.windows.WINDOW_ID_NONE) return;
+      chrome.tabs.query({ active: true, windowId: windowId }, (tabs) => {
+        if (tabs.length > 0) sendTab(tabs[0]);
+      });
+    });
+    ```
+
+Step 3.3: Create NativeMessageHost
+  - Create file: Services/NativeMessageHost.swift
+  - Reads Chrome native messaging protocol: 32-bit little-endian length prefix + JSON:
+    ```swift
+    import Foundation
+
+    actor NativeMessageHost {
+        private var inputPipe: FileHandle?
+        private var onMessage: (@Sendable (BrowserTabMessage) -> Void)?
+
+        struct BrowserTabMessage: Codable, Sendable {
+            let title: String
+            let url: String
+        }
+
+        func start(onMessage: @escaping @Sendable (BrowserTabMessage) -> Void) {
+            self.onMessage = onMessage
+            Task {
+                await listenForMessages()
+            }
+        }
+
+        private func listenForMessages() {
+            let stdin = FileHandle.standardInput
+            while true {
+                // Read 4-byte length prefix (little-endian UInt32)
+                let lengthData = stdin.readData(ofLength: 4)
+                guard lengthData.count == 4 else { break }
+                let length = lengthData.withUnsafeBytes {
+                    $0.load(as: UInt32.self)
+                }
+                guard length > 0, length < 1_000_000 else { continue }
+
+                // Read JSON payload
+                let jsonData = stdin.readData(ofLength: Int(length))
+                guard jsonData.count == Int(length),
+                      let message = try? JSONDecoder().decode(
+                          BrowserTabMessage.self, from: jsonData)
+                else { continue }
+
+                onMessage?(message)
+            }
+        }
+
+        /// Send a response back to Chrome (length-prefixed JSON).
+        func sendResponse(_ dict: [String: String]) throws {
+            let data = try JSONEncoder().encode(dict)
+            var length = UInt32(data.count)
+            let lengthData = Data(bytes: &length, count: 4)
+            FileHandle.standardOutput.write(lengthData)
+            FileHandle.standardOutput.write(data)
+        }
+    }
+    ```
+
+Step 3.4: Create BrowserTabService
+  - Create file: Services/BrowserTabService.swift
+  - @Observable @MainActor class that stores the latest tab info:
+    ```swift
+    import Foundation
+
+    @Observable
+    @MainActor
+    final class BrowserTabService {
+        var latestTitle: String = ""
+        var latestURL: String = ""
+        var lastUpdated: Date?
+
+        /// Called from NativeMessageHost when Chrome sends a tab update.
+        func update(title: String, url: String) {
+            latestTitle = title
+            latestURL = url
+            lastUpdated = Date()
+        }
+
+        /// Returns current tab info if it was updated within the last 10 seconds.
+        func currentTab() -> (title: String, url: String)? {
+            guard let updated = lastUpdated,
+                  Date().timeIntervalSince(updated) < 10 else { return nil }
+            return (latestTitle, latestURL)
+        }
+    }
+    ```
+
+Step 3.5: Create native messaging host manifest
+  - Create file: NativeMessagingHost/com.grottrack.tabtracker.json
+  - This file is installed to
+    ~/Library/Application Support/Google/Chrome/NativeMessagingHosts/
+    ```json
+    {
+      "name": "com.grottrack.tabtracker",
+      "description": "GrotTrack native messaging host for browser tab tracking",
+      "path": "/Applications/GrotTrack.app/Contents/MacOS/GrotTrackTabHost",
+      "type": "stdio",
+      "allowed_origins": [
+        "chrome-extension://<EXTENSION_ID>/"
+      ]
+    }
+    ```
+  - Note: <EXTENSION_ID> must be replaced with the actual extension ID after
+    loading it in Chrome. During development, load unpacked from GrotTrackExtension/
+    and copy the ID from chrome://extensions.
+
+Step 3.6: Wire BrowserTabService into ActivityTracker
+  - In ActivityTracker.pollCurrentWindow():
+    - If frontmost app bundleID is "com.google.Chrome" or
+      "com.google.Chrome.canary":
+      - Call browserTabService.currentTab()
+      - If non-nil, update appState.currentBrowserTab with title
+    - Otherwise clear appState.currentBrowserTab
+
+Step 3.7: Create install helper
+  - Create file: Utilities/ChromeExtensionInstaller.swift
+  - Method installNativeHost():
+    - Copy com.grottrack.tabtracker.json to
+      ~/Library/Application Support/Google/Chrome/NativeMessagingHosts/
+    - Substitute the actual path to the native host binary
+  - Method checkInstallation() -> Bool:
+    - Verify the manifest file exists at the expected location
+
+VERIFY: Build and run, then load GrotTrackExtension/ as unpacked extension in Chrome.
+  - Open Chrome, navigate to a website
+  - Menu bar popover should show Chrome tab title + URL
+  - Switch tabs in Chrome -> title should update within seconds
+  - Switch to a non-browser app -> browser tab info should clear
+  - Verify no Automation permission is requested at any point
+
+
+================================================================================
+PHASE 4: SCREENSHOT CAPTURE WITH SCREENCAPTUREKIT [COMPLETE]
+================================================================================
+Goal: Capture periodic screenshots and save them as compressed JPEGs.
+
+Step 4.1: Create CGImage Extensions
+  - Create file: Utilities/Extensions/CGImage+Extensions.swift
+  - Extension on CGImage:
+  - Method resized(toMaxWidth maxWidth: CGFloat) -> CGImage?:
+    - If width <= maxWidth, return self
+    - Calculate proportional height
+    - Create CGContext with new dimensions
+    - Draw scaled image
+    - Return context.makeImage()
+  - Method jpegData(quality: CGFloat) -> Data?:
+    - Create NSBitmapImageRep from CGImage
+    - Return representation(using: .jpeg, properties: [.compressionFactor: quality])
+
+Step 4.2: Create ScreenshotManager
+  - Create file: Services/ScreenshotManager.swift
+  - @Observable @MainActor class with properties:
+    - private var captureTimer: Timer?
+    - var screenshotInterval: TimeInterval = 30.0
+    - var maxWidth: CGFloat = 1280.0
+    - var jpegQuality: CGFloat = 0.8
+    - var thumbnailWidth: CGFloat = 320.0
+    - var screenshotsDir: URL (computed from app support directory)
+    - var thumbnailsDir: URL (computed from app support directory)
+  - init():
+    - Create directories if they don't exist:
+      ~/Library/Application Support/GrotTrack/Screenshots/
+      ~/Library/Application Support/GrotTrack/Thumbnails/
+  - Method startCapturing():
+    - Timer.scheduledTimer repeating every screenshotInterval
+    - On each tick, call captureScreenshot()
+  - Method stopCapturing():
+    - Invalidate timer
+  - Method captureScreenshot() async:
+    - import ScreenCaptureKit
+    - Get available content: let content = try await SCShareableContent.current
+    - Get primary display: content.displays.first
+    - Create filter: SCContentFilter(display: display, excludingWindows: [])
+    - Create config: SCStreamConfiguration() with desired resolution
+    - Capture: let image = try await SCScreenshotManager.captureImage(
+        contentFilter: filter, configuration: config)
+    - Resize to maxWidth
+    - Generate date-based path: Screenshots/YYYY-MM-DD/HH-MM-SS.jpg
+    - Save JPEG data to path
+    - Generate thumbnail (320px) and save to Thumbnails/
+    - Return (screenshotPath, thumbnailPath, fileSize)
+  - Method ensureDirectories(for date: Date):
+    - Create Screenshots/YYYY-MM-DD/ and Thumbnails/YYYY-MM-DD/ if missing
+
+Step 4.3: Wire screenshot capture to tracking
+  - In GrotTrackApp.swift, create ScreenshotManager instance
+  - When activityTracker.startTracking() is called, also start screenshot capture
+  - When tracking stops, stop screenshot capture
+  - In MenuBarView, optionally show "Last screenshot: X seconds ago"
+
+VERIFY: Build and run, grant Screen Recording permission.
+  - After 30 seconds, check ~/Library/Application Support/GrotTrack/Screenshots/
+  - JPEG files should appear in YYYY-MM-DD folders
+  - Each file should be ~50-100KB
+  - Thumbnails should appear in Thumbnails/ folder at ~5-15KB each
+  - Files should be viewable and show screen content
+
+
+================================================================================
+PHASE 5: DATA PERSISTENCE WITH SWIFTDATA [COMPLETE]
+================================================================================
+Goal: Persist all tracking data to SwiftData. Data survives app restarts.
+
+Step 5.1: Define ActivityEvent Model
+  - Create file: Models/ActivityEvent.swift
+  ```swift
+  import SwiftData
+  import Foundation
+
+  @Model
+  final class ActivityEvent {
+      var id: UUID = UUID()
+      var timestamp: Date = Date()
+      var appName: String = ""
+      var bundleID: String = ""
+      var windowTitle: String = ""
+      var browserTabTitle: String?
+      var browserTabURL: String?
+      var duration: TimeInterval = 0
+      var screenshotID: UUID?
+      var visibleWindowCount: Int = 0
+
+      init(appName: String, bundleID: String, windowTitle: String,
+           browserTabTitle: String? = nil, browserTabURL: String? = nil,
+           visibleWindowCount: Int = 0) {
+          self.appName = appName
+          self.bundleID = bundleID
+          self.windowTitle = windowTitle
+          self.browserTabTitle = browserTabTitle
+          self.browserTabURL = browserTabURL
+          self.visibleWindowCount = visibleWindowCount
+      }
+  }
+  ```
+
+Step 5.2: Define Screenshot Model
+  - Create file: Models/Screenshot.swift
+  ```swift
+  @Model
+  final class Screenshot {
+      var id: UUID = UUID()
+      var timestamp: Date = Date()
+      var filePath: String = ""
+      var thumbnailPath: String = ""
+      var fileSize: Int64 = 0
+      var width: Int = 0
+      var height: Int = 0
+  }
+  ```
+
+Step 5.3: Define TimeBlock Model
+  - Create file: Models/TimeBlock.swift
+  ```swift
+  @Model
+  final class TimeBlock {
+      var id: UUID = UUID()
+      var startTime: Date = Date()
+      var endTime: Date = Date()
+      var dominantApp: String = ""
+      var dominantTitle: String = ""
+      var multitaskingScore: Double = 0.0
+      @Relationship(deleteRule: .nullify) var customer: Customer?
+      @Relationship(deleteRule: .cascade) var activities: [ActivityEvent] = []
+      var llmClassification: String?
+      var llmConfidence: Double = 0.0
+  }
+  ```
+
+Step 5.4: Define Customer Model
+  - Create file: Models/Customer.swift
+  ```swift
+  @Model
+  final class Customer {
+      var id: UUID = UUID()
+      var name: String = ""
+      var keywords: [String] = []
+      var color: String = "blue"
+      var isActive: Bool = true
+
+      init(name: String, keywords: [String] = [], color: String = "blue") {
+          self.name = name
+          self.keywords = keywords
+          self.color = color
+      }
+  }
+  ```
+
+Step 5.5: Define DailyReport Model
+  - Create file: Models/DailyReport.swift
+  ```swift
+  @Model
+  final class DailyReport {
+      var id: UUID = UUID()
+      var date: Date = Date()
+      var totalHoursTracked: Double = 0.0
+      @Relationship(deleteRule: .cascade) var hourBlocks: [TimeBlock] = []
+      var customerAllocationsJSON: String = "[]"
+      var llmSummary: String = ""
+      var generatedAt: Date = Date()
+  }
+  ```
+  - Also define a Codable struct (not @Model):
+  ```swift
+  struct CustomerAllocation: Codable {
+      var customerName: String
+      var hours: Double
+      var percentage: Double
+      var confidence: Double
+      var description: String
+  }
+  ```
+
+Step 5.6: Configure ModelContainer
+  - Update GrotTrackApp.swift:
+    ```swift
+    @main
+    struct GrotTrackApp: App {
+        var container: ModelContainer
+
+        init() {
+            let schema = Schema([
+                ActivityEvent.self,
+                Screenshot.self,
+                TimeBlock.self,
+                Customer.self,
+                DailyReport.self
+            ])
+            container = try! ModelContainer(for: schema)
+        }
+
+        var body: some Scene {
+            MenuBarExtra { ... }
+                .modelContainer(container)
+        }
+    }
+    ```
+
+Step 5.7: Update ActivityTracker to persist events
+  - Add ModelContext parameter or pass container
+  - In pollCurrentWindow(), after detecting app change:
+    - Calculate duration since last event
+    - Update previous event's duration
+    - Create new ActivityEvent and insert into context
+    - Include visibleWindowCount from VisibleWindowTracker
+    - Link screenshot if one was captured recently
+    - try? context.save()
+
+Step 5.8: Update ScreenshotManager to persist metadata
+  - After capturing screenshot, create Screenshot model entry
+  - Insert into context with filePath, thumbnailPath, fileSize
+  - Link to most recent ActivityEvent via screenshotID
+
+Step 5.9: Create TimeBlockAggregator
+  - Create file: Services/TimeBlockAggregator.swift
+  - Method aggregateHour(events: [ActivityEvent], hour: Date) -> TimeBlock:
+    - Group events by appName
+    - Find dominant app (most total duration)
+    - Create TimeBlock with startTime=top of hour, endTime=end of hour
+    - Attach all events via relationship
+    - Return the block
+  - Call this at the end of each hour or when generating report
+
+VERIFY: Build and run. Track for a few minutes, quit app, relaunch.
+  - Data should persist (check SQLite file at
+    ~/Library/Application Support/GrotTrack/GrotTrack.store)
+  - Previous tracking sessions should be queryable
+  - ActivityEvents should have correct durations
+  - Screenshots should have metadata entries
+
+
+================================================================================
+PHASE 6: ACTIVITY TIMELINE UI [COMPLETE]
+================================================================================
+Goal: Rich UI showing today's activity timeline with hour-by-hour breakdown.
+
+Step 6.1: Create TimelineViewModel
+  - Create file: ViewModels/TimelineViewModel.swift
+  - @Observable @MainActor class:
+    - var selectedDate: Date = Date() (today)
+    - var timeBlocks: [TimeBlock] = []
+    - var isLoading: Bool = false
+  - Method loadBlocks(for date: Date, context: ModelContext):
+    - Query TimeBlocks where startTime is within the selected date
+    - Sort by startTime
+    - Update timeBlocks array
+  - Method refreshCurrentHour(context: ModelContext):
+    - Aggregate current hour's events into a TimeBlock
+    - Replace or update the latest block in timeBlocks
+
+Step 6.2: Create HourBlockView
+  - Create file: Views/Timeline/HourBlockView.swift
+  - Takes a TimeBlock as input
+  - Shows:
+    - Hour label ("9:00 AM - 10:00 AM")
+    - Colored horizontal bar showing proportional time per app
+    - Dominant app name + icon
+    - Duration text
+    - Multitasking indicator (colored dot: green/yellow/red)
+    - Customer badge if assigned
+  - Tappable to expand and show individual activities
+
+Step 6.3: Create TimeBlockView
+  - Create file: Views/Timeline/TimeBlockView.swift
+  - Detail view for individual activity within an hour:
+    - App icon + name
+    - Window title
+    - Browser tab title (if applicable)
+    - Duration
+    - Timestamp
+    - Thumbnail of associated screenshot (if any)
+
+Step 6.4: Create TimelineView
+  - Create file: Views/Timeline/TimelineView.swift
+  - Full window layout:
+    - Date picker at top (navigate days)
+    - Summary bar: total hours tracked, top app, focus score
+    - ScrollView of HourBlockView items for each hour of the day
+    - Hours with no activity shown as empty/gray
+    - Current hour highlighted
+  - Use @Query or TimelineViewModel to fetch data
+
+Step 6.5: Update MenuBarView
+  - Add compact timeline preview:
+    - Last 4 hours as small colored bars
+    - Current app + duration
+    - "View Full Timeline" button
+
+Step 6.6: Add Window scene for full timeline
+  - In GrotTrackApp.swift, add Window scene:
+    ```swift
+    Window("GrotTrack Timeline", id: "timeline") {
+        TimelineView()
+    }
+    .modelContainer(container)
+    .defaultSize(width: 800, height: 600)
+    ```
+  - Open from MenuBarView: @Environment(\.openWindow) var openWindow
+  - Button action: openWindow(id: "timeline")
+
+VERIFY: Build and run. Track for 15+ minutes across different apps.
+  - Open timeline window from menu bar
+  - Should show colored hour bars for the current hour
+  - Clicking an hour should expand to show individual activities
+  - Switching apps should update the current hour in near-real-time
+
+
+================================================================================
+PHASE 7: MULTITASKING DETECTION [COMPLETE]
+================================================================================
+Goal: Detect rapid window switching and score each time block. Use CGWindowList
+visible-window count to enrich scoring.
+
+Step 7.1: Create MultitaskingDetector
+  - Create file: Services/MultitaskingDetector.swift
+  - @Observable @MainActor class:
+    - var currentScore: Double = 0.0 (0.0=focused, 1.0=heavy multitasking)
+    - private var switchHistory: [(timestamp: Date, bundleID: String)] = []
+    - private let rollingWindowSeconds: TimeInterval = 300 (5 minutes)
+    - private let visibleWindowTracker: VisibleWindowTracker
+  - init(visibleWindowTracker: VisibleWindowTracker):
+    - Store reference to the shared VisibleWindowTracker from Phase 2
+  - Method recordSwitch(bundleID: String, at timestamp: Date = Date()):
+    - Append to switchHistory
+    - Prune entries older than rollingWindowSeconds
+    - currentScore = calculateScore()
+  - Method calculateScore() -> Double:
+    - let uniqueApps = Set(switchHistory.map(\.bundleID)).count
+    - let switchCount = switchHistory.count
+    - let windowMinutes = rollingWindowSeconds / 60.0
+    - let switchRate = Double(switchCount) / windowMinutes
+    - let visibleApps = visibleWindowTracker.visibleAppCount()
+    - Enrich with visible-window count:
+      ```swift
+      let switchComponent = (switchRate / 20.0) * 0.4
+      let uniqueComponent = (Double(uniqueApps) / 10.0) * 0.3
+      let visibleComponent = (Double(min(visibleApps, 8)) / 8.0) * 0.3
+      let rawScore = switchComponent + uniqueComponent + visibleComponent
+      return min(max(rawScore, 0.0), 1.0)
+      ```
+  - Method focusLevel() -> String:
+    - switch on currentScore ranges -> "Focused" / "Moderate" / "Heavy"
+
+Step 7.2: Integrate with ActivityTracker
+  - In ActivityTracker.pollCurrentWindow(), when app changes:
+    - Call multitaskingDetector.recordSwitch(bundleID: newBundleID)
+  - Pass currentScore to AppState for display
+
+Step 7.3: Store score on TimeBlock
+  - In TimeBlockAggregator, when creating/updating a TimeBlock:
+    - Calculate average multitaskingScore from the events in that block
+    - Or use the detector's score at the time of aggregation
+
+Step 7.4: Display in UI
+  - In HourBlockView, show colored dot based on multitaskingScore:
+    - Green circle for 0.0-0.2
+    - Yellow circle for 0.2-0.5
+    - Red circle for 0.5-1.0
+  - In MenuBarView, show current focus level text
+  - In TimelineView, highlight high-multitasking hours with background tint
+
+VERIFY:
+  - Rapidly switch between 5+ apps for one minute
+  - Multitasking score should increase visibly
+  - Open many apps side-by-side -> visible-window count should raise score
+  - Stay in one app for 5 minutes with only that app visible
+  - Score should drop to near 0
+  - Timeline should show color-coded multitasking indicators
+
+
+================================================================================
+PHASE 8: CUSTOMER/PROJECT MANAGEMENT [COMPLETE]
+================================================================================
+Goal: CRUD for customers with keyword matching and PM tool screenshot import.
+
+Step 8.1: Create CustomerViewModel
+  - Create file: ViewModels/CustomerViewModel.swift
+  - @Observable @MainActor class:
+  - Methods:
+    - addCustomer(name, keywords, color, context: ModelContext)
+    - updateCustomer(_ customer, name, keywords, color)
+    - deleteCustomer(_ customer, context: ModelContext)
+    - matchCustomer(forActivity: ActivityEvent, customers: [Customer]) -> Customer?:
+      - Check if any customer's keywords appear in the activity's
+        windowTitle, browserTabTitle, or appName (case-insensitive)
+      - Return first match, or nil
+    - importCustomersFromSeeding(names: [String], context: ModelContext):
+      - Create Customer entries with default colors for each name
+
+Step 8.2: Create CustomerListView
+  - Create file: Views/Customers/CustomerListView.swift
+  - List of all customers with:
+    - Color dot + name
+    - Keyword count
+    - Active/inactive toggle
+    - Swipe to delete
+    - "Add Customer" button at bottom
+    - Navigation to CustomerEditView
+
+Step 8.3: Create CustomerEditView
+  - Create file: Views/Customers/CustomerEditView.swift
+  - Form with:
+    - Name text field
+    - Keywords: tag-style input (comma separated, or individual text fields)
+    - Color picker (preset palette of 8-10 colors)
+    - Active toggle
+    - Save / Cancel buttons
+
+Step 8.4: Create SeedingView
+  - Create file: Views/Customers/SeedingView.swift
+  - UI:
+    - Instructions: "Import customer names from a screenshot of your PM tool"
+    - Drag & drop zone or file picker (.fileImporter modifier)
+    - Preview of imported image
+    - "Analyze with AI" button (sends to LLM provider - implemented in Phase 9)
+    - Shows extracted customer/project names with checkboxes
+    - "Import Selected" button -> creates Customer entries
+  - Note: The actual LLM call is wired in Phase 9.
+    For now, stub the analysis with a placeholder.
+
+Step 8.5: Add keyword auto-matching
+  - In TimeBlockAggregator, after creating a TimeBlock:
+    - Query all active customers
+    - Call customerViewModel.matchCustomer() on the block's dominant activity
+    - If match found, assign timeBlock.customer = matchedCustomer
+  - This provides baseline classification before LLM analysis
+
+Step 8.6: Add Customer management to app
+  - Add "Customers" button in MenuBarView or as a Window scene
+  - If using Window scene:
+    ```swift
+    Window("Customers", id: "customers") {
+        CustomerListView()
+    }
+    .modelContainer(container)
+    .defaultSize(width: 400, height: 500)
+    ```
+
+VERIFY:
+  - Add 3 customers with keywords (e.g., "Acme" with keywords ["acme", "acme.com"])
+  - Track activity in apps/sites matching those keywords
+  - Auto-classification should appear in the timeline
+  - Edit and delete customers, verify changes persist
+
+
+================================================================================
+PHASE 9: LLM INTEGRATION (PROTOCOL + CLAUDE PROVIDER WITH VISION) [COMPLETE]
+================================================================================
+Goal: Abstract LLM calls behind a protocol. Implement Claude provider for
+intelligent time classification, seeding analysis, and daily summaries.
+
+Step 9.1: Create Keychain utility
+  - Create file: Utilities/Keychain.swift
+  - Simple wrapper around Security framework:
+    ```swift
+    import Security
+
+    enum Keychain {
+        static func save(key: String, value: String) throws {
+            let data = value.data(using: .utf8)!
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: key,
+                kSecAttrService as String: "com.grottrack.api",
+                kSecValueData as String: data
+            ]
+            SecItemDelete(query as CFDictionary) // Remove old value
+            let status = SecItemAdd(query as CFDictionary, nil)
+            guard status == errSecSuccess else {
+                throw KeychainError.saveFailed(status)
+            }
+        }
+
+        static func load(key: String) -> String? {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: key,
+                kSecAttrService as String: "com.grottrack.api",
+                kSecReturnData as String: true,
+                kSecMatchLimit as String: kSecMatchLimitOne
+            ]
+            var result: AnyObject?
+            let status = SecItemCopyMatching(query as CFDictionary, &result)
+            guard status == errSecSuccess, let data = result as? Data else { return nil }
+            return String(data: data, encoding: .utf8)
+        }
+
+        static func delete(key: String) {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: key,
+                kSecAttrService as String: "com.grottrack.api"
+            ]
+            SecItemDelete(query as CFDictionary)
+        }
+    }
+
+    enum KeychainError: Error {
+        case saveFailed(OSStatus)
+    }
+    ```
+
+Step 9.2: Create LLMProvider protocol
+IMPORTANT NOTE: As core part of phase 9 evaluate if we should be writing our own API client for the Anthropic API or if we should be using a maintained SDK such as https://github.com/jamesrochabrun/SwiftAnthropic 
+
+  - Create file: Services/LLMProvider.swift
+    ```swift
+    import Foundation
+
+    protocol LLMProvider: Sendable {
+        /// Classify a time block's activities into customer allocations.
+        func classifyTimeBlock(
+            activities: [ActivityEvent],
+            screenshots: [Screenshot],
+            customers: [Customer]
+        ) async throws -> [CustomerAllocation]
+
+        /// Extract customer/project names from a PM tool screenshot.
+        func analyzeSeedingScreenshot(imageData: Data) async throws -> [String]
+
+        /// Generate a prose summary of the day's allocations.
+        func generateDailySummary(
+            allocations: [CustomerAllocation]
+        ) async throws -> String
+    }
+    ```
+
+Step 9.3: Create ClaudeProvider
+  - Create file: Services/ClaudeProvider.swift
+  - final class ClaudeProvider: LLMProvider:
+    - private let apiURL = URL(string: "https://api.anthropic.com/v1/messages")!
+    - private let model = "claude-sonnet-4-20250514"
+    - var apiKey: String? { Keychain.load(key: "claude_api_key") }
+  - Implement classifyTimeBlock(...):
+    - Build the messages array:
+      - System message: "You are a time-tracking analyst. Analyze the activity
+        log and screenshots to classify time spent by customer/project.
+        Return ONLY valid JSON."
+      - User message content array:
+        - Text block: activity log as JSON (timestamps, apps, titles, durations)
+        - Text block: customer list with keywords
+        - For each screenshot (up to 10): image content block with base64 data
+          ```swift
+          ["type": "image", "source": [
+              "type": "base64",
+              "media_type": "image/jpeg",
+              "data": screenshotBase64
+          ]]
+          ```
+        - Text block: "Classify the above activity into these customers.
+          Return JSON array: [{\"customer\": \"name\", \"hours\": 0.5,
+          \"confidence\": 0.9, \"description\": \"what was being worked on\"}]
+          Hours should sum to approximately 1.0 (one hour block)."
+    - Build URLRequest:
+      - POST to apiURL
+      - Headers: "x-api-key", "anthropic-version: 2023-06-01",
+        "content-type: application/json"
+      - Body: {"model": model, "max_tokens": 2048, "messages": [...]}
+    - Send with URLSession.shared.data(for: request)
+    - Parse response: extract content[0].text
+    - Decode JSON string into [CustomerAllocation]
+    - Return results
+
+  - Implement analyzeSeedingScreenshot(imageData:):
+    - Similar to above but with prompt:
+      "Extract all customer names and project names from this project management
+      tool screenshot. Return JSON array of strings: [\"Customer A\", \"Project B\"]"
+    - Return array of extracted names
+
+  - Implement generateDailySummary(allocations:):
+    - Prompt: "Given this time allocation data: [JSON]. Write a 2-3 sentence
+      summary of how time was spent today."
+    - Return the prose summary string
+
+Step 9.4: Create MockLLMProvider
+  - Create file: Services/MockLLMProvider.swift
+    ```swift
+    import Foundation
+
+    final class MockLLMProvider: LLMProvider {
+        func classifyTimeBlock(
+            activities: [ActivityEvent],
+            screenshots: [Screenshot],
+            customers: [Customer]
+        ) async throws -> [CustomerAllocation] {
+            // Return a plausible allocation based on keyword matching
+            guard let firstCustomer = customers.first else {
+                return [CustomerAllocation(
+                    customerName: "Unclassified",
+                    hours: 1.0,
+                    percentage: 100.0,
+                    confidence: 0.5,
+                    description: "Mock classification"
+                )]
+            }
+            return [CustomerAllocation(
+                customerName: firstCustomer.name,
+                hours: 1.0,
+                percentage: 100.0,
+                confidence: 0.9,
+                description: "Mock: matched \(firstCustomer.name)"
+            )]
+        }
+
+        func analyzeSeedingScreenshot(imageData: Data) async throws -> [String] {
+            return ["Mock Customer A", "Mock Customer B", "Mock Project C"]
+        }
+
+        func generateDailySummary(
+            allocations: [CustomerAllocation]
+        ) async throws -> String {
+            let names = allocations.map(\.customerName).joined(separator: ", ")
+            return "Mock summary: Time was spent on \(names)."
+        }
+    }
+    ```
+
+Step 9.5: Add API key management UI
+  - In Settings (Phase 11) or a simple sheet:
+    - SecureField for API key input
+    - "Save" button -> Keychain.save(key: "claude_api_key", value: input)
+    - "Test" button -> make a simple API call to verify key works
+    - Show saved status indicator
+
+Step 9.6: Add "Analyze" button to TimeBlockView
+  - In HourBlockView or TimeBlockView, add "Analyze with AI" button
+  - On tap:
+    - Gather activities and screenshots for that hour
+    - Show progress indicator
+    - Call llmProvider.classifyTimeBlock(...)
+    - Update TimeBlock with results (customerID, llmClassification, llmConfidence)
+    - Refresh UI
+
+Step 9.7: Wire seeding to SeedingView
+  - In SeedingView (from Phase 8):
+    - When "Analyze with AI" is tapped:
+    - Read image data from dropped/selected file
+    - Call llmProvider.analyzeSeedingScreenshot(imageData:)
+    - Display results as checkboxes
+    - "Import Selected" creates Customer entries
+
+Step 9.8: Add automatic hourly analysis (optional)
+  - In ActivityTracker or a separate scheduler:
+    - At the end of each hour, if API key is set:
+    - Automatically call classifyTimeBlock for the just-completed hour
+    - Store results silently
+    - Show notification if classification confidence is low
+
+VERIFY:
+  - Set Claude API key in settings
+  - Track for 30+ minutes with mixed activities (different apps, websites)
+  - Trigger "Analyze" on a time block
+  - Customer allocations should appear with confidence scores
+  - Test seeding: screenshot a list of names, analyze, verify extraction
+  - Swap in MockLLMProvider and verify the same UI works with mock data
+
+
+================================================================================
+PHASE 10: DAILY REPORT GENERATION [COMPLETE]
+================================================================================
+Goal: Comprehensive daily reports with visualizations and LLM summaries.
+
+Step 10.1: Create ReportGenerator
+  - Create file: Services/ReportGenerator.swift
+  - @Observable @MainActor class:
+  - Method generateDailyReport(date: Date, context: ModelContext) async -> DailyReport:
+    - Query all TimeBlocks for the given date
+    - Ensure all blocks have been LLM-classified (batch any unclassified ones)
+    - Aggregate customer allocations across all hours:
+      - Group by customer name
+      - Sum hours per customer
+      - Calculate percentages
+    - Call llmProvider.generateDailySummary() for prose analysis
+    - Create/update DailyReport entity
+    - Encode CustomerAllocation array as JSON string for storage
+    - Save to context
+    - Return the report
+
+Step 10.2: Create ReportViewModel
+  - Create file: ViewModels/ReportViewModel.swift
+  - @Observable @MainActor class:
+    - var selectedDate: Date = Date()
+    - var report: DailyReport?
+    - var isGenerating: Bool = false
+  - Methods:
+    - loadReport(for date: Date, context: ModelContext)
+    - generateReport(for date: Date, context: ModelContext) async
+    - exportReport(format: ExportFormat) - JSON or CSV
+
+Step 10.3: Create DailyReportView
+  - Create file: Views/Reports/DailyReportView.swift
+  - Layout:
+    - Date picker at top (navigate days)
+    - Summary card: total hours, number of customers, avg focus score
+    - "Generate Report" button (if not yet generated for selected date)
+    - If report exists:
+      - LLM-generated prose summary
+      - Hour-by-hour grid with customer color coding
+      - Customer breakdown chart
+      - Multitasking periods highlighted (red-tinted hours)
+      - Screenshot gallery for selected hour
+
+Step 10.4: Create CustomerBreakdownView
+  - Create file: Views/Reports/CustomerBreakdownView.swift
+  - Uses Swift Charts (import Charts):
+    - Pie chart or bar chart showing hours per customer
+    - Each customer colored with their assigned color
+    - Show percentage and hours labels
+    - Tap on segment to see activities for that customer
+
+Step 10.5: Add screenshot gallery
+  - In DailyReportView, when an hour is selected:
+    - Query Screenshots for that hour
+    - Show thumbnails in a horizontal scroll view
+    - Tap thumbnail to see full screenshot in a sheet
+
+Step 10.6: Export functionality
+  - "Export" button in DailyReportView
+  - JSON export: serialize DailyReport + allocations + activity events
+  - CSV export: rows per hour with columns for customer, hours, description
+  - Use NSSavePanel for file location picker
+  - Save to Exports/ directory or user-chosen location
+
+Step 10.7: Add Report access
+  - Add Window scene:
+    ```swift
+    Window("Daily Report", id: "report") {
+        DailyReportView()
+    }
+    .modelContainer(container)
+    .defaultSize(width: 900, height: 700)
+    ```
+  - Add "View Report" button in MenuBarView
+
+VERIFY:
+  - Track a full workday (or simulate with test data inserted into SwiftData)
+  - Generate daily report
+  - Charts should show correct customer breakdown
+  - LLM summary should accurately describe the day
+  - Export JSON and CSV, verify file contents
+  - Navigate to different dates, verify reports load correctly
+
+
+================================================================================
+PHASE 11: SETTINGS, POLISH, LAUNCH-AT-LOGIN [COMPLETE]
+================================================================================
+Goal: Complete settings, onboarding, and production polish. Permission flow
+requires only Accessibility + Screen Recording (no Automation).
+
+Step 11.1: Create SettingsView
+  - Create file: Views/Settings/SettingsView.swift
+  - TabView with tabs:
+    - General: polling interval slider (1-10s), screenshot interval slider
+      (15-120s), theme options
+    - Permissions: status of Accessibility and Screen Recording
+      with "Fix" buttons that open System Settings
+      (no Automation permission needed)
+    - Browser: Chrome extension installation status, "Install Extension"
+      button that opens GrotTrackExtension/ folder in Finder
+    - API: Claude API key field (SecureField), model display, "Test" button
+    - Storage: retention days, current disk usage, "Clean Now" button
+    - Exclusions: list of apps to never track
+    - About: app version, credits, link to documentation
+
+Step 11.2: Create ExclusionListView
+  - Create file: Views/Settings/ExclusionListView.swift
+  - List of excluded app bundle IDs with display names
+  - "Add from running apps" picker:
+    - NSWorkspace.shared.runningApplications
+    - Show app icon + name + bundleID
+    - Tap to add to exclusion list
+  - Manual bundle ID entry field
+  - Store in @AppStorage as JSON-encoded [String]
+  - ActivityTracker checks exclusion list on each poll, skips excluded apps
+
+Step 11.3: Create StorageSettingsView
+  - Create file: Views/Settings/StorageSettingsView.swift
+  - Show: total screenshots count, total disk size, oldest screenshot date
+  - Sliders for retention days (full screenshots: 1-30, thumbnails: 7-90)
+  - "Clean Now" button -> calls cleanup immediately
+  - Cleanup method:
+    - Iterate Screenshots/ and Thumbnails/ directories
+    - Delete files older than retention threshold
+    - Delete corresponding SwiftData Screenshot entries
+    - Recalculate and display freed space
+
+Step 11.4: Implement launch at login
+  - In SettingsView General tab:
+    ```swift
+    import ServiceManagement
+
+    Toggle("Launch at Login", isOn: $launchAtLogin)
+        .onChange(of: launchAtLogin) { _, newValue in
+            do {
+                if newValue {
+                    try SMAppService.mainApp.register()
+                } else {
+                    try SMAppService.mainApp.unregister()
+                }
+            } catch {
+                print("Launch at login error: \(error)")
+            }
+        }
+    ```
+
+Step 11.5: Create Onboarding flow
+  - Create file: Views/Onboarding/OnboardingView.swift
+  - Show on first launch: @AppStorage("hasCompletedOnboarding") var completed = false
+  - Pages (TabView with page style):
+    1. Welcome: app name, icon, brief description of what it does
+    2. Permissions: step through requesting Accessibility and Screen Recording
+       (only these two - no Automation permission)
+    3. Chrome Extension: instructions to install the GrotTrack Chrome extension
+       - "Open Extensions Folder" button -> reveals GrotTrackExtension/ in Finder
+       - Step-by-step: go to chrome://extensions, enable Developer Mode,
+         "Load unpacked", select the GrotTrackExtension folder
+       - "Verify Connection" button -> checks if BrowserTabService has received
+         a message recently
+    4. API Key: enter Claude API key (optional, can skip)
+    5. Customers: add initial customers or "Import from Screenshot"
+    6. Done: "Start Tracking" button -> set completed = true, start tracking
+
+Step 11.6: Create PermissionRequestView
+  - Create file: Views/Onboarding/PermissionRequestView.swift
+  - For each permission (Accessibility and Screen Recording only):
+    - Icon + explanation of why it's needed
+    - "Grant Permission" button
+    - Green checkmark when granted
+  - No Automation permission step
+
+Step 11.7: Add Settings window scene
+  - In GrotTrackApp.swift:
+    ```swift
+    Settings {
+        SettingsView()
+    }
+    .modelContainer(container)
+    ```
+  - Or use Window scene opened from menu bar
+
+Step 11.8: Storage cleanup on launch
+  - In GrotTrackApp.init() or .onAppear:
+    - Run storage cleanup in background Task
+    - Delete screenshots older than retention period
+    - Log freed space
+
+Step 11.9: Polish
+  - Add app icon to Assets.xcassets (clock/timer themed but also we want icongraphy based on Grafana as this app is for grafana employees so the 'grot' mascot can appear in places)
+  - Add keyboard shortcut for pause/resume (consider KeyboardShortcuts package
+    from Sindre Sorhus for global shortcuts)
+  - Add notification when hourly analysis completes
+  - Add "idle detection": if no window switches for 5+ minutes,
+    mark as idle (don't count toward tracked time)
+  - Handle edge cases: display sleep/wake, user switching, screen lock
+
+Step 11.10: CI
+  - Github actions workflows to build and publish application
+  - A suitable .gitignore file is created covering our swift app and our chrome extension so we avoid comitting to git files that should not be comitted to git.
+  - Release please (or simialr suitable release automation)
+
+Step 11.11: Productionisation
+  - Provide to the user any instructions for tasks they need to do in xcode to get the app signed properly. We'll also want signed builds and releases in our githuba ctions also. Make sure any custom entitlements or certs that might be needed the user is guided to create especially for notiarisation 
+
+Step 11.12: Documentation (Readme)
+  - Create a readme.md file in the root of the repository that will act as all the user documentation for this application. No other documentation files are required at this time but everything that users need to know including quick start guide must be in the readme.
+
+
+
+CLAUDE SHOULD IGNORE BELOW THIS LINE!
+
+prompt text (already at start of instruction)
+
+Consume todos.txt and follow all instructions within it along with respecting all architecture decisions in arch.txt. We are now ready to plan out and implement Phase 11. Please make a comprehensive implementation plan for all tasks listed within the phase, ensuring we are comforming with all defined ADRs in todos.txt. Make use of subagents and agent teams where appropriate during the planning and implementation phases once the plan is approved. Ensure the todos.txt file is updated to mark each phase as complete once it is completed
