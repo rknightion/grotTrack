@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.2](https://github.com/rknightion/grotTrack/compare/v0.12.1...v0.12.2) (2026-04-09)
+
+
+### Bug Fixes
+
+* re-sign Sparkle framework binaries for notarization ([0d09fbd](https://github.com/rknightion/grotTrack/commit/0d09fbd9584c7b29d8997cd149671265fc7a5149))
+
+
+### Miscellaneous
+
+* add manual workflow to fetch notarization logs ([8aa8c16](https://github.com/rknightion/grotTrack/commit/8aa8c16c38b047fe50d74a59f6109e6ca5fc49aa))
+
 ## [0.12.1](https://github.com/rknightion/grotTrack/compare/v0.12.0...v0.12.1) (2026-04-09)
 
 
