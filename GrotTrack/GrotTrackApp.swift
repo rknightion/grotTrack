@@ -55,6 +55,17 @@ final class AppCoordinator {
         return tracker
     }
 
+    /// Wire model context into all services. Safe to call multiple times.
+    func configure(modelContext ctx: ModelContext) {
+        guard modelContext == nil else { return }
+        screenshotManager.modelContext = ctx
+        activityTracker.modelContext = ctx
+        modelContext = ctx
+        enrichmentService.modelContext = ctx
+        sessionDetector.modelContext = ctx
+        sessionClassifier.modelContext = ctx
+    }
+
     func bootstrap() async {
         // Prevent macOS from automatically terminating this background app
         ProcessInfo.processInfo.disableAutomaticTermination(
@@ -456,6 +467,31 @@ struct GrotTrackApp: App {
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
+
+        // Kick off setup immediately at launch rather than waiting for
+        // the menu bar popover to open. This ensures tracking resumes
+        // even when macOS relaunches the app without user interaction.
+        let coord = coordinator
+        let ctx = container.mainContext
+        Task { @MainActor in
+            coord.configure(modelContext: ctx)
+            await coord.bootstrap()
+
+            if UserDefaults.standard.bool(forKey: "startTrackingOnLaunch") {
+                coord.startTracking()
+            }
+
+            let screenshotRetention = UserDefaults.standard.integer(forKey: "screenshotRetentionDays")
+            let thumbnailRetention = UserDefaults.standard.integer(forKey: "thumbnailRetentionDays")
+            let freed = coord.screenshotManager.cleanupOldFiles(
+                screenshotRetentionDays: screenshotRetention > 0 ? screenshotRetention : 7,
+                thumbnailRetentionDays: thumbnailRetention > 0 ? thumbnailRetention : 30,
+                modelContext: ctx
+            )
+            if freed > 0 {
+                print("Startup cleanup freed \(ByteCountFormatter.string(fromByteCount: freed, countStyle: .file))")
+            }
+        }
     }
 
     var body: some Scene {
@@ -463,30 +499,8 @@ struct GrotTrackApp: App {
             MenuBarView(coordinator: coordinator)
                 .frame(width: 300)
                 .task {
-                    coordinator.screenshotManager.modelContext = container.mainContext
-                    coordinator.activityTracker.modelContext = container.mainContext
-                    coordinator.modelContext = container.mainContext
-                    coordinator.enrichmentService.modelContext = container.mainContext
-                    coordinator.sessionDetector.modelContext = container.mainContext
-                    coordinator.sessionClassifier.modelContext = container.mainContext
-                    await coordinator.bootstrap()
-
-                    // Auto-start tracking if user opted in
-                    if UserDefaults.standard.bool(forKey: "startTrackingOnLaunch") {
-                        coordinator.startTracking()
-                    }
-
-                    // Storage cleanup on launch
-                    let screenshotRetention = UserDefaults.standard.integer(forKey: "screenshotRetentionDays")
-                    let thumbnailRetention = UserDefaults.standard.integer(forKey: "thumbnailRetentionDays")
-                    let freed = coordinator.screenshotManager.cleanupOldFiles(
-                        screenshotRetentionDays: screenshotRetention > 0 ? screenshotRetention : 7,
-                        thumbnailRetentionDays: thumbnailRetention > 0 ? thumbnailRetention : 30,
-                        modelContext: container.mainContext
-                    )
-                    if freed > 0 {
-                        print("Startup cleanup freed \(ByteCountFormatter.string(fromByteCount: freed, countStyle: .file))")
-                    }
+                    // Fallback: ensure setup if the init() Task hasn't run yet
+                    coordinator.configure(modelContext: container.mainContext)
                 }
         } label: {
             Image(systemName: coordinator.appState.isTracking ?
