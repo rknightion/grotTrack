@@ -3,7 +3,6 @@ import SwiftUI
 struct TimelineRailView: View {
     @Bindable var viewModel: ScreenshotBrowserViewModel
     @State private var baseZoom: CGFloat = 1.0
-    @State private var railHeight: CGFloat = 0
     @State private var lastScrollMetrics = ScrollMetrics(contentOffsetY: 0, visibleHeight: 0, contentHeight: 0)
 
     private struct ScrollMetrics: Equatable {
@@ -55,7 +54,7 @@ struct TimelineRailView: View {
                     let targetTime = range.startDate.addingTimeInterval(
                         fraction * range.endDate.timeIntervalSince(range.startDate)
                     )
-                    if let idx = viewModel.nearestScreenshotIndex(to: targetTime) {
+                    if let idx = viewModel.nearestPrimaryIndex(to: targetTime) {
                         scrollProxy.scrollTo("marker-\(idx)", anchor: .center)
                     }
                 }
@@ -65,11 +64,6 @@ struct TimelineRailView: View {
                         scrollProxy.scrollTo("marker-\(index)", anchor: .center)
                     }
                     viewModel.scrollToMarkerRequest = nil
-                }
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.size.height
-                } action: { newHeight in
-                    railHeight = newHeight
                 }
             }
 
@@ -99,9 +93,11 @@ struct TimelineRailView: View {
             clamped * range.endDate.timeIntervalSince(range.startDate)
         )
 
-        if let idx = viewModel.nearestScreenshotIndex(to: targetTime),
-           idx != viewModel.selectedIndex {
-            viewModel.selectedIndex = idx
+        if let idx = viewModel.nearestPrimaryIndex(to: targetTime) {
+            let primary = viewModel.primaryScreenshots[idx]
+            if viewModel.selectedScreenshot.map({ abs($0.timestamp.timeIntervalSince(primary.timestamp)) >= 1.0 }) ?? true {
+                viewModel.selectScreenshot(primary)
+            }
         }
     }
 
@@ -220,7 +216,7 @@ struct TimelineRailView: View {
                             .fontWeight(.medium)
                             .lineLimit(detail == .compact ? 1 : 2)
 
-                        if detail == .full {
+                        if detail == .full || detail == .expanded {
                             // swiftlint:disable:next line_length
                             Text(segment.startTime.formatted(.dateTime.hour().minute()) + " - " + segment.endTime.formatted(.dateTime.hour().minute()))
                                 .font(.system(size: 8))

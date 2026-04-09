@@ -295,12 +295,14 @@ final class ScreenshotBrowserViewModel {
     }
 
     var nextMarkerIndex: Int? {
-        let next = selectedIndex + 1
+        guard let current = currentPrimaryIndex else { return primaryScreenshots.isEmpty ? nil : 0 }
+        let next = current + 1
         return next < primaryScreenshots.count ? next : nil
     }
 
     var previousMarkerIndex: Int? {
-        let prev = selectedIndex - 1
+        guard let current = currentPrimaryIndex else { return nil }
+        let prev = current - 1
         return prev >= 0 ? prev : nil
     }
 
@@ -390,5 +392,25 @@ final class ScreenshotBrowserViewModel {
             }
         }
         return bestIndex
+    }
+
+    func nearestPrimaryIndex(to date: Date) -> Int? {
+        let primaries = primaryScreenshots
+        guard !primaries.isEmpty else { return nil }
+        var bestIndex = 0
+        var bestDelta = abs(primaries[0].timestamp.timeIntervalSince(date))
+        for idx in 1..<primaries.count {
+            let delta = abs(primaries[idx].timestamp.timeIntervalSince(date))
+            if delta < bestDelta {
+                bestDelta = delta
+                bestIndex = idx
+            }
+        }
+        return bestIndex
+    }
+
+    var currentPrimaryIndex: Int? {
+        guard let selected = selectedScreenshot else { return nil }
+        return primaryScreenshots.firstIndex { abs($0.timestamp.timeIntervalSince(selected.timestamp)) < 1.0 }
     }
 }
