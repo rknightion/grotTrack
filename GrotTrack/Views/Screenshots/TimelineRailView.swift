@@ -242,33 +242,114 @@ struct TimelineRailView: View {
 
     private func screenshotMarkers(range: ScreenshotBrowserViewModel.ActiveHoursRange, height: CGFloat) -> some View {
         let detail = viewModel.timelineDetailLevel
-        let markerSize: CGFloat = detail == .full ? 10 : (detail == .medium ? 8 : 6)
-        let selectedSize: CGFloat = markerSize + 4
         let primaryShots = viewModel.primaryScreenshots
 
-        return ForEach(primaryShots.indices, id: \.self) { index in
-            let screenshot = primaryShots[index]
-            let yPos = yPosition(for: screenshot.timestamp, range: range, height: height)
-            let isSelected = viewModel.selectedScreenshot.map {
-                abs($0.timestamp.timeIntervalSince(screenshot.timestamp)) < 1.0
-            } ?? false
+        return GeometryReader { geometry in
+            ForEach(primaryShots.indices, id: \.self) { index in
+                let screenshot = primaryShots[index]
+                let yPos = yPosition(for: screenshot.timestamp, range: range, height: height)
+                let isSelected = viewModel.selectedScreenshot.map {
+                    abs($0.timestamp.timeIntervalSince(screenshot.timestamp)) < 1.0
+                } ?? false
 
-            Circle()
-                .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.5))
-                .frame(width: isSelected ? selectedSize : markerSize, height: isSelected ? selectedSize : markerSize)
-                .overlay {
-                    if isSelected {
-                        Circle()
-                            .stroke(Color.accentColor, lineWidth: 2)
-                            .frame(width: selectedSize + 4, height: selectedSize + 4)
-                    }
+                if detail == .expanded {
+                    expandedMarkerCard(
+                        screenshot: screenshot,
+                        index: index,
+                        yPos: yPos,
+                        isSelected: isSelected,
+                        railWidth: geometry.size.width
+                    )
+                } else {
+                    let markerSize: CGFloat = detail == .full ? 10 : (detail == .medium ? 8 : 6)
+                    let selectedSize: CGFloat = markerSize + 4
+
+                    Circle()
+                        .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.5))
+                        .frame(width: isSelected ? selectedSize : markerSize,
+                               height: isSelected ? selectedSize : markerSize)
+                        .overlay {
+                            if isSelected {
+                                Circle()
+                                    .stroke(Color.accentColor, lineWidth: 2)
+                                    .frame(width: selectedSize + 4, height: selectedSize + 4)
+                            }
+                        }
+                        .offset(x: 80, y: yPos - (isSelected ? selectedSize / 2 : markerSize / 2))
+                        .onTapGesture {
+                            viewModel.selectScreenshot(screenshot)
+                        }
+                        .id("marker-\(index)")
                 }
-                .offset(x: 80, y: yPos - (isSelected ? selectedSize / 2 : markerSize / 2))
-                .onTapGesture {
-                    viewModel.selectScreenshot(screenshot)
-                }
-                .id("marker-\(index)")
+            }
         }
+        .frame(height: height)
+    }
+
+    // MARK: - Expanded Metadata Cards
+
+    @ViewBuilder
+    private func expandedMarkerCard(
+        screenshot: Screenshot,
+        index: Int,
+        yPos: CGFloat,
+        isSelected: Bool,
+        railWidth: CGFloat
+    ) -> some View {
+        let ctx = viewModel.screenshotContext(for: screenshot)
+        let cardHeight: CGFloat = 24
+        let cardX: CGFloat = 80
+        let cardWidth = max(0, railWidth - cardX - 12)
+
+        HStack(spacing: 6) {
+            Image(nsImage: AppIconProvider.icon(forBundleID: ctx.bundleID))
+                .resizable()
+                .frame(width: 16, height: 16)
+
+            Text(ctx.appName)
+                .font(.system(size: 10, weight: .medium))
+                .lineLimit(1)
+
+            if !ctx.windowTitle.isEmpty {
+                Text("— \(ctx.windowTitle)")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Text(screenshot.timestamp.formatted(.dateTime.hour().minute().second()))
+                .font(.system(size: 9))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 6)
+        .frame(width: cardWidth, height: cardHeight)
+        .background {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(isSelected
+                    ? Color.accentColor.opacity(0.2)
+                    : activityColor(for: screenshot).opacity(0.1))
+        }
+        .overlay(alignment: .leading) {
+            if isSelected {
+                Rectangle()
+                    .fill(Color.accentColor)
+                    .frame(width: 2, height: cardHeight)
+            }
+        }
+        .offset(x: cardX, y: yPos - cardHeight / 2)
+        .onTapGesture {
+            viewModel.selectScreenshot(screenshot)
+        }
+        .id("marker-\(index)")
+    }
+
+    private func activityColor(for screenshot: Screenshot) -> Color {
+        let ctx = viewModel.screenshotContext(for: screenshot)
+        guard !ctx.appName.isEmpty else { return .gray }
+        return TimelineViewModel.appColor(for: ctx.appName)
     }
 
     // MARK: - Coordinate Mapping
