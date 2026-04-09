@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.4](https://github.com/rknightion/grotTrack/compare/v0.11.3...v0.11.4) (2026-04-09)
+
+
+### Miscellaneous
+
+* add version info to macOS app bundle ([c2ef7a7](https://github.com/rknightion/grotTrack/commit/c2ef7a7158c4548151132711f471aa8a8b2ba367))
+
 ## [0.11.3](https://github.com/rknightion/grotTrack/compare/v0.11.2...v0.11.3) (2026-04-09)
 
 

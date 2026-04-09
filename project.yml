@@ -32,7 +32,7 @@ targets:
       - package: libwebp
     settings:
       base:
-        MARKETING_VERSION: "0.11.3" # x-release-please-version
+        MARKETING_VERSION: "0.11.4" # x-release-please-version
         CURRENT_PROJECT_VERSION: "1"
         INFOPLIST_FILE: GrotTrack/Info.plist
         CODE_SIGN_ENTITLEMENTS: GrotTrack/GrotTrack.entitlements
