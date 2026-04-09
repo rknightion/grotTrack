@@ -23,6 +23,7 @@ struct UpdateSettingsView: View {
                             Text(option.label).tag(option)
                         }
                     }
+                    .disabled(!updater.automaticallyChecksForUpdates)
 
                     Toggle("Download and install automatically", isOn: Binding(
                         get: { updater.automaticallyDownloadsUpdates },
