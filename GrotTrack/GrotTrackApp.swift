@@ -12,6 +12,7 @@ final class AppCoordinator {
     let chromeInstaller = ChromeExtensionInstaller()
     let screenshotManager = ScreenshotManager()
     let idleDetector = IdleDetector()
+    let updaterService = UpdaterService()
     private var _activityTracker: ActivityTracker?
 
     // Enrichment & session services
@@ -545,6 +546,7 @@ struct GrotTrackApp: App {
                 .environment(coordinator.permissionManager)
                 .environment(coordinator.screenshotManager)
                 .environment(coordinator.activityTracker)
+                .environment(coordinator.updaterService)
         }
         .modelContainer(container)
         .commands {
