@@ -108,6 +108,34 @@ jobs:
             CODE_SIGNING_ALLOWED=YES \
             ENABLE_HARDENED_RUNTIME=YES
 
+      - name: Re-sign Sparkle framework binaries
+        run: |
+          APP="build/GrotTrack.xcarchive/Products/Applications/GrotTrack.app"
+          SPARKLE="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
+          IDENTITY="Developer ID Application"
+
+          # Sign Sparkle's embedded components (innermost first)
+          codesign --force --options runtime --timestamp \
+            --sign "$IDENTITY" "$SPARKLE/XPCServices/Downloader.xpc"
+          codesign --force --options runtime --timestamp \
+            --sign "$IDENTITY" "$SPARKLE/XPCServices/Installer.xpc"
+          codesign --force --options runtime --timestamp \
+            --sign "$IDENTITY" "$SPARKLE/Autoupdate"
+          codesign --force --options runtime --timestamp \
+            --sign "$IDENTITY" "$SPARKLE/Updater.app"
+          # Re-sign the framework itself
+          codesign --force --options runtime --timestamp \
+            --sign "$IDENTITY" "$APP/Contents/Frameworks/Sparkle.framework"
+          # Re-sign the main app (outermost last)
+          codesign --force --options runtime --timestamp \
+            --sign "$IDENTITY" \
+            --entitlements GrotTrack/GrotTrack.entitlements \
+            "$APP"
+
+          # Verify signatures
+          codesign --verify --deep --strict "$APP"
+          echo "All signatures valid"
+
       - name: Notarize App
         run: |
           ditto -c -k --keepParent \
