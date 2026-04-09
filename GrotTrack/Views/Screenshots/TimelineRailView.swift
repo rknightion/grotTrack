@@ -4,6 +4,18 @@ struct TimelineRailView: View {
     @Bindable var viewModel: ScreenshotBrowserViewModel
     @State private var baseZoom: CGFloat = 1.0
     @State private var railHeight: CGFloat = 0
+    @State private var lastScrollMetrics = ScrollMetrics(contentOffsetY: 0, visibleHeight: 0, contentHeight: 0)
+
+    private struct ScrollMetrics: Equatable {
+        let contentOffsetY: CGFloat
+        let visibleHeight: CGFloat
+        let contentHeight: CGFloat
+
+        var playheadFraction: CGFloat {
+            guard contentHeight > 0 else { return 0 }
+            return (contentOffsetY + visibleHeight / 2) / contentHeight
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -18,16 +30,34 @@ struct TimelineRailView: View {
                             let raw = baseZoom * value.magnification
                             let snapped = (raw / 0.05).rounded() * 0.05
                             let newZoom = max(1.0, min(30.0, snapped))
+                            guard newZoom != viewModel.timelineZoom else { return }
                             viewModel.timelineZoom = newZoom
                         }
                         .onEnded { value in
                             baseZoom = max(1.0, min(30.0, baseZoom * value.magnification))
                         }
                 )
-                .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                    geometry.contentOffset.y + geometry.visibleRect.height / 2
-                } action: { _, newMidY in
-                    selectNearestToPlayhead(midY: newMidY)
+                .onScrollGeometryChange(for: ScrollMetrics.self) { geometry in
+                    ScrollMetrics(
+                        contentOffsetY: geometry.contentOffset.y,
+                        visibleHeight: geometry.visibleRect.height,
+                        contentHeight: geometry.contentSize.height
+                    )
+                } action: { _, newMetrics in
+                    lastScrollMetrics = newMetrics
+                    let midY = newMetrics.contentOffsetY + newMetrics.visibleHeight / 2
+                    selectNearestToPlayhead(midY: midY)
+                }
+                .onChange(of: viewModel.timelineZoom) { _, _ in
+                    guard lastScrollMetrics.contentHeight > 0 else { return }
+                    let fraction = lastScrollMetrics.playheadFraction
+                    let range = viewModel.activeHoursRange
+                    let targetTime = range.startDate.addingTimeInterval(
+                        fraction * range.endDate.timeIntervalSince(range.startDate)
+                    )
+                    if let idx = viewModel.nearestScreenshotIndex(to: targetTime) {
+                        scrollProxy.scrollTo("marker-\(idx)", anchor: .center)
+                    }
                 }
                 .onGeometryChange(for: CGFloat.self) { proxy in
                     proxy.size.height
