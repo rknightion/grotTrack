@@ -187,7 +187,11 @@ jobs:
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: macos-latest
     permissions:
-      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
@@ -226,31 +230,27 @@ jobs:
           echo "signature=$SIGNATURE" >> "$GITHUB_OUTPUT"
           echo "length=$LENGTH" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout gh-pages (preserving script from main)
-        run: |
-          cp scripts/update-appcast.sh /tmp/update-appcast.sh
-          git fetch origin gh-pages || true
-          git checkout gh-pages || git checkout --orphan gh-pages
-          mkdir -p scripts
-          cp /tmp/update-appcast.sh scripts/update-appcast.sh
-          chmod +x scripts/update-appcast.sh
-
       - name: Generate appcast entry
         run: |
           VERSION="${{ needs.release-please.outputs.tag_name }}"
           VERSION="${VERSION#v}"  # strip leading 'v'
-          ./scripts/update-appcast.sh \
+          mkdir -p _site
+          # Restore previous appcast if it exists
+          curl -fsSL "https://rknightion.github.io/grotTrack/appcast.xml" -o _site/appcast.xml 2>/dev/null || true
+          cd _site
+          ../scripts/update-appcast.sh \
             "$VERSION" \
             "${{ steps.sign.outputs.signature }}" \
             "${{ steps.sign.outputs.length }}"
 
-      - name: Commit and push appcast
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add appcast.xml
-          git commit -m "chore: update appcast for ${{ needs.release-please.outputs.tag_name }}"
-          git push origin gh-pages
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
 
   publish-extension:
     name: Publish Chrome Extension

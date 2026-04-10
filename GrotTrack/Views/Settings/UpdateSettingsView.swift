@@ -3,32 +3,27 @@ import Sparkle
 
 struct UpdateSettingsView: View {
     @Environment(UpdaterService.self) private var updaterService: UpdaterService?
+    @AppStorage("SUEnableAutomaticChecks") private var autoCheckEnabled = true
+    @AppStorage("SUScheduledCheckInterval") private var checkInterval: Double = 86400
+    @AppStorage("SUAutomaticallyUpdate") private var autoDownloadEnabled = true
 
     var body: some View {
         Form {
             if let updaterService {
-                let updater = updaterService.updater
-
                 Section("Automatic Updates") {
-                    Toggle("Check for updates automatically", isOn: Binding(
-                        get: { updater.automaticallyChecksForUpdates },
-                        set: { updater.automaticallyChecksForUpdates = $0 }
-                    ))
+                    Toggle("Check for updates automatically", isOn: $autoCheckEnabled)
 
                     Picker("Check frequency", selection: Binding(
-                        get: { FrequencyOption.from(interval: updater.updateCheckInterval) },
-                        set: { updater.updateCheckInterval = $0.rawValue }
+                        get: { FrequencyOption.from(interval: checkInterval) },
+                        set: { checkInterval = $0.rawValue }
                     )) {
                         ForEach(FrequencyOption.allCases) { option in
                             Text(option.label).tag(option)
                         }
                     }
-                    .disabled(!updater.automaticallyChecksForUpdates)
+                    .disabled(!autoCheckEnabled)
 
-                    Toggle("Download and install automatically", isOn: Binding(
-                        get: { updater.automaticallyDownloadsUpdates },
-                        set: { updater.automaticallyDownloadsUpdates = $0 }
-                    ))
+                    Toggle("Download and install automatically", isOn: $autoDownloadEnabled)
                 }
 
                 Section("Manual") {
@@ -36,7 +31,7 @@ struct UpdateSettingsView: View {
                         updaterService.checkForUpdates()
                     }
 
-                    if let lastCheck = updater.lastUpdateCheckDate {
+                    if let lastCheck = updaterService.updater.lastUpdateCheckDate {
                         HStack {
                             Text("Last checked")
                             Spacer()
