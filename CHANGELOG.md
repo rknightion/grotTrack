@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.3](https://github.com/rknightion/grotTrack/compare/v0.12.2...v0.12.3) (2026-04-09)
+
+
+### Miscellaneous
+
+* **deps:** pin actions/upload-artifact action to ea165f8 ([#37](https://github.com/rknightion/grotTrack/issues/37)) ([b292aa7](https://github.com/rknightion/grotTrack/commit/b292aa76054c03f7c2167eaa9011529d3ae7eb05))
+
 ## [0.12.2](https://github.com/rknightion/grotTrack/compare/v0.12.1...v0.12.2) (2026-04-09)
 
 
