@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.4](https://github.com/rknightion/grotTrack/compare/v0.12.3...v0.12.4) (2026-04-10)
+
+
+### Bug Fixes
+
+* use AppStorage for update settings and modern GitHub Pages deployment ([61dbf16](https://github.com/rknightion/grotTrack/commit/61dbf16eec1805f39e3b1522a29b91336a348b2b))
+
+
+### Miscellaneous
+
+* **deps:** update github actions ([#42](https://github.com/rknightion/grotTrack/issues/42)) ([5f5c454](https://github.com/rknightion/grotTrack/commit/5f5c454a512e1eae684d4d710dedc49e3001dece))
+
 ## [0.12.3](https://github.com/rknightion/grotTrack/compare/v0.12.2...v0.12.3) (2026-04-09)
 
 
