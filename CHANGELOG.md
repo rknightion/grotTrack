@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.6](https://github.com/rknightion/grotTrack/compare/v0.12.5...v0.12.6) (2026-04-13)
+
+
+### Bug Fixes
+
+* use marketing version for CFBundleVersion so Sparkle detects updates ([5432bd0](https://github.com/rknightion/grotTrack/commit/5432bd0d3320d0fc7fa744a231883a4f38d78e0a))
+
 ## [0.12.5](https://github.com/rknightion/grotTrack/compare/v0.12.4...v0.12.5) (2026-04-13)
 
 
