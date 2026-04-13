@@ -3,7 +3,7 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   manifest: {
     name: 'GrotTrack Tab Tracker',
-    version: '0.12.4', // x-release-please-version
+    version: '0.12.5', // x-release-please-version
     description: 'Sends active tab information to the GrotTrack macOS app for time tracking.',
     permissions: ['tabs', 'nativeMessaging'],
     icons: {
