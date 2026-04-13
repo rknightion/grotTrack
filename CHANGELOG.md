@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.12.5](https://github.com/rknightion/grotTrack/compare/v0.12.4...v0.12.5) (2026-04-13)
+
+
+### Miscellaneous
+
+* **deps:** lock file maintenance ([#45](https://github.com/rknightion/grotTrack/issues/45)) ([4ea6616](https://github.com/rknightion/grotTrack/commit/4ea66161ddf777e80ce8ff85beaf20d816ebbbd8))
+* **deps:** lock file maintenance ([#46](https://github.com/rknightion/grotTrack/issues/46)) ([3814cc0](https://github.com/rknightion/grotTrack/commit/3814cc07c8e5b8dacf45ed1fc0650014e6ccfd39))
+* **deps:** update dependency wxt to v0.20.21 ([#47](https://github.com/rknightion/grotTrack/issues/47)) ([246393a](https://github.com/rknightion/grotTrack/commit/246393af6bfb851f6663d6fd222cfd8f3943181b))
+* **deps:** update softprops/action-gh-release action to v3 ([#43](https://github.com/rknightion/grotTrack/issues/43)) ([27528af](https://github.com/rknightion/grotTrack/commit/27528afc27482cf4adabc6297f03e43e3b69a482))
+
 ## [0.12.4](https://github.com/rknightion/grotTrack/compare/v0.12.3...v0.12.4) (2026-04-10)
 
 
