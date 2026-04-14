@@ -36,7 +36,7 @@ targets:
       - package: Sparkle
     settings:
       base:
-        MARKETING_VERSION: "0.12.5" # x-release-please-version
+        MARKETING_VERSION: "0.12.6" # x-release-please-version
         CURRENT_PROJECT_VERSION: "1"
         INFOPLIST_FILE: GrotTrack/Info.plist
         CODE_SIGN_ENTITLEMENTS: GrotTrack/GrotTrack.entitlements
