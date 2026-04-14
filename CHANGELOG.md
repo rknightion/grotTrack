@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.7](https://github.com/rknightion/grotTrack/compare/v0.12.6...v0.12.7) (2026-04-14)
+
+
+### Miscellaneous
+
+* **deps:** update actions/upload-pages-artifact action to v5 ([#49](https://github.com/rknightion/grotTrack/issues/49)) ([fa9997d](https://github.com/rknightion/grotTrack/commit/fa9997d9029bc850b711412825eb236364f999e2))
+
+
+### Refactoring
+
+* **timeline:** move session row logic to ViewModel ([449ec93](https://github.com/rknightion/grotTrack/commit/449ec93e0f508a45cd05dfe336ed90dde5337c94))
+
 ## [0.12.6](https://github.com/rknightion/grotTrack/compare/v0.12.5...v0.12.6) (2026-04-13)
 
 
