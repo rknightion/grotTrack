@@ -107,6 +107,10 @@ final class TimelineViewModel {
 
     // Sessions data
     var sessions: [ActivitySession] = []
+    var sessionRows: [SessionRow] = []
+    var sessionLongestDuration: TimeInterval = 0
+    var sessionClassifiedPercentage: String = "0%"
+    var sessionAvgFocusLabel: String = "--"
 
     // Annotations
     var annotations: [Annotation] = []
@@ -142,6 +146,7 @@ final class TimelineViewModel {
         screenshotCache.removeAll()
         loadSessions(for: date, context: context)
         loadAnnotations(for: date, context: context)
+        computeSessionRows()
         isLoading = false
     }
 
@@ -358,6 +363,115 @@ final class TimelineViewModel {
             return screenshot.thumbnailPath
         }
         return nil
+    }
+
+    // MARK: - Session Row Computation
+
+    struct SessionRow {
+        let label: String
+        let timeRange: String
+        let apps: String
+        let duration: TimeInterval
+        let focusScore: Double
+        let color: Color
+        let isUncategorized: Bool
+    }
+
+    func computeSessionRows() {
+        var rows: [SessionRow] = []
+
+        for session in sessions {
+            let label = session.displayLabel
+            let startStr = session.startTime.formatted(.dateTime.hour().minute())
+            let endStr = session.endTime.formatted(.dateTime.hour().minute())
+            let timeRange = "\(startStr) – \(endStr)"
+            let duration = session.endTime.timeIntervalSince(session.startTime)
+
+            let appNames: String
+            if session.activities.isEmpty {
+                appNames = session.dominantApp
+            } else {
+                let uniqueApps = Array(Set(session.activities.map(\.appName))).sorted()
+                appNames = uniqueApps.joined(separator: ", ")
+            }
+
+            let avgMultitasking = session.activities.isEmpty ? 0.0 :
+                session.activities.reduce(0.0) { $0 + $1.multitaskingScore } / Double(session.activities.count)
+            let focusScore = 1.0 - avgMultitasking
+
+            rows.append(SessionRow(
+                label: label,
+                timeRange: timeRange,
+                apps: appNames,
+                duration: duration,
+                focusScore: focusScore,
+                color: Self.appColor(for: session.dominantApp),
+                isUncategorized: session.suggestedLabel?.isEmpty ?? true
+            ))
+        }
+
+        // Uncategorized gaps
+        let sessionEventIDs = Set(sessions.flatMap { $0.activities.map(\.id) })
+        let uncatEvents = activityEvents.filter { !sessionEventIDs.contains($0.id) }
+
+        if !uncatEvents.isEmpty {
+            let sorted = uncatEvents.sorted { $0.timestamp < $1.timestamp }
+            var blocks: [[ActivityEvent]] = []
+            var current: [ActivityEvent] = [sorted[0]]
+
+            for idx in 1..<sorted.count {
+                let gap = sorted[idx].timestamp.timeIntervalSince(sorted[idx - 1].timestamp)
+                if gap > 120 {
+                    blocks.append(current)
+                    current = [sorted[idx]]
+                } else {
+                    current.append(sorted[idx])
+                }
+            }
+            blocks.append(current)
+
+            for block in blocks {
+                guard let first = block.first, let last = block.last else { continue }
+                let start = first.timestamp
+                let end = last.timestamp.addingTimeInterval(last.duration)
+                let startStr = start.formatted(.dateTime.hour().minute())
+                let endStr = end.formatted(.dateTime.hour().minute())
+                let duration = end.timeIntervalSince(start)
+                let apps = Array(Set(block.map(\.appName))).sorted().joined(separator: ", ")
+
+                rows.append(SessionRow(
+                    label: "Uncategorized",
+                    timeRange: "\(startStr) – \(endStr)",
+                    apps: apps,
+                    duration: duration,
+                    focusScore: 0,
+                    color: .gray,
+                    isUncategorized: true
+                ))
+            }
+        }
+
+        rows.sort { $0.timeRange < $1.timeRange }
+        sessionRows = rows
+
+        // Pre-compute summary values
+        sessionLongestDuration = rows.map(\.duration).max() ?? 0
+
+        let total = activityEvents.reduce(0.0) { $0 + $1.duration }
+        if total > 0 {
+            let classified = sessions.reduce(0.0) { $0 + $1.endTime.timeIntervalSince($1.startTime) }
+            sessionClassifiedPercentage = String(format: "%.0f%%", min(classified / total * 100, 100))
+        } else {
+            sessionClassifiedPercentage = "0%"
+        }
+
+        let scores = rows.filter { !$0.isUncategorized }.map(\.focusScore)
+        if !scores.isEmpty {
+            let avg = scores.reduce(0.0, +) / Double(scores.count)
+            sessionAvgFocusLabel = String(format: "%.0f%%", avg * 100)
+        } else {
+            sessionAvgFocusLabel = "--"
+        }
     }
 
     // MARK: - Private
