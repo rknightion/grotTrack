@@ -26,13 +26,6 @@ struct ScreenshotContext {
     let sessionLabel: String?
 }
 
-enum TimelineDetailLevel {
-    case compact   // 1x–2x: hour markers, color bars, small dots
-    case medium    // 2x–4x: + app names, 15-min markers, window titles
-    case full      // 4x–10x: + 5-min markers, full titles, URLs
-    case expanded  // 10x–30x: inline metadata cards replacing dots
-}
-
 @Observable
 @MainActor
 final class ScreenshotBrowserViewModel {
@@ -40,18 +33,6 @@ final class ScreenshotBrowserViewModel {
     var mode: BrowserMode = .grid
     var selectedIndex: Int = 0
     var zoomLevel: Double = 0.5 // 0.0 = compact, 1.0 = large
-    var timelineZoom: CGFloat = 1.0
-
-    /// Set by keyboard navigation to request the rail scroll to a specific marker.
-    /// The rail reads this, scrolls, and clears it.
-    var scrollToMarkerRequest: Int?
-
-    var timelineDetailLevel: TimelineDetailLevel {
-        if timelineZoom >= 10.0 { return .expanded }
-        if timelineZoom >= 4.0 { return .full }
-        if timelineZoom >= 2.0 { return .medium }
-        return .compact
-    }
 
     var screenshots: [Screenshot] = []
     var activityEvents: [ActivityEvent] = []
@@ -64,6 +45,16 @@ final class ScreenshotBrowserViewModel {
     /// Multi-display siblings are fetched on demand via displaysForSelectedScreenshot.
     var primaryScreenshots: [Screenshot] {
         screenshots.filter { $0.displayIndex == 0 }
+    }
+
+    /// Bindable projection of the current selection as a Screenshot ID, for `List(selection:)`.
+    var selectedScreenshotID: Screenshot.ID? {
+        get { selectedScreenshot?.id }
+        set {
+            guard let id = newValue,
+                  let idx = screenshots.firstIndex(where: { $0.id == id }) else { return }
+            selectedIndex = idx
+        }
     }
 
     // MARK: - Data Loading
@@ -113,7 +104,6 @@ final class ScreenshotBrowserViewModel {
         sessions = (try? context.fetch(sessionDescriptor)) ?? []
 
         buildContextCache()
-        buildActivitySegments()
         clampSelectedIndex()
     }
 
@@ -210,35 +200,7 @@ final class ScreenshotBrowserViewModel {
             .sorted { $0.hour < $1.hour }
     }
 
-    // MARK: - Activity Segments (for timeline rail)
-
-    struct ActivitySegment: Identifiable {
-        let id: UUID // Stable ID from the underlying ActivityEvent
-        let appName: String
-        let bundleID: String
-        let windowTitle: String
-        let startTime: Date
-        let endTime: Date
-        let color: Color
-    }
-
-    private(set) var activitySegments: [ActivitySegment] = []
-
-    private func buildActivitySegments() {
-        activitySegments = activityEvents.map { event in
-            ActivitySegment(
-                id: event.id,
-                appName: event.appName,
-                bundleID: event.bundleID,
-                windowTitle: event.windowTitle,
-                startTime: event.timestamp,
-                endTime: event.timestamp.addingTimeInterval(event.duration),
-                color: TimelineViewModel.appColor(for: event.appName)
-            )
-        }
-    }
-
-    // MARK: - Session Segments (for timeline rail)
+    // MARK: - Session Segments
 
     struct SessionSegment: Identifiable {
         let id: UUID
@@ -260,6 +222,52 @@ final class ScreenshotBrowserViewModel {
                 color: TimelineViewModel.appColor(for: session.dominantApp)
             )
         }
+    }
+
+    // MARK: - Session Grouping (for sidebar list)
+
+    struct SessionGroup: Identifiable {
+        /// Stable identity: session.id when grouped by a session, else the first screenshot's id.
+        let id: UUID
+        let session: SessionSegment?
+        let screenshots: [Screenshot]
+    }
+
+    /// Groups primary screenshots by their containing `ActivitySession`, preserving chronological
+    /// order. Adjacent screenshots in the same session form one group; screenshots outside any
+    /// session become their own "unsessioned" group anchored on the first screenshot's id so the
+    /// group identity is stable across recomputations.
+    var screenshotsBySession: [SessionGroup] {
+        let primary = primaryScreenshots
+        guard !primary.isEmpty else { return [] }
+
+        let sortedSessions = sessionSegments.sorted { $0.startTime < $1.startTime }
+
+        var groups: [SessionGroup] = []
+        var currentSession: SessionSegment?
+        var currentBucket: [Screenshot] = []
+        var currentBucketAnchor: Screenshot.ID?
+
+        func flush() {
+            guard !currentBucket.isEmpty else { return }
+            let id = currentSession?.id ?? currentBucketAnchor ?? UUID()
+            groups.append(SessionGroup(id: id, session: currentSession, screenshots: currentBucket))
+            currentBucket = []
+            currentSession = nil
+            currentBucketAnchor = nil
+        }
+
+        for shot in primary {
+            let match = sortedSessions.first { $0.startTime <= shot.timestamp && $0.endTime >= shot.timestamp }
+            if match?.id != currentSession?.id {
+                flush()
+                currentSession = match
+                if match == nil { currentBucketAnchor = shot.id }
+            }
+            currentBucket.append(shot)
+        }
+        flush()
+        return groups
     }
 
     // MARK: - Navigation
@@ -294,16 +302,39 @@ final class ScreenshotBrowserViewModel {
         selectedIndex -= 1
     }
 
-    var nextMarkerIndex: Int? {
-        guard let current = currentPrimaryIndex else { return primaryScreenshots.isEmpty ? nil : 0 }
-        let next = current + 1
-        return next < primaryScreenshots.count ? next : nil
+    var canSelectPrimaryNext: Bool {
+        guard !primaryScreenshots.isEmpty else { return false }
+        guard let current = currentPrimaryIndex else { return true }
+        return current + 1 < primaryScreenshots.count
     }
 
-    var previousMarkerIndex: Int? {
-        guard let current = currentPrimaryIndex else { return nil }
-        let prev = current - 1
-        return prev >= 0 ? prev : nil
+    var canSelectPrimaryPrevious: Bool {
+        guard let current = currentPrimaryIndex else { return false }
+        return current > 0
+    }
+
+    /// Advance selection to the next primary-display screenshot.
+    func selectPrimaryNext() {
+        let primaries = primaryScreenshots
+        guard !primaries.isEmpty else { return }
+        if let current = currentPrimaryIndex {
+            let next = min(current + 1, primaries.count - 1)
+            selectScreenshot(primaries[next])
+        } else {
+            selectScreenshot(primaries[0])
+        }
+    }
+
+    /// Move selection to the previous primary-display screenshot.
+    func selectPrimaryPrevious() {
+        let primaries = primaryScreenshots
+        guard !primaries.isEmpty else { return }
+        if let current = currentPrimaryIndex {
+            let prev = max(current - 1, 0)
+            selectScreenshot(primaries[prev])
+        } else {
+            selectScreenshot(primaries[0])
+        }
     }
 
     private func clampSelectedIndex() {

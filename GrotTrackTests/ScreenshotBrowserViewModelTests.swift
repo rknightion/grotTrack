@@ -259,25 +259,6 @@ final class ScreenshotBrowserViewModelTests: XCTestCase {
         XCTAssertEqual(group[0].id, s1.id)
     }
 
-    func testTimelineZoomDetailLevel() throws {
-        let viewModel = ScreenshotBrowserViewModel()
-
-        viewModel.timelineZoom = 1.0
-        XCTAssertEqual(viewModel.timelineDetailLevel, .compact)
-
-        viewModel.timelineZoom = 2.5
-        XCTAssertEqual(viewModel.timelineDetailLevel, .medium)
-
-        viewModel.timelineZoom = 4.0
-        XCTAssertEqual(viewModel.timelineDetailLevel, .full)
-
-        viewModel.timelineZoom = 10.0
-        XCTAssertEqual(viewModel.timelineDetailLevel, .expanded)
-
-        viewModel.timelineZoom = 30.0
-        XCTAssertEqual(viewModel.timelineDetailLevel, .expanded)
-    }
-
     func testActiveHoursRange() throws {
         let container = try makeContainer()
         let context = container.mainContext
@@ -366,7 +347,7 @@ final class ScreenshotBrowserViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.filteredScreenshots.count, 1)
         XCTAssertEqual(viewModel.filteredScreenshots.first?.id, s1.id)
     }
-    func testNextPreviousMarkerIndex() throws {
+    func testSelectPrimaryNextPrevious() throws {
         let container = try makeContainer()
         let context = container.mainContext
         let calendar = Calendar.current
@@ -383,30 +364,93 @@ final class ScreenshotBrowserViewModelTests: XCTestCase {
         viewModel.selectedDate = today
         viewModel.loadData(context: context)
 
-        // At index 0
-        XCTAssertNil(viewModel.previousMarkerIndex)
-        XCTAssertEqual(viewModel.nextMarkerIndex, 1)
+        XCTAssertEqual(viewModel.selectedIndex, 0)
+        XCTAssertFalse(viewModel.canSelectPrimaryPrevious)
+        XCTAssertTrue(viewModel.canSelectPrimaryNext)
 
-        // At index 1
-        viewModel.selectedIndex = 1
-        XCTAssertEqual(viewModel.previousMarkerIndex, 0)
-        XCTAssertEqual(viewModel.nextMarkerIndex, 2)
+        viewModel.selectPrimaryNext()
+        XCTAssertEqual(viewModel.selectedIndex, 1)
+        XCTAssertTrue(viewModel.canSelectPrimaryPrevious)
+        XCTAssertTrue(viewModel.canSelectPrimaryNext)
 
-        // At last index
-        viewModel.selectedIndex = 2
-        XCTAssertEqual(viewModel.previousMarkerIndex, 1)
-        XCTAssertNil(viewModel.nextMarkerIndex)
+        viewModel.selectPrimaryNext()
+        XCTAssertEqual(viewModel.selectedIndex, 2)
+        XCTAssertTrue(viewModel.canSelectPrimaryPrevious)
+        XCTAssertFalse(viewModel.canSelectPrimaryNext)
+
+        viewModel.selectPrimaryNext()
+        XCTAssertEqual(viewModel.selectedIndex, 2)
+
+        viewModel.selectPrimaryPrevious()
+        XCTAssertEqual(viewModel.selectedIndex, 1)
+
+        viewModel.selectPrimaryPrevious()
+        XCTAssertEqual(viewModel.selectedIndex, 0)
+
+        viewModel.selectPrimaryPrevious()
+        XCTAssertEqual(viewModel.selectedIndex, 0)
     }
 
-    func testScrollToMarkerRequestDefaults() throws {
+    func testSelectedScreenshotIDBinding() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        let s1 = Screenshot(filePath: "a.webp", thumbnailPath: "a.webp", fileSize: 100)
+        s1.timestamp = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: today)!
+        let s2 = Screenshot(filePath: "b.webp", thumbnailPath: "b.webp", fileSize: 100)
+        s2.timestamp = calendar.date(bySettingHour: 9, minute: 30, second: 0, of: today)!
+
+        context.insert(s1)
+        context.insert(s2)
+        try context.save()
+
         let viewModel = ScreenshotBrowserViewModel()
-        XCTAssertNil(viewModel.scrollToMarkerRequest)
+        viewModel.selectedDate = today
+        viewModel.loadData(context: context)
 
-        viewModel.scrollToMarkerRequest = 5
-        XCTAssertEqual(viewModel.scrollToMarkerRequest, 5)
+        XCTAssertEqual(viewModel.selectedScreenshotID, s1.id)
 
-        viewModel.scrollToMarkerRequest = nil
-        XCTAssertNil(viewModel.scrollToMarkerRequest)
+        viewModel.selectedScreenshotID = s2.id
+        XCTAssertEqual(viewModel.selectedIndex, 1)
+        XCTAssertEqual(viewModel.selectedScreenshot?.id, s2.id)
+
+        viewModel.selectedScreenshotID = UUID()
+        XCTAssertEqual(viewModel.selectedIndex, 1, "Unknown ID should not change selection")
+    }
+
+    func testScreenshotsBySessionGrouping() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        let sessionStart = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: today)!
+        let sessionEnd = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: today)!
+        let session = ActivitySession(startTime: sessionStart, endTime: sessionEnd)
+        session.dominantApp = "Xcode"
+        context.insert(session)
+
+        let inSession = Screenshot(filePath: "in.webp", thumbnailPath: "in.webp", fileSize: 100)
+        inSession.timestamp = calendar.date(bySettingHour: 9, minute: 30, second: 0, of: today)!
+        let outSession = Screenshot(filePath: "out.webp", thumbnailPath: "out.webp", fileSize: 100)
+        outSession.timestamp = calendar.date(bySettingHour: 11, minute: 0, second: 0, of: today)!
+
+        context.insert(inSession)
+        context.insert(outSession)
+        try context.save()
+
+        let viewModel = ScreenshotBrowserViewModel()
+        viewModel.selectedDate = today
+        viewModel.loadData(context: context)
+
+        let groups = viewModel.screenshotsBySession
+        XCTAssertEqual(groups.count, 2)
+        XCTAssertNotNil(groups[0].session)
+        XCTAssertEqual(groups[0].screenshots.first?.id, inSession.id)
+        XCTAssertNil(groups[1].session)
+        XCTAssertEqual(groups[1].screenshots.first?.id, outSession.id)
     }
 }
 // swiftlint:enable identifier_name force_unwrapping
