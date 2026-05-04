@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.13.0](https://github.com/rknightion/grotTrack/compare/v0.12.7...v0.13.0) (2026-05-04)
+
+
+### Features
+
+* **screenshots:** redesign sidebar and density strip UI ([4d94070](https://github.com/rknightion/grotTrack/commit/4d9407056808ea8c9bb9f1f7561c1dc083387a58))
+* **screenshots:** replace timeline rail with sidebar and density strip ([b3393f3](https://github.com/rknightion/grotTrack/commit/b3393f30de0ea29bec2eaf7929610f4f727f9783))
+
+
+### Miscellaneous
+
+* **deps:** lock file maintenance ([#56](https://github.com/rknightion/grotTrack/issues/56)) ([b5acdaf](https://github.com/rknightion/grotTrack/commit/b5acdaf154e405b168b048201627a4498a8ef3f8))
+* **deps:** lock file maintenance ([#59](https://github.com/rknightion/grotTrack/issues/59)) ([026740f](https://github.com/rknightion/grotTrack/commit/026740f42623810c6d6079e26645fd852126e04b))
+* **deps:** lock file maintenance ([#60](https://github.com/rknightion/grotTrack/issues/60)) ([9312411](https://github.com/rknightion/grotTrack/commit/931241175cd9f9c01881e724d98e5d41b3cdde52))
+* **deps:** update apple-actions/import-codesign-certs action to v7 ([#57](https://github.com/rknightion/grotTrack/issues/57)) ([7e2f5e3](https://github.com/rknightion/grotTrack/commit/7e2f5e32294515808769a89c0b6dd396717fe18d))
+* **deps:** update dependency sparkle to v2.9.1 ([#53](https://github.com/rknightion/grotTrack/issues/53)) ([6cbd829](https://github.com/rknightion/grotTrack/commit/6cbd829fd6aafb519139b178eeeaf661f040f025))
+* **deps:** update dependency typescript to v6.0.3 ([#54](https://github.com/rknightion/grotTrack/issues/54)) ([53fb638](https://github.com/rknightion/grotTrack/commit/53fb63865214abb330d2e9ace0c65089e1397bb7))
+* **deps:** update dependency wxt to v0.20.22 ([#51](https://github.com/rknightion/grotTrack/issues/51)) ([7c869d7](https://github.com/rknightion/grotTrack/commit/7c869d779a5e6bee0265dccdbddec24ca2ec1f23))
+* **deps:** update dependency wxt to v0.20.25 ([#55](https://github.com/rknightion/grotTrack/issues/55)) ([014f45c](https://github.com/rknightion/grotTrack/commit/014f45cb10f00040e0f0f707c6a7174589260baf))
+* **deps:** update googleapis/release-please-action action to v5 ([#58](https://github.com/rknightion/grotTrack/issues/58)) ([9bce9b9](https://github.com/rknightion/grotTrack/commit/9bce9b9490606bad97dcd7ceb94bdd43ec176f2c))
+
 ## [0.12.7](https://github.com/rknightion/grotTrack/compare/v0.12.6...v0.12.7) (2026-04-14)
 
 
