@@ -2,7 +2,7 @@ import XCTest
 import SwiftData
 @testable import GrotTrack
 
-// swiftlint:disable identifier_name force_unwrapping
+// swiftlint:disable identifier_name force_unwrapping type_body_length
 @MainActor
 final class ScreenshotBrowserViewModelTests: XCTestCase {
 
@@ -310,6 +310,40 @@ final class ScreenshotBrowserViewModelTests: XCTestCase {
         XCTAssertEqual(idx, 1) // 10:00 is closer to 9:45 than 9:00
     }
 
+    func testNearestPrimaryIndexIgnoresSecondaryDisplays() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        let primaryEarly = Screenshot(filePath: "early.webp", thumbnailPath: "early.webp", fileSize: 100)
+        primaryEarly.timestamp = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: today)!
+        primaryEarly.displayIndex = 0
+
+        let secondaryExact = Screenshot(filePath: "secondary.webp", thumbnailPath: "secondary.webp", fileSize: 100)
+        secondaryExact.timestamp = calendar.date(bySettingHour: 9, minute: 45, second: 0, of: today)!
+        secondaryExact.displayIndex = 1
+
+        let primaryLate = Screenshot(filePath: "late.webp", thumbnailPath: "late.webp", fileSize: 100)
+        primaryLate.timestamp = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: today)!
+        primaryLate.displayIndex = 0
+
+        context.insert(primaryEarly)
+        context.insert(secondaryExact)
+        context.insert(primaryLate)
+        try context.save()
+
+        let viewModel = ScreenshotBrowserViewModel()
+        viewModel.selectedDate = today
+        viewModel.loadData(context: context)
+
+        let target = calendar.date(bySettingHour: 9, minute: 45, second: 0, of: today)!
+        let idx = viewModel.nearestPrimaryIndex(to: target)
+
+        XCTAssertEqual(idx, 1)
+        XCTAssertEqual(viewModel.primaryScreenshots[idx!].id, primaryLate.id)
+    }
+
     func testSearchFiltersScreenshots() throws {
         let container = try makeContainer()
         let context = container.mainContext
@@ -453,4 +487,4 @@ final class ScreenshotBrowserViewModelTests: XCTestCase {
         XCTAssertEqual(groups[1].screenshots.first?.id, outSession.id)
     }
 }
-// swiftlint:enable identifier_name force_unwrapping
+// swiftlint:enable identifier_name force_unwrapping type_body_length

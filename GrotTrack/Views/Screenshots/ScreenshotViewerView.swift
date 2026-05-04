@@ -8,15 +8,14 @@ struct ScreenshotViewerView: View {
     @State private var maximizedDisplayIndex: Int?
 
     var body: some View {
-        HStack(spacing: 0) {
+        HSplitView {
             imagePanel
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            Divider()
+                .frame(minWidth: 640, maxWidth: .infinity, maxHeight: .infinity)
 
             ScreenshotSidebarView(viewModel: viewModel)
-                .frame(width: 280)
+                .frame(minWidth: 340, idealWidth: 380, maxWidth: 520, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .focusable()
         .onKeyPress(.leftArrow) {
             viewModel.selectPrimaryPrevious()

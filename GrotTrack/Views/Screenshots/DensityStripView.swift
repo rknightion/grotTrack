@@ -6,10 +6,11 @@ import SwiftUI
 struct DensityStripView: View {
     @Bindable var viewModel: ScreenshotBrowserViewModel
 
-    private let bandHeight: CGFloat = 40
-    private let labelHeight: CGFloat = 14
-    private let vSpacing: CGFloat = 4
-    private let vPadding: CGFloat = 6
+    private let timestampHeight: CGFloat = 18
+    private let bandHeight: CGFloat = 58
+    private let labelHeight: CGFloat = 16
+    private let vSpacing: CGFloat = 6
+    private let vPadding: CGFloat = 8
 
     var body: some View {
         GeometryReader { geometry in
@@ -17,6 +18,9 @@ struct DensityStripView: View {
             let range = viewModel.activeHoursRange
 
             VStack(spacing: vSpacing) {
+                selectedTimeRow(range: range)
+                    .frame(height: timestampHeight)
+
                 band(width: width, range: range)
                     .frame(height: bandHeight)
                     .contentShape(Rectangle())
@@ -32,15 +36,41 @@ struct DensityStripView: View {
             }
             .padding(.vertical, vPadding)
         }
-        .frame(height: bandHeight + labelHeight + vSpacing + vPadding * 2)
+        .frame(height: timestampHeight + bandHeight + labelHeight + vSpacing * 2 + vPadding * 2)
+    }
+
+    // MARK: - Selection
+
+    private func selectedTimeRow(range: ScreenshotBrowserViewModel.ActiveHoursRange) -> some View {
+        HStack(spacing: 8) {
+            if let selected = viewModel.selectedScreenshot {
+                Text(selected.timestamp, format: .dateTime.hour().minute().second())
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .monospacedDigit()
+                    .foregroundStyle(Color.accentColor)
+            } else {
+                Text("--:--:--")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.tertiary)
+            }
+
+            Spacer(minLength: 8)
+
+            Text(rangeLabel(range))
+                .font(.caption2)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+        }
     }
 
     // MARK: - Band
 
     private func band(width: CGFloat, range: ScreenshotBrowserViewModel.ActiveHoursRange) -> some View {
         ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.secondary.opacity(0.12))
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.secondary.opacity(0.14))
 
             ForEach(viewModel.sessionSegments) { segment in
                 sessionBand(segment: segment, range: range, width: width)
@@ -48,21 +78,27 @@ struct DensityStripView: View {
 
             ForEach(viewModel.primaryScreenshots, id: \.id) { shot in
                 Rectangle()
-                    .fill(Color.primary.opacity(0.3))
-                    .frame(width: 1, height: bandHeight - 4)
-                    .offset(x: xPosition(for: shot.timestamp, range: range, width: width), y: 2)
+                    .fill(Color.primary.opacity(0.42))
+                    .frame(width: 1, height: bandHeight - 10)
+                    .offset(x: xPosition(for: shot.timestamp, range: range, width: width), y: 5)
             }
 
             if let selected = viewModel.selectedScreenshot {
                 let xPos = xPosition(for: selected.timestamp, range: range, width: width)
                 Rectangle()
                     .fill(Color.accentColor)
-                    .frame(width: 2, height: bandHeight)
-                    .shadow(color: .black.opacity(0.35), radius: 2, y: 0)
-                    .offset(x: xPos - 1)
+                    .frame(width: 3, height: bandHeight)
+                    .shadow(color: Color.accentColor.opacity(0.45), radius: 3, y: 0)
+                    .offset(x: xPos - 1.5)
+
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 9, height: 9)
+                    .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                    .offset(x: xPos - 4.5, y: 5)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
     @ViewBuilder
@@ -80,12 +116,12 @@ struct DensityStripView: View {
         RoundedRectangle(cornerRadius: 2)
             .fill(segment.color.opacity(opacity))
             .overlay(alignment: .topLeading) {
-                if bandWidth >= 40 {
+                if bandWidth >= 56 {
                     Text(segment.label)
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: 10, weight: .medium))
                         .lineLimit(1)
                         .padding(.horizontal, 4)
-                        .padding(.top, 2)
+                        .padding(.top, 3)
                         .foregroundStyle(.primary.opacity(0.85))
                         .frame(width: bandWidth, alignment: .leading)
                         .clipped()
@@ -105,7 +141,7 @@ struct DensityStripView: View {
             ForEach(hours, id: \.self) { hour in
                 let xPos = xPosition(forHour: Double(hour), range: range, width: width)
                 Text(String(format: "%02d", hour))
-                    .font(.system(size: 9))
+                    .font(.system(size: 10))
                     .monospacedDigit()
                     .foregroundStyle(.tertiary)
                     .fixedSize()
@@ -126,6 +162,11 @@ struct DensityStripView: View {
             step = 1
         }
         return stride(from: range.startHour, through: range.endHour, by: step).map { $0 }
+    }
+
+    private func rangeLabel(_ range: ScreenshotBrowserViewModel.ActiveHoursRange) -> String {
+        let endHour = min(24, range.endHour + 1)
+        return String(format: "%02d:00-%02d:00", range.startHour, endHour)
     }
 
     // MARK: - Coordinate mapping
