@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 
+// swiftlint:disable file_length
 enum BrowserMode: String, CaseIterable {
     case grid = "Grid"
     case viewer = "Viewer"
@@ -10,6 +11,64 @@ enum BrowserMode: String, CaseIterable {
         case .grid: "square.grid.2x2"
         case .viewer: "photo"
         }
+    }
+}
+enum ScreenshotTimeRangeMode: String, CaseIterable {
+    case smartWorkingHours
+    case activeRange
+    case allDay
+
+    var title: String {
+        switch self {
+        case .smartWorkingHours: "Work"
+        case .activeRange: "Active"
+        case .allDay: "Day"
+        }
+    }
+}
+
+struct ScreenshotTimeRangeSettings: Equatable {
+    static let defaultWorkingStartHour = 8
+    static let defaultWorkingEndHour = 18
+
+    let mode: ScreenshotTimeRangeMode
+    let workingStartHour: Int
+    let workingEndHour: Int
+
+    init(
+        mode: ScreenshotTimeRangeMode = .smartWorkingHours,
+        workingStartHour: Int = Self.defaultWorkingStartHour,
+        workingEndHour: Int = Self.defaultWorkingEndHour
+    ) {
+        self.mode = mode
+
+        let clampedStart = max(0, min(23, workingStartHour))
+        let clampedEnd = max(1, min(24, workingEndHour))
+        if clampedStart < clampedEnd {
+            self.workingStartHour = clampedStart
+            self.workingEndHour = clampedEnd
+        } else {
+            self.workingStartHour = Self.defaultWorkingStartHour
+            self.workingEndHour = Self.defaultWorkingEndHour
+        }
+    }
+}
+
+struct ScreenshotTimeRange: Equatable {
+    let mode: ScreenshotTimeRangeMode
+    let startHourInclusive: Int
+    let endHourExclusive: Int
+    let startDate: Date
+    let endDate: Date
+    let workingStartHour: Int
+    let workingEndHour: Int
+
+    var hourCount: Int {
+        max(1, endHourExclusive - startHourInclusive)
+    }
+
+    var rangeLabel: String {
+        String(format: "%02d:00-%02d:00", startHourInclusive, endHourExclusive)
     }
 }
 
@@ -28,9 +87,13 @@ struct ScreenshotContext {
 
 @Observable
 @MainActor
+// swiftlint:disable:next type_body_length
 final class ScreenshotBrowserViewModel {
     var selectedDate: Date = Date()
-    var mode: BrowserMode = .grid
+    var mode: BrowserMode = .viewer
+    var timeRangeMode: ScreenshotTimeRangeMode = .smartWorkingHours
+    var workingStartHour: Int = ScreenshotTimeRangeSettings.defaultWorkingStartHour
+    var workingEndHour: Int = ScreenshotTimeRangeSettings.defaultWorkingEndHour
     var selectedIndex: Int = 0
     var zoomLevel: Double = 0.5 // 0.0 = compact, 1.0 = large
 
@@ -45,6 +108,28 @@ final class ScreenshotBrowserViewModel {
     /// Multi-display siblings are fetched on demand via displaysForSelectedScreenshot.
     var primaryScreenshots: [Screenshot] {
         screenshots.filter { $0.displayIndex == 0 }
+    }
+
+    var filteredPrimaryScreenshots: [Screenshot] {
+        guard !searchText.isEmpty else { return primaryScreenshots }
+
+        let filteredIDs = Set(filteredScreenshots.map(\.id))
+        return primaryScreenshots.filter { primary in
+            if filteredIDs.contains(primary.id) { return true }
+            return displaySiblings(for: primary).contains { filteredIDs.contains($0.id) }
+        }
+    }
+
+    var screenshotTimeRangeSettings: ScreenshotTimeRangeSettings {
+        ScreenshotTimeRangeSettings(
+            mode: timeRangeMode,
+            workingStartHour: workingStartHour,
+            workingEndHour: workingEndHour
+        )
+    }
+
+    var currentTimeRange: ScreenshotTimeRange {
+        screenshotTimeRange(settings: screenshotTimeRangeSettings)
     }
 
     /// Bindable projection of the current selection as a Screenshot ID, for `List(selection:)`.
@@ -127,7 +212,6 @@ final class ScreenshotBrowserViewModel {
 
     private func buildContextCache() {
         contextCache.removeAll()
-        guard !activityEvents.isEmpty else { return }
 
         for screenshot in screenshots {
             let nearest = findNearestEvent(to: screenshot.timestamp)
@@ -181,6 +265,8 @@ final class ScreenshotBrowserViewModel {
             let ctx = screenshotContext(for: screenshot)
             if ctx.appName.lowercased().contains(query) { return true }
             if ctx.windowTitle.lowercased().contains(query) { return true }
+            if ctx.browserTabTitle?.lowercased().contains(query) ?? false { return true }
+            if ctx.browserTabURL?.lowercased().contains(query) ?? false { return true }
             if ctx.ocrText?.lowercased().contains(query) ?? false { return true }
             if ctx.entities.contains(where: { $0.value.lowercased().contains(query) }) { return true }
             if ctx.sessionLabel?.lowercased().contains(query) ?? false { return true }
@@ -208,6 +294,7 @@ final class ScreenshotBrowserViewModel {
         let startTime: Date
         let endTime: Date
         let confidence: Double?
+        let dominantApp: String
         let color: Color
     }
 
@@ -219,6 +306,7 @@ final class ScreenshotBrowserViewModel {
                 startTime: session.startTime,
                 endTime: session.endTime,
                 confidence: session.confidence,
+                dominantApp: session.dominantApp,
                 color: TimelineViewModel.appColor(for: session.dominantApp)
             )
         }
@@ -233,12 +321,23 @@ final class ScreenshotBrowserViewModel {
         let screenshots: [Screenshot]
     }
 
+    struct SessionGroupSummary {
+        let label: String
+        let startTime: Date
+        let endTime: Date
+        let duration: TimeInterval
+        let screenshotCount: Int
+        let dominantApp: String
+        let color: Color
+        let topEntities: [ExtractedEntity]
+    }
+
     /// Groups primary screenshots by their containing `ActivitySession`, preserving chronological
     /// order. Adjacent screenshots in the same session form one group; screenshots outside any
     /// session become their own "unsessioned" group anchored on the first screenshot's id so the
     /// group identity is stable across recomputations.
     var screenshotsBySession: [SessionGroup] {
-        let primary = primaryScreenshots
+        let primary = filteredPrimaryScreenshots
         guard !primary.isEmpty else { return [] }
 
         let sortedSessions = sessionSegments.sorted { $0.startTime < $1.startTime }
@@ -270,6 +369,32 @@ final class ScreenshotBrowserViewModel {
         return groups
     }
 
+    func summary(for group: SessionGroup) -> SessionGroupSummary {
+        let first = group.screenshots.first
+        let last = group.screenshots.last ?? first
+        let firstContext = first.map { screenshotContext(for: $0) }
+        let label = group.session?.label
+            ?? firstContext?.sessionLabel
+            ?? firstContext?.appName
+            ?? "Unsessioned"
+        let startTime = group.session?.startTime ?? first?.timestamp ?? selectedDate
+        let endTime = group.session?.endTime ?? last?.timestamp ?? startTime
+        let dominantApp = group.session?.dominantApp ?? firstContext?.appName ?? ""
+        let color = group.session?.color
+            ?? (dominantApp.isEmpty ? Color.secondary : TimelineViewModel.appColor(for: dominantApp))
+
+        return SessionGroupSummary(
+            label: label.isEmpty ? "Unsessioned" : label,
+            startTime: startTime,
+            endTime: endTime,
+            duration: max(0, endTime.timeIntervalSince(startTime)),
+            screenshotCount: group.screenshots.count,
+            dominantApp: dominantApp,
+            color: color,
+            topEntities: topEntities(for: group.screenshots, limit: 3)
+        )
+    }
+
     // MARK: - Navigation
 
     var selectedScreenshot: Screenshot? {
@@ -280,10 +405,18 @@ final class ScreenshotBrowserViewModel {
     /// All display screenshots at the same timestamp as the selected screenshot, sorted by displayIndex.
     var displaysForSelectedScreenshot: [Screenshot] {
         guard let selected = selectedScreenshot else { return [] }
-        let timestamp = selected.timestamp
+        return displaySiblings(for: selected)
+    }
+
+    func displaySiblings(for screenshot: Screenshot) -> [Screenshot] {
+        let timestamp = screenshot.timestamp
         return screenshots
             .filter { abs($0.timestamp.timeIntervalSince(timestamp)) < 1.0 }
             .sorted { $0.displayIndex < $1.displayIndex }
+    }
+
+    func displayCount(for screenshot: Screenshot) -> Int {
+        displaySiblings(for: screenshot).count
     }
 
     func selectScreenshot(_ screenshot: Screenshot) {
@@ -369,44 +502,72 @@ final class ScreenshotBrowserViewModel {
         120 + zoomLevel * 230
     }
 
-    // MARK: - Active Hours Range
+    // MARK: - Time Range
 
-    struct ActiveHoursRange {
-        let startHour: Int
-        let endHour: Int
-        let startDate: Date
-        let endDate: Date
-    }
-
-    var activeHoursRange: ActiveHoursRange {
+    func screenshotTimeRange(settings: ScreenshotTimeRangeSettings) -> ScreenshotTimeRange {
         let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: selectedDate)
+        let activeHours = activeHourBounds()
 
+        let hours: (start: Int, end: Int)
+        switch settings.mode {
+        case .smartWorkingHours:
+            hours = (
+                min(settings.workingStartHour, activeHours.start),
+                max(settings.workingEndHour, activeHours.end)
+            )
+        case .activeRange:
+            hours = activeHours
+        case .allDay:
+            hours = (0, 24)
+        }
+
+        let startHour = max(0, min(23, hours.start))
+        let endHour = max(startHour + 1, min(24, hours.end))
+        return ScreenshotTimeRange(
+            mode: settings.mode,
+            startHourInclusive: startHour,
+            endHourExclusive: endHour,
+            startDate: date(forHour: startHour, calendar: calendar, startOfDay: startOfDay),
+            endDate: date(forHour: endHour, calendar: calendar, startOfDay: startOfDay),
+            workingStartHour: settings.workingStartHour,
+            workingEndHour: settings.workingEndHour
+        )
+    }
+
+    private func activeHourBounds() -> (start: Int, end: Int) {
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: selectedDate)
         let firstTime = screenshots.first?.timestamp
             ?? activityEvents.first?.timestamp
             ?? startOfDay
         let lastTime = screenshots.last?.timestamp
             ?? activityEvents.last?.timestamp
-            ?? startOfDay.addingTimeInterval(86400)
+            ?? date(forHour: ScreenshotTimeRangeSettings.defaultWorkingEndHour, calendar: calendar, startOfDay: startOfDay)
 
         let startHour = max(0, calendar.component(.hour, from: firstTime) - 1)
-        let endHour = min(23, calendar.component(.hour, from: lastTime) + 1)
-
-        let start = calendar.date(
-            bySettingHour: startHour, minute: 0, second: 0, of: selectedDate
-        ) ?? startOfDay
-        let end: Date
-        if endHour >= 23 {
-            end = calendar.date(
-                byAdding: .day, value: 1, to: startOfDay
-            ) ?? startOfDay.addingTimeInterval(86400)
-        } else {
-            end = calendar.date(
-                bySettingHour: endHour + 1, minute: 0, second: 0, of: selectedDate
-            ) ?? startOfDay.addingTimeInterval(86400)
+        let endHour = min(24, calendar.component(.hour, from: lastTime) + 2)
+        if startHour < endHour {
+            return (startHour, endHour)
         }
+        return (
+            ScreenshotTimeRangeSettings.defaultWorkingStartHour,
+            ScreenshotTimeRangeSettings.defaultWorkingEndHour
+        )
+    }
 
-        return ActiveHoursRange(startHour: startHour, endHour: endHour, startDate: start, endDate: end)
+    private func date(forHour hour: Int, calendar: Calendar, startOfDay: Date) -> Date {
+        if hour >= 24 {
+            return calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay.addingTimeInterval(86400)
+        }
+        return calendar.date(bySettingHour: hour, minute: 0, second: 0, of: startOfDay) ?? startOfDay
+    }
+
+    func screenshotsInCurrentRange(_ screenshots: [Screenshot]? = nil) -> [Screenshot] {
+        let range = currentTimeRange
+        return (screenshots ?? primaryScreenshots).filter {
+            $0.timestamp >= range.startDate && $0.timestamp < range.endDate
+        }
     }
 
     // MARK: - Nearest Screenshot
@@ -443,5 +604,78 @@ final class ScreenshotBrowserViewModel {
     var currentPrimaryIndex: Int? {
         guard let selected = selectedScreenshot else { return nil }
         return primaryScreenshots.firstIndex { abs($0.timestamp.timeIntervalSince(selected.timestamp)) < 1.0 }
+    }
+
+    // MARK: - Sidebar Metadata
+
+    func topEntities(for screenshot: Screenshot, limit: Int) -> [ExtractedEntity] {
+        topEntities(for: displaySiblings(for: screenshot), limit: limit)
+    }
+
+    func topEntities(for screenshots: [Screenshot], limit: Int) -> [ExtractedEntity] {
+        struct EntityKey: Hashable {
+            let type: String
+            let value: String
+        }
+
+        var counts: [EntityKey: Int] = [:]
+        var samples: [EntityKey: ExtractedEntity] = [:]
+        var order: [EntityKey: Int] = [:]
+
+        for screenshot in screenshots {
+            for entity in screenshotContext(for: screenshot).entities {
+                let key = EntityKey(type: entity.type.rawValue, value: entity.value)
+                counts[key, default: 0] += 1
+                samples[key] = entity
+                if order[key] == nil {
+                    order[key] = order.count
+                }
+            }
+        }
+
+        return counts.keys
+            .sorted {
+                let leftCount = counts[$0, default: 0]
+                let rightCount = counts[$1, default: 0]
+                if leftCount != rightCount {
+                    return leftCount > rightCount
+                }
+                return order[$0, default: 0] < order[$1, default: 0]
+            }
+            .compactMap { samples[$0] }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    func browserDomain(for screenshot: Screenshot) -> String? {
+        let urlString = screenshotContext(for: screenshot).browserTabURL ?? ""
+        guard let host = URLComponents(string: urlString)?.host, !host.isEmpty else { return nil }
+        if host.hasPrefix("www.") {
+            return String(host.dropFirst(4))
+        }
+        return host
+    }
+
+    func searchHitKinds(for screenshot: Screenshot) -> [String] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return [] }
+
+        var labels: [String] = []
+        func append(_ label: String) {
+            if !labels.contains(label) { labels.append(label) }
+        }
+
+        for sibling in displaySiblings(for: screenshot) {
+            let ctx = screenshotContext(for: sibling)
+            if ctx.appName.lowercased().contains(query) { append("app") }
+            if ctx.windowTitle.lowercased().contains(query) { append("title") }
+            if ctx.browserTabTitle?.lowercased().contains(query) ?? false { append("tab") }
+            if ctx.browserTabURL?.lowercased().contains(query) ?? false { append("url") }
+            if ctx.sessionLabel?.lowercased().contains(query) ?? false { append("session") }
+            if ctx.ocrText?.lowercased().contains(query) ?? false { append("ocr") }
+            if ctx.entities.contains(where: { $0.value.lowercased().contains(query) }) { append("entity") }
+        }
+
+        return labels
     }
 }

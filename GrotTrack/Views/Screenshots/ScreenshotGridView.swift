@@ -139,7 +139,7 @@ struct ScreenshotGridView: View {
     @ViewBuilder
     private func thumbnailImage(_ screenshot: Screenshot) -> some View {
         let url = viewModel.thumbnailURL(for: screenshot)
-        if let nsImage = NSImage(contentsOf: url) {
+        if let nsImage = ThumbnailImageCache.image(for: url) {
             Image(nsImage: nsImage)
                 .resizable()
                 .aspectRatio(contentMode: .fill)

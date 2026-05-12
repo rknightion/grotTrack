@@ -2,7 +2,7 @@ import XCTest
 import SwiftData
 @testable import GrotTrack
 
-// swiftlint:disable identifier_name force_unwrapping type_body_length
+// swiftlint:disable file_length identifier_name force_unwrapping type_body_length
 @MainActor
 final class ScreenshotBrowserViewModelTests: XCTestCase {
 
@@ -259,7 +259,7 @@ final class ScreenshotBrowserViewModelTests: XCTestCase {
         XCTAssertEqual(group[0].id, s1.id)
     }
 
-    func testActiveHoursRange() throws {
+    func testActiveRangeUsesScreenshotBoundsWithPadding() throws {
         let container = try makeContainer()
         let context = container.mainContext
         let calendar = Calendar.current
@@ -278,9 +278,65 @@ final class ScreenshotBrowserViewModelTests: XCTestCase {
         viewModel.selectedDate = today
         viewModel.loadData(context: context)
 
-        let range = viewModel.activeHoursRange
-        XCTAssertEqual(range.startHour, 8)
-        XCTAssertEqual(range.endHour, 17)
+        let range = viewModel.screenshotTimeRange(
+            settings: ScreenshotTimeRangeSettings(mode: .activeRange)
+        )
+        XCTAssertEqual(range.startHourInclusive, 8)
+        XCTAssertEqual(range.endHourExclusive, 18)
+    }
+
+    func testSmartWorkingHoursExpandForActivityOutsideWorkingDay() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        let early = Screenshot(filePath: "early.webp", thumbnailPath: "early.webp", fileSize: 100)
+        early.timestamp = calendar.date(bySettingHour: 7, minute: 15, second: 0, of: today)!
+        let late = Screenshot(filePath: "late.webp", thumbnailPath: "late.webp", fileSize: 100)
+        late.timestamp = calendar.date(bySettingHour: 19, minute: 45, second: 0, of: today)!
+
+        context.insert(early)
+        context.insert(late)
+        try context.save()
+
+        let viewModel = ScreenshotBrowserViewModel()
+        viewModel.selectedDate = today
+        viewModel.loadData(context: context)
+
+        let range = viewModel.screenshotTimeRange(
+            settings: ScreenshotTimeRangeSettings(
+                mode: .smartWorkingHours,
+                workingStartHour: 9,
+                workingEndHour: 17
+            )
+        )
+
+        XCTAssertEqual(range.startHourInclusive, 6)
+        XCTAssertEqual(range.endHourExclusive, 21)
+        XCTAssertEqual(range.workingStartHour, 9)
+        XCTAssertEqual(range.workingEndHour, 17)
+    }
+
+    func testAllDayRangeCoversTwentyFourHours() throws {
+        let viewModel = ScreenshotBrowserViewModel()
+        let range = viewModel.screenshotTimeRange(
+            settings: ScreenshotTimeRangeSettings(mode: .allDay)
+        )
+
+        XCTAssertEqual(range.startHourInclusive, 0)
+        XCTAssertEqual(range.endHourExclusive, 24)
+    }
+
+    func testInvalidWorkingHoursFallBackToDefaults() {
+        let settings = ScreenshotTimeRangeSettings(
+            mode: .smartWorkingHours,
+            workingStartHour: 22,
+            workingEndHour: 8
+        )
+
+        XCTAssertEqual(settings.workingStartHour, 8)
+        XCTAssertEqual(settings.workingEndHour, 18)
     }
 
     func testNearestScreenshotIndex() throws {
@@ -486,5 +542,77 @@ final class ScreenshotBrowserViewModelTests: XCTestCase {
         XCTAssertNil(groups[1].session)
         XCTAssertEqual(groups[1].screenshots.first?.id, outSession.id)
     }
+
+    func testScreenshotsBySessionUsesFilteredPrimaryScreenshots() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        let matching = Screenshot(filePath: "match.webp", thumbnailPath: "match.webp", fileSize: 100)
+        matching.timestamp = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: today)!
+        let other = Screenshot(filePath: "other.webp", thumbnailPath: "other.webp", fileSize: 100)
+        other.timestamp = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: today)!
+
+        let matchingEvent = ActivityEvent(appName: "Xcode", bundleID: "com.apple.dt.Xcode", windowTitle: "Needle.swift")
+        matchingEvent.timestamp = matching.timestamp
+        let otherEvent = ActivityEvent(appName: "Slack", bundleID: "com.tinyspeck.slackmacgap", windowTitle: "Engineering")
+        otherEvent.timestamp = other.timestamp
+
+        context.insert(matching)
+        context.insert(other)
+        context.insert(matchingEvent)
+        context.insert(otherEvent)
+        try context.save()
+
+        let viewModel = ScreenshotBrowserViewModel()
+        viewModel.selectedDate = today
+        viewModel.loadData(context: context)
+        viewModel.searchText = "needle"
+
+        let groups = viewModel.screenshotsBySession
+        XCTAssertEqual(groups.count, 1)
+        XCTAssertEqual(groups[0].screenshots.count, 1)
+        XCTAssertEqual(groups[0].screenshots.first?.id, matching.id)
+    }
+
+    func testSessionGroupSummaryIncludesDurationAndTopEntities() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let start = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: today)!
+        let end = calendar.date(bySettingHour: 10, minute: 30, second: 0, of: today)!
+
+        let session = ActivitySession(startTime: start, endTime: end)
+        session.dominantApp = "Xcode"
+        session.suggestedLabel = "grotTrack: implementation"
+        context.insert(session)
+
+        let screenshot = Screenshot(filePath: "summary.webp", thumbnailPath: "summary.webp", fileSize: 100)
+        screenshot.timestamp = calendar.date(bySettingHour: 9, minute: 15, second: 0, of: today)!
+        context.insert(screenshot)
+
+        let enrichment = ScreenshotEnrichment(screenshotID: screenshot.id)
+        enrichment.entities = [
+            ExtractedEntity(type: .issueKey, value: "GT-123"),
+            ExtractedEntity(type: .gitBranch, value: "feature/sidebar")
+        ]
+        context.insert(enrichment)
+        try context.save()
+
+        let viewModel = ScreenshotBrowserViewModel()
+        viewModel.selectedDate = today
+        viewModel.loadData(context: context)
+
+        let group = try XCTUnwrap(viewModel.screenshotsBySession.first)
+        let summary = viewModel.summary(for: group)
+
+        XCTAssertEqual(summary.label, "grotTrack: implementation")
+        XCTAssertEqual(summary.screenshotCount, 1)
+        XCTAssertEqual(summary.dominantApp, "Xcode")
+        XCTAssertEqual(summary.duration, 90 * 60)
+        XCTAssertEqual(summary.topEntities.map(\.value), ["GT-123", "feature/sidebar"])
+    }
 }
-// swiftlint:enable identifier_name force_unwrapping type_body_length
+// swiftlint:enable file_length identifier_name force_unwrapping type_body_length

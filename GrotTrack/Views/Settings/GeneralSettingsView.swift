@@ -14,6 +14,10 @@ struct GeneralSettingsView: View {
     @AppStorage("pauseHotkeyModifiers") private var pauseHotkeyModifiers: Int = 393_216
     @AppStorage("annotationHotkeyKey") private var annotationHotkeyKey: String = "n"
     @AppStorage("annotationHotkeyModifiers") private var annotationHotkeyModifiers: Int = 393_216
+    @AppStorage("screenshotBrowserMode") private var screenshotBrowserMode: String = BrowserMode.viewer.rawValue
+    @AppStorage("screenshotBrowserTimeRangeMode") private var screenshotTimeRangeMode: String = ScreenshotTimeRangeMode.smartWorkingHours.rawValue
+    @AppStorage("screenshotBrowserWorkingStartHour") private var workingStartHour: Int = ScreenshotTimeRangeSettings.defaultWorkingStartHour
+    @AppStorage("screenshotBrowserWorkingEndHour") private var workingEndHour: Int = ScreenshotTimeRangeSettings.defaultWorkingEndHour
 
     var body: some View {
         Form {
@@ -62,6 +66,30 @@ struct GeneralSettingsView: View {
                     applyAppearance(newValue)
                 }
             }
+            Section("Screenshot Browser") {
+                Picker("Default mode", selection: $screenshotBrowserMode) {
+                    ForEach(BrowserMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode.rawValue)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Picker("Timeline range", selection: $screenshotTimeRangeMode) {
+                    ForEach(ScreenshotTimeRangeMode.allCases, id: \.self) { mode in
+                        Text(mode.title).tag(mode.rawValue)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Stepper("Working day starts: \(String(format: "%02d:00", workingStartHour))", value: $workingStartHour, in: 0...23)
+                    .onChange(of: workingStartHour) { _, _ in
+                        normalizeWorkingHours()
+                    }
+                Stepper("Working day ends: \(String(format: "%02d:00", workingEndHour))", value: $workingEndHour, in: 1...24)
+                    .onChange(of: workingEndHour) { _, _ in
+                        normalizeWorkingHours()
+                    }
+            }
             Section("Shortcuts") {
                 HStack {
                     Text("Pause/Resume")
@@ -90,8 +118,19 @@ struct GeneralSettingsView: View {
         .padding()
         .onAppear {
             launchAtLogin = (SMAppService.mainApp.status == .enabled)
+            normalizeWorkingHours()
             applyAppearance(selectedAppearance)
         }
+    }
+
+    private func normalizeWorkingHours() {
+        let settings = ScreenshotTimeRangeSettings(
+            mode: ScreenshotTimeRangeMode(rawValue: screenshotTimeRangeMode) ?? .smartWorkingHours,
+            workingStartHour: workingStartHour,
+            workingEndHour: workingEndHour
+        )
+        workingStartHour = settings.workingStartHour
+        workingEndHour = settings.workingEndHour
     }
 
     private func applyAppearance(_ appearance: String) {

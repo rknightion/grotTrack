@@ -1,5 +1,7 @@
+import AppKit
 import SwiftUI
 
+// swiftlint:disable file_length
 // swiftlint:disable:next type_body_length
 struct ScreenshotViewerView: View {
     @Bindable var viewModel: ScreenshotBrowserViewModel
@@ -105,17 +107,11 @@ struct ScreenshotViewerView: View {
     private func singleDisplayView(screenshot: Screenshot?) -> some View {
         ZStack(alignment: .topLeading) {
             if let screenshot, let nsImage = NSImage(contentsOf: viewModel.fullImageURL(for: screenshot)) {
-                if showActualSize {
-                    ScrollView([.horizontal, .vertical]) {
-                        Image(nsImage: nsImage)
-                            .padding()
-                    }
-                } else {
-                    Image(nsImage: nsImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .padding()
-                }
+                ZoomableScreenshotImage(
+                    image: nsImage,
+                    resetID: screenshot.id,
+                    showActualSize: showActualSize
+                )
             } else {
                 placeholderImage
             }
@@ -247,6 +243,7 @@ struct ScreenshotViewerView: View {
         return ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 0) {
                 primaryInfoRow(for: screenshot, ctx: ctx)
+                contextActions(for: ctx)
                 contextDetails(for: ctx)
             }
             .padding(.bottom, 8)
@@ -315,6 +312,49 @@ struct ScreenshotViewerView: View {
         }
     }
 
+    @ViewBuilder
+    private func contextActions(for ctx: ScreenshotContext) -> some View {
+        HStack(spacing: 8) {
+            Button {
+                revealScreenshot(ctx.screenshot)
+            } label: {
+                Label("Reveal Shot", systemImage: "scope")
+            }
+            .help("Reveal screenshot in Finder")
+
+            if let ocrText = ctx.ocrText, !ocrText.isEmpty {
+                Button {
+                    copyToPasteboard(ocrText)
+                } label: {
+                    Label("Copy OCR", systemImage: "doc.on.doc")
+                }
+            }
+
+            if let url = ctx.browserTabURL, !url.isEmpty {
+                Button {
+                    copyToPasteboard(url)
+                } label: {
+                    Label("Copy URL", systemImage: "link")
+                }
+            }
+
+            if let fileURL = sourceFileURL(for: ctx) {
+                Button {
+                    NSWorkspace.shared.open(fileURL)
+                } label: {
+                    Label(fileURL.hasDirectoryPath ? "Open Folder" : "Open File", systemImage: fileURL.hasDirectoryPath ? "folder" : "doc")
+                }
+                .help(fileURL.path)
+            }
+
+            Spacer()
+        }
+        .font(.caption)
+        .buttonStyle(.borderless)
+        .padding(.horizontal)
+        .padding(.bottom, 8)
+    }
+
     private func entityChip(_ entity: ExtractedEntity) -> some View {
         let (icon, color) = entity.type.style
         return HStack(spacing: 3) {
@@ -367,5 +407,104 @@ struct ScreenshotViewerView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
+    }
+
+    private func copyToPasteboard(_ value: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
+    }
+
+    private func revealScreenshot(_ screenshot: Screenshot) {
+        NSWorkspace.shared.activateFileViewerSelecting([viewModel.fullImageURL(for: screenshot)])
+    }
+
+    private func sourceFileURL(for ctx: ScreenshotContext) -> URL? {
+        for entity in ctx.entities where entity.type == .filePath {
+            let expanded = NSString(string: entity.value).expandingTildeInPath
+            let url = URL(fileURLWithPath: expanded)
+            if FileManager.default.fileExists(atPath: url.path) {
+                return url
+            }
+        }
+        return nil
+    }
+}
+
+private struct ZoomableScreenshotImage: View {
+    let image: NSImage
+    let resetID: UUID
+    let showActualSize: Bool
+
+    @State private var scale: CGFloat = 1.0
+    @State private var committedScale: CGFloat = 1.0
+    @State private var offset: CGSize = .zero
+    @State private var committedOffset: CGSize = .zero
+
+    var body: some View {
+        GeometryReader { geometry in
+            let baseSize = baseImageSize(in: geometry.size)
+            let displaySize = CGSize(width: baseSize.width * scale, height: baseSize.height * scale)
+
+            Image(nsImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: displaySize.width, height: displaySize.height)
+                .offset(offset)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .gesture(panGesture.simultaneously(with: zoomGesture))
+                .clipped()
+        }
+        .padding()
+        .onChange(of: resetID) {
+            reset()
+        }
+        .onChange(of: showActualSize) {
+            reset()
+        }
+    }
+
+    private var panGesture: some Gesture {
+        DragGesture(minimumDistance: 1)
+            .onChanged { value in
+                offset = CGSize(
+                    width: committedOffset.width + value.translation.width,
+                    height: committedOffset.height + value.translation.height
+                )
+            }
+            .onEnded { _ in
+                committedOffset = offset
+            }
+    }
+
+    private var zoomGesture: some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                scale = max(0.35, min(6.0, committedScale * value))
+            }
+            .onEnded { _ in
+                committedScale = scale
+            }
+    }
+
+    private func reset() {
+        scale = 1.0
+        committedScale = 1.0
+        offset = .zero
+        committedOffset = .zero
+    }
+
+    private func baseImageSize(in container: CGSize) -> CGSize {
+        let imageSize = image.size
+        guard imageSize.width > 0, imageSize.height > 0 else { return container }
+        if showActualSize {
+            return imageSize
+        }
+
+        let scale = min(
+            max(1, container.width) / imageSize.width,
+            max(1, container.height) / imageSize.height
+        )
+        return CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
     }
 }

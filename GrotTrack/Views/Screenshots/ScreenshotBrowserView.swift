@@ -6,6 +6,10 @@ struct ScreenshotBrowserView: View {
     @Environment(\.modelContext) private var context
     @State private var viewModel = ScreenshotBrowserViewModel()
     @AppStorage("screenshotBrowserZoom") private var savedZoom: Double = 0.5
+    @AppStorage("screenshotBrowserMode") private var savedMode: String = BrowserMode.viewer.rawValue
+    @AppStorage("screenshotBrowserTimeRangeMode") private var savedTimeRangeMode: String = ScreenshotTimeRangeMode.smartWorkingHours.rawValue
+    @AppStorage("screenshotBrowserWorkingStartHour") private var savedWorkingStartHour: Int = ScreenshotTimeRangeSettings.defaultWorkingStartHour
+    @AppStorage("screenshotBrowserWorkingEndHour") private var savedWorkingEndHour: Int = ScreenshotTimeRangeSettings.defaultWorkingEndHour
 
     var body: some View {
         VStack(spacing: 0) {
@@ -46,11 +50,24 @@ struct ScreenshotBrowserView: View {
             viewModel.loadData(context: context)
         }
         .task {
+            applySavedBrowserPreferences()
             viewModel.zoomLevel = savedZoom
             viewModel.loadData(context: context)
         }
         .onChange(of: viewModel.zoomLevel) { _, newValue in
             savedZoom = newValue
+        }
+        .onChange(of: viewModel.mode) { _, newValue in
+            savedMode = newValue.rawValue
+        }
+        .onChange(of: viewModel.timeRangeMode) { _, newValue in
+            savedTimeRangeMode = newValue.rawValue
+        }
+        .onChange(of: viewModel.workingStartHour) { _, newValue in
+            savedWorkingStartHour = newValue
+        }
+        .onChange(of: viewModel.workingEndHour) { _, newValue in
+            savedWorkingEndHour = newValue
         }
         .onReceive(
             NotificationCenter.default.publisher(
@@ -61,6 +78,18 @@ struct ScreenshotBrowserView: View {
             guard Calendar.current.isDateInToday(viewModel.selectedDate) else { return }
             viewModel.loadData(context: context)
         }
+    }
+
+    private func applySavedBrowserPreferences() {
+        viewModel.mode = BrowserMode(rawValue: savedMode) ?? .viewer
+        viewModel.timeRangeMode = ScreenshotTimeRangeMode(rawValue: savedTimeRangeMode) ?? .smartWorkingHours
+        let settings = ScreenshotTimeRangeSettings(
+            mode: viewModel.timeRangeMode,
+            workingStartHour: savedWorkingStartHour,
+            workingEndHour: savedWorkingEndHour
+        )
+        viewModel.workingStartHour = settings.workingStartHour
+        viewModel.workingEndHour = settings.workingEndHour
     }
 
     // MARK: - Date Picker Header

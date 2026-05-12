@@ -1,26 +1,31 @@
 import SwiftUI
 
 /// Grouped list of primary-display screenshots in the viewer sidebar. Sections represent
-/// `ActivitySession` groups (falling back to an "Unsessioned" group for primaries outside any
-/// session). Selection is handled explicitly; the list auto-scrolls to
-/// keep the selected row visible when selection changes externally (keyboard, density strip).
+/// activity sessions, are search-aware, and can be collapsed during review.
 struct ScreenshotListSidebarView: View {
     @Bindable var viewModel: ScreenshotBrowserViewModel
+    @State private var collapsedGroupIDs: Set<UUID> = []
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical) {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    ForEach(viewModel.screenshotsBySession) { group in
-                        Section {
-                            ForEach(group.screenshots, id: \.id) { screenshot in
-                                ScreenshotRow(viewModel: viewModel, screenshot: screenshot)
-                                    .id(screenshot.id)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 2)
+                    if viewModel.screenshotsBySession.isEmpty {
+                        emptyState
+                    } else {
+                        ForEach(viewModel.screenshotsBySession) { group in
+                            Section {
+                                if !collapsedGroupIDs.contains(group.id) {
+                                    ForEach(group.screenshots, id: \.id) { screenshot in
+                                        ScreenshotRow(viewModel: viewModel, screenshot: screenshot)
+                                            .id(screenshot.id)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 2)
+                                    }
+                                }
+                            } header: {
+                                sectionHeader(for: group)
                             }
-                        } header: {
-                            sectionHeader(for: group)
                         }
                     }
                 }
@@ -37,6 +42,19 @@ struct ScreenshotListSidebarView: View {
         }
     }
 
+    private var emptyState: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.title3)
+                .foregroundStyle(.tertiary)
+            Text("No matches")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 40)
+    }
+
     private func scrollToSelected(using proxy: ScrollViewProxy, animated: Bool) {
         guard let id = viewModel.selectedScreenshotID else { return }
         if animated {
@@ -51,24 +69,85 @@ struct ScreenshotListSidebarView: View {
     // MARK: - Section header
 
     private func sectionHeader(for group: ScreenshotBrowserViewModel.SessionGroup) -> some View {
-        let label = group.session?.label ?? "Unsessioned"
-        let color = group.session?.color ?? Color.secondary
-        return HStack(spacing: 6) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(color)
-                .frame(width: 8, height: 8)
-            Text(label)
-                .font(.system(size: 11, weight: .semibold))
-                .lineLimit(1)
-            Spacer(minLength: 4)
-            Text("\(group.screenshots.count)")
-                .font(.system(size: 10))
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
+        let summary = viewModel.summary(for: group)
+        let isCollapsed = collapsedGroupIDs.contains(group.id)
+
+        return Button {
+            toggle(group.id)
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 10)
+
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(summary.color)
+                    .frame(width: 4, height: 30)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(summary.label)
+                        .font(.system(size: 11, weight: .semibold))
+                        .lineLimit(1)
+
+                    HStack(spacing: 5) {
+                        Text(timeRangeLabel(start: summary.startTime, end: summary.endTime))
+                        Text(durationLabel(summary.duration))
+                        if !summary.dominantApp.isEmpty {
+                            Text(summary.dominantApp)
+                                .lineLimit(1)
+                        }
+                    }
+                    .font(.system(size: 9))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 4)
+
+                if !summary.topEntities.isEmpty {
+                    HStack(spacing: 3) {
+                        ForEach(Array(summary.topEntities.prefix(2).enumerated()), id: \.offset) { _, entity in
+                            Image(systemName: entity.type.style.icon)
+                                .font(.system(size: 9))
+                                .foregroundStyle(entity.type.style.color)
+                        }
+                    }
+                }
+
+                Text("\(summary.screenshotCount)")
+                    .font(.system(size: 10))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 16, alignment: .trailing)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(.bar)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(.bar)
+        .buttonStyle(.plain)
+    }
+
+    private func toggle(_ id: UUID) {
+        if collapsedGroupIDs.contains(id) {
+            collapsedGroupIDs.remove(id)
+        } else {
+            collapsedGroupIDs.insert(id)
+        }
+    }
+
+    private func timeRangeLabel(start: Date, end: Date) -> String {
+        "\(start.formatted(.dateTime.hour().minute()))-\(end.formatted(.dateTime.hour().minute()))"
+    }
+
+    private func durationLabel(_ duration: TimeInterval) -> String {
+        let minutes = max(1, Int(duration / 60))
+        if minutes < 60 {
+            return "\(minutes)m"
+        }
+        let hours = minutes / 60
+        let remainder = minutes % 60
+        return remainder == 0 ? "\(hours)h" : "\(hours)h \(remainder)m"
     }
 }
 
@@ -77,16 +156,21 @@ struct ScreenshotListSidebarView: View {
 private struct ScreenshotRow: View {
     @Bindable var viewModel: ScreenshotBrowserViewModel
     let screenshot: Screenshot
+    @State private var isHovered = false
 
     var body: some View {
         let ctx = viewModel.screenshotContext(for: screenshot)
         let appColor = ctx.appName.isEmpty ? Color.secondary : TimelineViewModel.appColor(for: ctx.appName)
         let isSelected = viewModel.selectedScreenshot?.id == screenshot.id
+        let displayCount = viewModel.displayCount(for: screenshot)
+        let searchHits = viewModel.searchHitKinds(for: screenshot)
+        let topEntities = viewModel.topEntities(for: screenshot, limit: 2)
+        let showDetailLine = isSelected || isHovered || !searchHits.isEmpty || !topEntities.isEmpty
 
         HStack(spacing: 8) {
             Rectangle()
                 .fill(appColor)
-                .frame(width: 3, height: 54)
+                .frame(width: 3, height: showDetailLine ? 62 : 54)
                 .clipShape(Capsule())
 
             thumbnail
@@ -104,13 +188,33 @@ private struct ScreenshotRow: View {
                             .fontWeight(.medium)
                             .lineLimit(1)
                     }
+
+                    if displayCount > 1 {
+                        Label("\(displayCount)", systemImage: "display.2")
+                            .labelStyle(.titleAndIcon)
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
-                if !ctx.windowTitle.isEmpty {
-                    Text(ctx.windowTitle)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                HStack(spacing: 5) {
+                    if !ctx.windowTitle.isEmpty {
+                        Text(ctx.windowTitle)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    if let domain = viewModel.browserDomain(for: screenshot) {
+                        Text(domain)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                }
+
+                if showDetailLine {
+                    metadataLine(topEntities: topEntities, searchHits: searchHits)
                 }
             }
 
@@ -118,7 +222,7 @@ private struct ScreenshotRow: View {
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 5)
-        .frame(minHeight: 64)
+        .frame(minHeight: showDetailLine ? 72 : 64)
         .background {
             RoundedRectangle(cornerRadius: 6)
                 .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
@@ -128,6 +232,9 @@ private struct ScreenshotRow: View {
                 .stroke(isSelected ? Color.accentColor.opacity(0.55) : Color.clear, lineWidth: 1)
         }
         .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovered = hovering
+        }
         .onTapGesture {
             viewModel.selectScreenshot(screenshot)
         }
@@ -136,7 +243,7 @@ private struct ScreenshotRow: View {
     @ViewBuilder
     private var thumbnail: some View {
         let url = viewModel.thumbnailURL(for: screenshot)
-        if let nsImage = NSImage(contentsOf: url) {
+        if let nsImage = ThumbnailImageCache.image(for: url) {
             Image(nsImage: nsImage)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
@@ -152,5 +259,39 @@ private struct ScreenshotRow: View {
                         .foregroundStyle(.tertiary)
                 }
         }
+    }
+
+    private func metadataLine(topEntities: [ExtractedEntity], searchHits: [String]) -> some View {
+        HStack(spacing: 4) {
+            ForEach(Array(topEntities.enumerated()), id: \.offset) { _, entity in
+                miniEntityChip(entity)
+            }
+
+            if !searchHits.isEmpty {
+                Label(searchHits.joined(separator: ", "), systemImage: "text.magnifyingglass")
+                    .font(.system(size: 9))
+                    .lineLimit(1)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Color.yellow.opacity(0.18), in: Capsule())
+                    .foregroundStyle(.yellow)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func miniEntityChip(_ entity: ExtractedEntity) -> some View {
+        let style = entity.type.style
+        return HStack(spacing: 2) {
+            Image(systemName: style.icon)
+                .font(.system(size: 8))
+            Text(entity.value)
+                .font(.system(size: 9))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 2)
+        .background(style.color.opacity(0.16), in: Capsule())
+        .foregroundStyle(style.color)
     }
 }
