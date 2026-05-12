@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.14.0](https://github.com/rknightion/grotTrack/compare/v0.13.0...v0.14.0) (2026-05-12)
+
+
+### Features
+
+* **screenshots:** add time range modes and sidebar improvements ([d2d67c5](https://github.com/rknightion/grotTrack/commit/d2d67c54ea45ed4c5437a452977288a1a698ed02))
+
+
+### Miscellaneous
+
+* **deps:** lock file maintenance ([#63](https://github.com/rknightion/grotTrack/issues/63)) ([5e8f294](https://github.com/rknightion/grotTrack/commit/5e8f294a13962934986a482cba3dcc14897e0bac))
+* **deps:** update actions/upload-artifact action to v7 ([1adb1fb](https://github.com/rknightion/grotTrack/commit/1adb1fbfbfb8aafbb258037e474c39b8de2ddaf4))
+* **deps:** update dependency @types/chrome to v0.1.42 ([#61](https://github.com/rknightion/grotTrack/issues/61)) ([d6f93ba](https://github.com/rknightion/grotTrack/commit/d6f93baae59fc4a8f1afc08da26db44200e7c650))
+
 ## [0.13.0](https://github.com/rknightion/grotTrack/compare/v0.12.7...v0.13.0) (2026-05-04)
 
 
