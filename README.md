@@ -80,6 +80,8 @@ Exclude specific apps from tracking by bundle ID. Add from a list of running app
 ### Export
 Export a day's data as JSON (structured hourly blocks, sessions, annotations) or CSV (spreadsheet-friendly rows). Trend reports are also exportable.
 
+The Timeline export menu also includes **Export for LLM...**, which writes a local evidence bundle for a selected date or date range. Bundles include a `manifest.json`, README, activity/session/annotation metadata, OCR/entity enrichments, hourly summaries, an app summary CSV, and a curated `evidence/screenshots/` set designed for Claude, ChatGPT, or another agent with vision support. The default smart evidence mode caps screenshots to control cost; choose **Smart Evidence + Full Archive** only when the consuming agent really needs every screenshot.
+
 ---
 
 ## Quick Start
@@ -157,7 +159,7 @@ Data lives in `~/Library/Application Support/GrotTrack/`:
 GrotTrack.store          — SwiftData database
 Screenshots/YYYY-MM-DD/  — Full screenshots (~30-50KB WebP each)
 Thumbnails/YYYY-MM-DD/   — Thumbnail previews (~3-7KB each)
-Exports/                 — Exported reports (JSON/CSV)
+Exports/                 — Exported reports and LLM evidence bundles
 ```
 
 **Retention**: Full screenshots kept for 7 days, thumbnails for 30 days (both configurable). Cleanup runs automatically on launch and can be triggered in Settings.
