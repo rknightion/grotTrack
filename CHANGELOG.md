@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.15.0](https://github.com/rknightion/grotTrack/compare/v0.14.0...v0.15.0) (2026-05-14)
+
+
+### Features
+
+* add llm evidence export UI ([6a19a3c](https://github.com/rknightion/grotTrack/commit/6a19a3cebbe3edbda1efaebb29bf70d067b3593f))
+* add llm export evidence selector ([626709c](https://github.com/rknightion/grotTrack/commit/626709c33153ca9da0ed533ac57901d0c3a97ca9))
+* write llm export bundles ([04dcb5e](https://github.com/rknightion/grotTrack/commit/04dcb5eae636ac99d5ab22a4589d060b1b91c837))
+
+
+### Documentation
+
+* add llm evidence export design ([2bc56dc](https://github.com/rknightion/grotTrack/commit/2bc56dc134619c2bf931ad660defbf848a4afac1))
+* add llm evidence export plan ([4976ee5](https://github.com/rknightion/grotTrack/commit/4976ee57c7a523f4a0e0616b7f605bdaacb35ff0))
+* document llm evidence export ([914565f](https://github.com/rknightion/grotTrack/commit/914565f8a8e9489441019442cbdd8c5c5bdc85e1))
+
 ## [0.14.0](https://github.com/rknightion/grotTrack/compare/v0.13.0...v0.14.0) (2026-05-12)
 
 
