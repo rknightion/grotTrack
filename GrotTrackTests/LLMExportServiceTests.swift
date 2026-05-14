@@ -129,4 +129,83 @@ final class LLMExportServiceTests: XCTestCase {
 
         XCTAssertEqual(selected.map(\.id), [screenshots[0].id, screenshots[2].id, screenshots[4].id])
     }
+
+    func testBundleWriterCreatesExpectedStructureAndMetadata() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let temp = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let sourceRoot = temp.appendingPathComponent("source", isDirectory: true)
+        let destination = temp.appendingPathComponent("exports", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: sourceRoot.appendingPathComponent("2026-05-14"),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+
+        let screenshot = insertScreenshot(into: context, at: date(9, 0), path: "2026-05-14/09-00-00_d0.webp")
+        try Data("fake-webp".utf8).write(to: sourceRoot.appendingPathComponent(screenshot.filePath))
+        let event = ActivityEvent(
+            appName: "Xcode",
+            bundleID: "com.apple.dt.Xcode",
+            windowTitle: "LLMExportService.swift"
+        )
+        event.timestamp = date(9, 0)
+        event.duration = 120
+        event.screenshotID = screenshot.id
+        context.insert(event)
+        try context.save()
+
+        let service = LLMExportService(screenshotsDirectory: sourceRoot)
+        let result = try service.export(
+            request: LLMExportRequest(
+                startDate: date(0),
+                endDate: date(23),
+                destinationDirectory: destination,
+                screenshotMode: .smartEvidence,
+                screenshotsPerDay: 60,
+                screenshotRangeCap: 250
+            ),
+            context: context
+        )
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: result.bundleURL.appendingPathComponent("README.md").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: result.bundleURL.appendingPathComponent("manifest.json").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: result.bundleURL.appendingPathComponent("metadata/activity-events.json").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: result.bundleURL.appendingPathComponent("metadata/app-summary.csv").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: result.bundleURL.appendingPathComponent("evidence/evidence-index.json").path))
+        XCTAssertEqual(result.manifest.counts.activityEvents, 1)
+        XCTAssertEqual(result.manifest.counts.evidenceScreenshots, 1)
+    }
+
+    func testMissingScreenshotRecordsWarningAndContinues() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let temp = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let sourceRoot = temp.appendingPathComponent("source", isDirectory: true)
+        let destination = temp.appendingPathComponent("exports", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+
+        _ = insertScreenshot(into: context, at: date(9, 0), path: "2026-05-14/missing_d0.webp")
+        try context.save()
+
+        let service = LLMExportService(screenshotsDirectory: sourceRoot)
+        let result = try service.export(
+            request: LLMExportRequest(
+                startDate: date(0),
+                endDate: date(23),
+                destinationDirectory: destination,
+                screenshotMode: .smartEvidence,
+                screenshotsPerDay: 60,
+                screenshotRangeCap: 250
+            ),
+            context: context
+        )
+
+        XCTAssertEqual(result.manifest.counts.screenshots, 1)
+        XCTAssertEqual(result.manifest.counts.evidenceScreenshots, 0)
+        XCTAssertTrue(result.manifest.warnings.contains { $0.code == "missingScreenshotFile" })
+    }
 }

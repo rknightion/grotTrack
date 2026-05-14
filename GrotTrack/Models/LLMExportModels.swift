@@ -73,3 +73,23 @@ struct LLMExportManifest: Codable {
         let evidenceIndex: String
     }
 }
+
+enum LLMExportError: LocalizedError {
+    case invalidDateRange
+    case noDataInRange
+    case cannotCreateDestination(String)
+    case cannotWriteBundle(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidDateRange:
+            "End date must be on or after start date."
+        case .noDataInRange:
+            "No tracked activity, screenshots, sessions, or annotations were found in the selected range."
+        case .cannotCreateDestination(let path):
+            "Could not create export destination: \(path)"
+        case .cannotWriteBundle(let path):
+            "Could not write export bundle: \(path)"
+        }
+    }
+}
