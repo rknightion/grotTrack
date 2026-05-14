@@ -5,6 +5,7 @@ import Combine
 struct TimelineView: View {
     @Environment(\.modelContext) private var context
     @State private var viewModel = TimelineViewModel()
+    @State private var showingLLMExportSheet = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -103,6 +104,9 @@ struct TimelineView: View {
             guard Calendar.current.isDateInToday(viewModel.selectedDate) else { return }
             viewModel.loadEvents(for: viewModel.selectedDate, context: context)
         }
+        .sheet(isPresented: $showingLLMExportSheet) {
+            LLMExportSheet(selectedDate: viewModel.selectedDate)
+        }
         .toolbar {
             ToolbarItemGroup {
                 if viewModel.viewMode == .timeline {
@@ -133,9 +137,14 @@ struct TimelineView: View {
 
                 Menu("Export") {
                     Button("Export as JSON") { viewModel.exportReport(format: .json) }
+                        .disabled(viewModel.activityEvents.isEmpty)
                     Button("Export as CSV") { viewModel.exportReport(format: .csv) }
+                        .disabled(viewModel.activityEvents.isEmpty)
+                    Divider()
+                    Button("Export for LLM...") {
+                        showingLLMExportSheet = true
+                    }
                 }
-                .disabled(viewModel.activityEvents.isEmpty)
             }
         }
     }

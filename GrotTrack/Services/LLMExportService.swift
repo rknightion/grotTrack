@@ -3,20 +3,17 @@ import SwiftData
 
 @MainActor
 final class LLMExportService {
-    private let fileManager: FileManager
     private let screenshotsDirectory: URL
 
     init(
-        fileManager: FileManager = .default,
         screenshotsDirectory: URL = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("GrotTrack/Screenshots")
     ) {
-        self.fileManager = fileManager
         self.screenshotsDirectory = screenshotsDirectory
     }
 
-    func export(request: LLMExportRequest, context: ModelContext) throws -> LLMExportResult {
+    func export(request: LLMExportRequest, context: ModelContext) async throws -> LLMExportResult {
         let calendar = Calendar.current
         let startDate = calendar.startOfDay(for: request.startDate)
         let endDay = calendar.startOfDay(for: request.endDate)
@@ -52,60 +49,24 @@ final class LLMExportService {
             maxCount: screenshotBudget
         )
 
-        let bundleURL = try createBundleDirectory(startDate: startDate, endDate: endDay, destination: request.destinationDirectory)
-        let metadataURL = bundleURL.appendingPathComponent("metadata", isDirectory: true)
-        let evidenceScreenshotsURL = bundleURL.appendingPathComponent("evidence/screenshots", isDirectory: true)
-        try fileManager.createDirectory(at: metadataURL, withIntermediateDirectories: true)
-        try fileManager.createDirectory(at: evidenceScreenshotsURL, withIntermediateDirectories: true)
-
-        var warnings: [LLMExportWarning] = []
-        let evidencePaths = copyScreenshots(
-            selectedScreenshots,
-            into: bundleURL,
-            relativeDirectory: "evidence/screenshots",
-            warnings: &warnings
-        )
-
-        var archivePaths: [UUID: String] = [:]
-        if request.screenshotMode.includesFullArchive {
-            archivePaths = copyScreenshots(
-                screenshots,
-                into: bundleURL,
-                relativeDirectory: "full-archive/screenshots",
-                warnings: &warnings
-            )
-        }
-
         let nearestEvents = nearestEventIDs(screenshots: screenshots, activityEvents: activityEvents)
         let sessionIDs = sessionIDsByScreenshot(screenshots: screenshots, sessions: sessions)
 
         let activityDTOs = activityEvents.map(ActivityEventExport.init)
         let sessionDTOs = sessions.map { ActivitySessionExport(session: $0) }
         let annotationDTOs = annotations.map(AnnotationExport.init)
-        let screenshotDTOs = screenshots.map {
-            ScreenshotExport(
+        let screenshotSources = screenshots.map {
+            ScreenshotExportSource(
                 screenshot: $0,
-                evidencePath: evidencePaths[$0.id],
-                archivePath: archivePaths[$0.id],
                 nearestActivityEventID: nearestEvents[$0.id],
                 sessionID: sessionIDs[$0.id]
             )
         }
+        let screenshotSourceByID = Dictionary(uniqueKeysWithValues: screenshotSources.map { ($0.id, $0) })
+        let selectedScreenshotSources = selectedScreenshots.compactMap { screenshotSourceByID[$0.id] }
         let enrichmentDTOs = enrichments.values
             .sorted { $0.timestamp < $1.timestamp }
             .map(ScreenshotEnrichmentExport.init)
-        let evidenceIndex = EvidenceIndexExport(
-            screenshots: selectedScreenshots.compactMap { screenshot in
-                guard let path = evidencePaths[screenshot.id] else { return nil }
-                return EvidenceScreenshotExport(
-                    screenshotID: screenshot.id,
-                    timestamp: screenshot.timestamp,
-                    displayIndex: screenshot.displayIndex,
-                    path: path,
-                    reason: "smartEvidence"
-                )
-            }
-        )
         let hourlySummary = buildHourlySummary(
             startDate: startDate,
             endDate: exclusiveEndDate,
@@ -115,53 +76,28 @@ final class LLMExportService {
             selectedScreenshots: selectedScreenshots
         )
 
-        try writeJSON(activityDTOs, to: metadataURL.appendingPathComponent("activity-events.json"))
-        try writeJSON(sessionDTOs, to: metadataURL.appendingPathComponent("sessions.json"))
-        try writeJSON(annotationDTOs, to: metadataURL.appendingPathComponent("annotations.json"))
-        try writeJSON(screenshotDTOs, to: metadataURL.appendingPathComponent("screenshots.json"))
-        try writeJSON(enrichmentDTOs, to: metadataURL.appendingPathComponent("enrichments.json"))
-        try writeJSON(hourlySummary, to: metadataURL.appendingPathComponent("hourly-summary.json"))
-        try writeAppSummary(activityEvents, to: metadataURL.appendingPathComponent("app-summary.csv"))
-        try writeJSON(evidenceIndex, to: bundleURL.appendingPathComponent("evidence/evidence-index.json"))
-
-        let manifest = LLMExportManifest(
-            schemaVersion: 1,
-            generatedAt: Date(),
-            dateRangeStart: startDate,
-            dateRangeEnd: exclusiveEndDate,
-            timezoneIdentifier: TimeZone.current.identifier,
+        let payload = LLMExportBundlePayload(
+            startDate: startDate,
+            endDay: endDay,
+            exclusiveEndDate: exclusiveEndDate,
+            destinationDirectory: request.destinationDirectory,
             screenshotMode: request.screenshotMode,
             screenshotBudget: screenshotBudget,
-            counts: LLMExportManifest.Counts(
-                activityEvents: activityEvents.count,
-                sessions: sessions.count,
-                annotations: annotations.count,
-                screenshots: screenshots.count,
-                evidenceScreenshots: evidencePaths.count,
-                archiveScreenshots: archivePaths.count
-            ),
-            files: LLMExportManifest.Files(
-                readme: "README.md",
-                activityEvents: "metadata/activity-events.json",
-                sessions: "metadata/sessions.json",
-                annotations: "metadata/annotations.json",
-                screenshots: "metadata/screenshots.json",
-                enrichments: "metadata/enrichments.json",
-                hourlySummary: "metadata/hourly-summary.json",
-                appSummary: "metadata/app-summary.csv",
-                evidenceIndex: "evidence/evidence-index.json"
-            ),
-            warnings: warnings
+            appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+            timezoneIdentifier: TimeZone.current.identifier,
+            screenshotsDirectory: screenshotsDirectory,
+            activityEvents: activityDTOs,
+            sessions: sessionDTOs,
+            annotations: annotationDTOs,
+            screenshots: screenshotSources,
+            selectedScreenshots: selectedScreenshotSources,
+            enrichments: enrichmentDTOs,
+            hourlySummary: hourlySummary
         )
 
-        try writeJSON(manifest, to: bundleURL.appendingPathComponent("manifest.json"))
-        try readme(for: manifest).write(
-            to: bundleURL.appendingPathComponent("README.md"),
-            atomically: true,
-            encoding: .utf8
-        )
-
-        return LLMExportResult(bundleURL: bundleURL, manifest: manifest)
+        return try await Task.detached(priority: .userInitiated) {
+            try LLMExportBundleWriter().write(payload)
+        }.value
     }
 
     static func selectEvidenceScreenshots(
@@ -176,54 +112,115 @@ final class LLMExportService {
     ) -> [Screenshot] {
         guard maxCount > 0 else { return [] }
 
-        let primaryScreenshots = screenshots
-            .filter { $0.displayIndex == 0 && $0.timestamp >= startDate && $0.timestamp < endDate }
-            .sorted { $0.timestamp < $1.timestamp }
+        let screenshotsInRange = screenshots
+            .filter { $0.timestamp >= startDate && $0.timestamp < endDate }
+            .sorted {
+                if $0.timestamp == $1.timestamp {
+                    return $0.displayIndex < $1.displayIndex
+                }
+                return $0.timestamp < $1.timestamp
+            }
 
-        guard primaryScreenshots.count > maxCount else {
-            return primaryScreenshots
+        let displayGroups = groupedByCaptureTime(screenshotsInRange)
+
+        guard screenshotsInRange.count > maxCount else {
+            return screenshotsInRange
         }
 
         let sortedActivities = activities.sorted { $0.timestamp < $1.timestamp }
-        var candidates = primaryScreenshots.map { screenshot in
-            EvidenceCandidate(
-                screenshot: screenshot,
-                score: score(
+        var candidates = displayGroups.compactMap { screenshots -> EvidenceCandidate? in
+            guard let anchor = screenshots.first(where: { $0.displayIndex == 0 }) ?? screenshots.first else {
+                return nil
+            }
+            let scoredScreenshots = screenshots.map { screenshot in
+                (
                     screenshot: screenshot,
-                    activities: sortedActivities,
-                    sessions: sessions,
-                    annotations: annotations,
-                    enrichment: enrichmentsByScreenshotID[screenshot.id]
+                    score: score(
+                        screenshot: screenshot,
+                        activities: sortedActivities,
+                        sessions: sessions,
+                        annotations: annotations,
+                        enrichment: enrichmentsByScreenshotID[screenshot.id]
+                    )
                 )
+            }
+            let prioritizedScreenshots = scoredScreenshots
+                .sorted {
+                    if $0.score == $1.score {
+                        return $0.screenshot.displayIndex < $1.screenshot.displayIndex
+                    }
+                    return $0.score > $1.score
+                }
+                .map(\.screenshot)
+            return EvidenceCandidate(
+                anchor: anchor,
+                screenshots: prioritizedScreenshots,
+                score: scoredScreenshots.map(\.score).max() ?? 0
             )
         }
 
         candidates.sort {
             if $0.score == $1.score {
-                return $0.screenshot.timestamp < $1.screenshot.timestamp
+                return $0.anchor.timestamp < $1.anchor.timestamp
             }
             return $0.score > $1.score
+        }
+
+        let chronologicalCandidates = candidates.sorted {
+            if $0.anchor.timestamp == $1.anchor.timestamp {
+                return $0.anchor.displayIndex < $1.anchor.displayIndex
+            }
+            return $0.anchor.timestamp < $1.anchor.timestamp
         }
 
         var selected: [Screenshot] = []
         var selectedIDs = Set<UUID>()
 
-        for candidate in candidates where candidate.score > 0 {
-            guard selected.count < maxCount else { break }
-            selected.append(candidate.screenshot)
-            selectedIDs.insert(candidate.screenshot.id)
-        }
-
-        if selected.count < maxCount {
-            let remainingSlots = maxCount - selected.count
-            let unselected = primaryScreenshots.filter { !selectedIDs.contains($0.id) }
-            for screenshot in periodicSample(from: unselected, count: remainingSlots) {
+        func appendGroup(_ screenshots: [Screenshot]) {
+            guard selected.count < maxCount else { return }
+            for screenshot in screenshots {
+                guard selected.count < maxCount else { break }
+                guard !selectedIDs.contains(screenshot.id) else { continue }
                 selected.append(screenshot)
                 selectedIDs.insert(screenshot.id)
             }
         }
 
-        return selected.sorted { $0.timestamp < $1.timestamp }
+        for candidate in candidates where candidate.score > 0 {
+            guard selected.count < maxCount else { break }
+            appendGroup(candidate.screenshots)
+        }
+
+        if selected.count < maxCount {
+            let remainingSlots = maxCount - selected.count
+            let unselected = chronologicalCandidates.filter { candidate in
+                !candidate.screenshots.contains { selectedIDs.contains($0.id) }
+            }
+            for candidate in periodicSample(from: unselected, count: remainingSlots) {
+                guard selected.count < maxCount else { break }
+                appendGroup(candidate.screenshots)
+            }
+        }
+
+        return selected.sorted {
+            if $0.timestamp == $1.timestamp {
+                return $0.displayIndex < $1.displayIndex
+            }
+            return $0.timestamp < $1.timestamp
+        }
+    }
+
+    private static func groupedByCaptureTime(_ screenshots: [Screenshot]) -> [[Screenshot]] {
+        var groups: [[Screenshot]] = []
+        for screenshot in screenshots {
+            if let first = groups.last?.first,
+               abs(first.timestamp.timeIntervalSince(screenshot.timestamp)) < 1.0 {
+                groups[groups.count - 1].append(screenshot)
+            } else {
+                groups.append([screenshot])
+            }
+        }
+        return groups
     }
 
     private static func score(
@@ -317,18 +314,18 @@ final class LLMExportService {
         return url.host()
     }
 
-    private static func periodicSample(from screenshots: [Screenshot], count: Int) -> [Screenshot] {
-        guard count > 0, !screenshots.isEmpty else { return [] }
-        guard screenshots.count > count else { return screenshots }
+    private static func periodicSample<T>(from values: [T], count: Int) -> [T] {
+        guard count > 0, !values.isEmpty else { return [] }
+        guard values.count > count else { return values }
 
-        let step = Double(screenshots.count) / Double(count)
-        var selected: [Screenshot] = []
+        let step = Double(values.count) / Double(count)
+        var selected: [T] = []
         var usedIndexes = Set<Int>()
 
         for slot in 0..<count {
-            let index = min(Int(floor(Double(slot) * step)), screenshots.count - 1)
+            let index = min(Int(floor(Double(slot) * step)), values.count - 1)
             guard !usedIndexes.contains(index) else { continue }
-            selected.append(screenshots[index])
+            selected.append(values[index])
             usedIndexes.insert(index)
         }
 
@@ -404,83 +401,6 @@ final class LLMExportService {
         return min(max(1, request.screenshotsPerDay) * days, max(1, request.screenshotRangeCap))
     }
 
-    private func createBundleDirectory(startDate: Date, endDate: Date, destination: URL) throws -> URL {
-        guard fileManager.fileExists(atPath: destination.path) else {
-            throw LLMExportError.cannotCreateDestination(destination.path)
-        }
-
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        let start = formatter.string(from: startDate)
-        let end = formatter.string(from: endDate)
-        let baseName = start == end
-            ? "GrotTrack-LLM-Export-\(start)"
-            : "GrotTrack-LLM-Export-\(start)_to_\(end)"
-
-        var candidate = destination.appendingPathComponent(baseName, isDirectory: true)
-        var suffix = 2
-        while fileManager.fileExists(atPath: candidate.path) {
-            candidate = destination.appendingPathComponent("\(baseName)-\(suffix)", isDirectory: true)
-            suffix += 1
-        }
-
-        do {
-            try fileManager.createDirectory(at: candidate, withIntermediateDirectories: true)
-        } catch {
-            throw LLMExportError.cannotCreateDestination(candidate.path)
-        }
-        return candidate
-    }
-
-    private func copyScreenshots(
-        _ screenshots: [Screenshot],
-        into bundleURL: URL,
-        relativeDirectory: String,
-        warnings: inout [LLMExportWarning]
-    ) -> [UUID: String] {
-        let destinationDirectory = bundleURL.appendingPathComponent(relativeDirectory, isDirectory: true)
-        try? fileManager.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
-
-        var copiedPaths: [UUID: String] = [:]
-        for screenshot in screenshots.sorted(by: { $0.timestamp < $1.timestamp }) {
-            let sourceURL = screenshotsDirectory.appendingPathComponent(screenshot.filePath)
-            guard fileManager.fileExists(atPath: sourceURL.path) else {
-                warnings.append(LLMExportWarning(
-                    code: "missingScreenshotFile",
-                    message: "Screenshot file was missing during export.",
-                    path: screenshot.filePath
-                ))
-                continue
-            }
-
-            let filename = exportFilename(for: screenshot)
-            let relativePath = "\(relativeDirectory)/\(filename)"
-            let destinationURL = bundleURL.appendingPathComponent(relativePath)
-
-            do {
-                try fileManager.copyItem(at: sourceURL, to: destinationURL)
-                copiedPaths[screenshot.id] = relativePath
-            } catch {
-                warnings.append(LLMExportWarning(
-                    code: "copyScreenshotFailed",
-                    message: "Screenshot file could not be copied during export.",
-                    path: screenshot.filePath
-                ))
-            }
-        }
-        return copiedPaths
-    }
-
-    private func exportFilename(for screenshot: Screenshot) -> String {
-        let formatter = DateFormatter()
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd'T'HH-mm-ss'Z'"
-        let ext = URL(fileURLWithPath: screenshot.filePath).pathExtension.isEmpty
-            ? "webp"
-            : URL(fileURLWithPath: screenshot.filePath).pathExtension
-        return "\(formatter.string(from: screenshot.timestamp))_d\(screenshot.displayIndex).\(ext)"
-    }
-
     private func nearestEventIDs(
         screenshots: [Screenshot],
         activityEvents: [ActivityEvent]
@@ -527,11 +447,13 @@ final class LLMExportService {
             let hourScreenshots = selectedScreenshots.filter { $0.timestamp >= hourStart && $0.timestamp < hourEnd }
 
             if !events.isEmpty || !hourSessions.isEmpty || !hourAnnotations.isEmpty || !hourScreenshots.isEmpty {
+                let dominantApp = dominantApp(in: events)
                 summaries.append(HourlySummaryExport(
                     startTime: hourStart,
                     endTime: hourEnd,
                     durationSeconds: events.reduce(0) { $0 + $1.duration },
-                    dominantApp: dominantApp(in: events),
+                    dominantApp: dominantApp,
+                    dominantTitle: dominantTitle(in: events, dominantApp: dominantApp),
                     focusScore: focusScore(for: events),
                     sessionLabels: hourSessions.map(\.displayLabel),
                     annotationIDs: hourAnnotations.map(\.id),
@@ -553,10 +475,253 @@ final class LLMExportService {
         return durationByApp.max(by: { $0.value < $1.value })?.key
     }
 
+    private func dominantTitle(in events: [ActivityEvent], dominantApp: String?) -> String? {
+        guard let dominantApp else { return nil }
+        var durationByTitle: [String: TimeInterval] = [:]
+        for event in events where event.appName == dominantApp {
+            durationByTitle[event.windowTitle, default: 0] += event.duration
+        }
+        return durationByTitle.max(by: { $0.value < $1.value })?.key
+    }
+
     private func focusScore(for events: [ActivityEvent]) -> Double? {
         guard !events.isEmpty else { return nil }
         let averageMultitasking = events.reduce(0.0) { $0 + $1.multitaskingScore } / Double(events.count)
         return max(0, min(1, 1.0 - averageMultitasking))
+    }
+
+}
+
+private struct LLMExportBundlePayload: Sendable {
+    let startDate: Date
+    let endDay: Date
+    let exclusiveEndDate: Date
+    let destinationDirectory: URL
+    let screenshotMode: LLMExportScreenshotMode
+    let screenshotBudget: Int
+    let appVersion: String?
+    let timezoneIdentifier: String
+    let screenshotsDirectory: URL
+    let activityEvents: [ActivityEventExport]
+    let sessions: [ActivitySessionExport]
+    let annotations: [AnnotationExport]
+    let screenshots: [ScreenshotExportSource]
+    let selectedScreenshots: [ScreenshotExportSource]
+    let enrichments: [ScreenshotEnrichmentExport]
+    let hourlySummary: [HourlySummaryExport]
+}
+
+private struct LLMExportBundleWriter {
+    private let fileManager = FileManager.default
+
+    func write(_ payload: LLMExportBundlePayload) throws -> LLMExportResult {
+        let bundleURL = try createBundleDirectory(
+            startDate: payload.startDate,
+            endDate: payload.endDay,
+            destination: payload.destinationDirectory
+        )
+        let metadataURL = bundleURL.appendingPathComponent("metadata", isDirectory: true)
+        let evidenceScreenshotsURL = bundleURL.appendingPathComponent("evidence/screenshots", isDirectory: true)
+
+        do {
+            try fileManager.createDirectory(at: metadataURL, withIntermediateDirectories: true)
+            try fileManager.createDirectory(at: evidenceScreenshotsURL, withIntermediateDirectories: true)
+        } catch {
+            throw LLMExportError.cannotWriteBundle(bundleURL.path)
+        }
+
+        var warnings: [LLMExportWarning] = []
+        let evidencePaths = copyScreenshots(
+            payload.selectedScreenshots,
+            from: payload.screenshotsDirectory,
+            into: bundleURL,
+            relativeDirectory: "evidence/screenshots",
+            warnings: &warnings
+        )
+
+        var archivePaths: [UUID: String] = [:]
+        if payload.screenshotMode.includesFullArchive {
+            archivePaths = copyScreenshots(
+                payload.screenshots,
+                from: payload.screenshotsDirectory,
+                into: bundleURL,
+                relativeDirectory: "full-archive/screenshots",
+                warnings: &warnings
+            )
+        }
+
+        let screenshotDTOs = payload.screenshots.map {
+            ScreenshotExport(
+                source: $0,
+                evidencePath: evidencePaths[$0.id],
+                archivePath: archivePaths[$0.id]
+            )
+        }
+        let evidenceIndex = EvidenceIndexExport(
+            screenshots: payload.selectedScreenshots.compactMap { screenshot in
+                guard let path = evidencePaths[screenshot.id] else { return nil }
+                return EvidenceScreenshotExport(
+                    screenshotID: screenshot.id,
+                    timestamp: screenshot.timestamp,
+                    displayIndex: screenshot.displayIndex,
+                    path: path,
+                    reason: "smartEvidence"
+                )
+            }
+        )
+        let archiveIndex = ArchiveIndexExport(
+            screenshots: payload.screenshots.compactMap { screenshot in
+                guard let path = archivePaths[screenshot.id] else { return nil }
+                return ArchiveScreenshotExport(
+                    screenshotID: screenshot.id,
+                    timestamp: screenshot.timestamp,
+                    displayIndex: screenshot.displayIndex,
+                    path: path
+                )
+            }
+        )
+
+        try writeJSON(payload.activityEvents, to: metadataURL.appendingPathComponent("activity-events.json"))
+        try writeJSON(payload.sessions, to: metadataURL.appendingPathComponent("sessions.json"))
+        try writeJSON(payload.annotations, to: metadataURL.appendingPathComponent("annotations.json"))
+        try writeJSON(screenshotDTOs, to: metadataURL.appendingPathComponent("screenshots.json"))
+        try writeJSON(payload.enrichments, to: metadataURL.appendingPathComponent("enrichments.json"))
+        try writeJSON(payload.hourlySummary, to: metadataURL.appendingPathComponent("hourly-summary.json"))
+        try writeAppSummary(payload.activityEvents, to: metadataURL.appendingPathComponent("app-summary.csv"))
+        try writeJSON(evidenceIndex, to: bundleURL.appendingPathComponent("evidence/evidence-index.json"))
+
+        if payload.screenshotMode.includesFullArchive {
+            try writeJSON(archiveIndex, to: bundleURL.appendingPathComponent("full-archive/archive-index.json"))
+        }
+
+        let manifest = LLMExportManifest(
+            schemaVersion: 1,
+            appVersion: payload.appVersion,
+            generatedAt: Date(),
+            dateRangeStart: payload.startDate,
+            dateRangeEnd: payload.exclusiveEndDate,
+            timezoneIdentifier: payload.timezoneIdentifier,
+            screenshotMode: payload.screenshotMode,
+            screenshotBudget: payload.screenshotBudget,
+            counts: LLMExportManifest.Counts(
+                activityEvents: payload.activityEvents.count,
+                sessions: payload.sessions.count,
+                annotations: payload.annotations.count,
+                screenshots: payload.screenshots.count,
+                evidenceScreenshots: evidencePaths.count,
+                archiveScreenshots: archivePaths.count
+            ),
+            files: LLMExportManifest.Files(
+                readme: "README.md",
+                activityEvents: "metadata/activity-events.json",
+                sessions: "metadata/sessions.json",
+                annotations: "metadata/annotations.json",
+                screenshots: "metadata/screenshots.json",
+                enrichments: "metadata/enrichments.json",
+                hourlySummary: "metadata/hourly-summary.json",
+                appSummary: "metadata/app-summary.csv",
+                evidenceIndex: "evidence/evidence-index.json",
+                fullArchiveIndex: payload.screenshotMode.includesFullArchive ? "full-archive/archive-index.json" : nil,
+                fullArchiveScreenshots: payload.screenshotMode.includesFullArchive ? "full-archive/screenshots" : nil
+            ),
+            warnings: warnings
+        )
+
+        try writeJSON(manifest, to: bundleURL.appendingPathComponent("manifest.json"))
+        do {
+            try readme(for: manifest).write(
+                to: bundleURL.appendingPathComponent("README.md"),
+                atomically: true,
+                encoding: .utf8
+            )
+        } catch {
+            throw LLMExportError.cannotWriteBundle(bundleURL.appendingPathComponent("README.md").path)
+        }
+
+        return LLMExportResult(bundleURL: bundleURL, manifest: manifest)
+    }
+
+    private func createBundleDirectory(startDate: Date, endDate: Date, destination: URL) throws -> URL {
+        guard fileManager.fileExists(atPath: destination.path) else {
+            throw LLMExportError.cannotCreateDestination(destination.path)
+        }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let start = formatter.string(from: startDate)
+        let end = formatter.string(from: endDate)
+        let baseName = start == end
+            ? "GrotTrack-LLM-Export-\(start)"
+            : "GrotTrack-LLM-Export-\(start)_to_\(end)"
+
+        var candidate = destination.appendingPathComponent(baseName, isDirectory: true)
+        var suffix = 2
+        while fileManager.fileExists(atPath: candidate.path) {
+            candidate = destination.appendingPathComponent("\(baseName)-\(suffix)", isDirectory: true)
+            suffix += 1
+        }
+
+        do {
+            try fileManager.createDirectory(at: candidate, withIntermediateDirectories: true)
+        } catch {
+            throw LLMExportError.cannotCreateDestination(candidate.path)
+        }
+        return candidate
+    }
+
+    private func copyScreenshots(
+        _ screenshots: [ScreenshotExportSource],
+        from screenshotsDirectory: URL,
+        into bundleURL: URL,
+        relativeDirectory: String,
+        warnings: inout [LLMExportWarning]
+    ) -> [UUID: String] {
+        let destinationDirectory = bundleURL.appendingPathComponent(relativeDirectory, isDirectory: true)
+        try? fileManager.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
+
+        var copiedPaths: [UUID: String] = [:]
+        for screenshot in screenshots.sorted(by: {
+            if $0.timestamp == $1.timestamp {
+                return $0.displayIndex < $1.displayIndex
+            }
+            return $0.timestamp < $1.timestamp
+        }) {
+            let sourceURL = screenshotsDirectory.appendingPathComponent(screenshot.originalRelativePath)
+            guard fileManager.fileExists(atPath: sourceURL.path) else {
+                warnings.append(LLMExportWarning(
+                    code: "missingScreenshotFile",
+                    message: "Screenshot file was missing during export.",
+                    path: screenshot.originalRelativePath
+                ))
+                continue
+            }
+
+            let filename = exportFilename(for: screenshot)
+            let relativePath = "\(relativeDirectory)/\(filename)"
+            let destinationURL = bundleURL.appendingPathComponent(relativePath)
+
+            do {
+                try fileManager.copyItem(at: sourceURL, to: destinationURL)
+                copiedPaths[screenshot.id] = relativePath
+            } catch {
+                warnings.append(LLMExportWarning(
+                    code: "copyScreenshotFailed",
+                    message: "Screenshot file could not be copied during export.",
+                    path: screenshot.originalRelativePath
+                ))
+            }
+        }
+        return copiedPaths
+    }
+
+    private func exportFilename(for screenshot: ScreenshotExportSource) -> String {
+        let formatter = DateFormatter()
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd'T'HH-mm-ss'Z'"
+        let ext = URL(fileURLWithPath: screenshot.originalRelativePath).pathExtension.isEmpty
+            ? "webp"
+            : URL(fileURLWithPath: screenshot.originalRelativePath).pathExtension
+        return "\(formatter.string(from: screenshot.timestamp))_d\(screenshot.displayIndex).\(ext)"
     }
 
     private func writeJSON<T: Encodable>(_ value: T, to url: URL) throws {
@@ -571,13 +736,13 @@ final class LLMExportService {
         }
     }
 
-    private func writeAppSummary(_ events: [ActivityEvent], to url: URL) throws {
-        let totalDuration = events.reduce(0.0) { $0 + $1.duration }
+    private func writeAppSummary(_ events: [ActivityEventExport], to url: URL) throws {
+        let totalDuration = events.reduce(0.0) { $0 + $1.durationSeconds }
         var byApp: [String: (bundleID: String, duration: TimeInterval, count: Int)] = [:]
         for event in events {
             let key = event.appName.isEmpty ? "Unknown" : event.appName
             var entry = byApp[key] ?? (bundleID: event.bundleID, duration: 0, count: 0)
-            entry.duration += event.duration
+            entry.duration += event.durationSeconds
             entry.count += 1
             byApp[key] = entry
         }
@@ -610,14 +775,22 @@ final class LLMExportService {
     }
 
     private func readme(for manifest: LLMExportManifest) -> String {
-        """
+        let archiveText: String
+        if let fullArchiveIndex = manifest.files.fullArchiveIndex,
+           let fullArchiveScreenshots = manifest.files.fullArchiveScreenshots {
+            archiveText = "The full screenshot archive is copied under `\(fullArchiveScreenshots)/`; use `\(fullArchiveIndex)` as its index."
+        } else {
+            archiveText = "The full screenshot archive was not included. Complete screenshot metadata is still available in `metadata/screenshots.json`."
+        }
+
+        return """
         # GrotTrack LLM Evidence Export
 
         This folder contains local GrotTrack activity metadata and curated screenshot evidence for the selected date range.
 
         Start with `manifest.json`, then read `metadata/hourly-summary.json`, `metadata/sessions.json`, and `evidence/evidence-index.json`.
 
-        The smart evidence screenshots are copied under `evidence/screenshots/`. Complete screenshot metadata is still available in `metadata/screenshots.json`.
+        The smart evidence screenshots are copied under `evidence/screenshots/`. \(archiveText)
 
         Treat this export as sensitive local user data. It can include private window titles, browser URLs, OCR text, annotations, and screenshots.
 
@@ -629,11 +802,12 @@ final class LLMExportService {
 }
 
 private struct EvidenceCandidate {
-    let screenshot: Screenshot
+    let anchor: Screenshot
+    let screenshots: [Screenshot]
     let score: Int
 }
 
-private struct ActivityEventExport: Codable {
+private struct ActivityEventExport: Codable, Sendable {
     let id: UUID
     let timestamp: Date
     let durationSeconds: TimeInterval
@@ -663,7 +837,7 @@ private struct ActivityEventExport: Codable {
     }
 }
 
-private struct ActivitySessionExport: Codable {
+private struct ActivitySessionExport: Codable, Sendable {
     let id: UUID
     let startTime: Date
     let endTime: Date
@@ -707,7 +881,7 @@ private struct ActivitySessionExport: Codable {
     }
 }
 
-private struct AnnotationExport: Codable {
+private struct AnnotationExport: Codable, Sendable {
     let id: UUID
     let timestamp: Date
     let text: String
@@ -729,7 +903,37 @@ private struct AnnotationExport: Codable {
     }
 }
 
-private struct ScreenshotExport: Codable {
+private struct ScreenshotExportSource: Sendable {
+    let id: UUID
+    let timestamp: Date
+    let displayID: UInt32
+    let displayIndex: Int
+    let width: Int
+    let height: Int
+    let fileSize: Int64
+    let originalRelativePath: String
+    let nearestActivityEventID: UUID?
+    let sessionID: UUID?
+
+    init(
+        screenshot: Screenshot,
+        nearestActivityEventID: UUID?,
+        sessionID: UUID?
+    ) {
+        id = screenshot.id
+        timestamp = screenshot.timestamp
+        displayID = screenshot.displayID
+        displayIndex = screenshot.displayIndex
+        width = screenshot.width
+        height = screenshot.height
+        fileSize = screenshot.fileSize
+        originalRelativePath = screenshot.filePath
+        self.nearestActivityEventID = nearestActivityEventID
+        self.sessionID = sessionID
+    }
+}
+
+private struct ScreenshotExport: Codable, Sendable {
     let id: UUID
     let timestamp: Date
     let displayID: UInt32
@@ -744,28 +948,26 @@ private struct ScreenshotExport: Codable {
     let sessionID: UUID?
 
     init(
-        screenshot: Screenshot,
+        source: ScreenshotExportSource,
         evidencePath: String?,
-        archivePath: String?,
-        nearestActivityEventID: UUID?,
-        sessionID: UUID?
+        archivePath: String?
     ) {
-        id = screenshot.id
-        timestamp = screenshot.timestamp
-        displayID = screenshot.displayID
-        displayIndex = screenshot.displayIndex
-        width = screenshot.width
-        height = screenshot.height
-        fileSize = screenshot.fileSize
-        originalRelativePath = screenshot.filePath
+        id = source.id
+        timestamp = source.timestamp
+        displayID = source.displayID
+        displayIndex = source.displayIndex
+        width = source.width
+        height = source.height
+        fileSize = source.fileSize
+        originalRelativePath = source.originalRelativePath
         copiedEvidencePath = evidencePath
         copiedArchivePath = archivePath
-        self.nearestActivityEventID = nearestActivityEventID
-        self.sessionID = sessionID
+        nearestActivityEventID = source.nearestActivityEventID
+        sessionID = source.sessionID
     }
 }
 
-private struct ScreenshotEnrichmentExport: Codable {
+private struct ScreenshotEnrichmentExport: Codable, Sendable {
     let id: UUID
     let screenshotID: UUID
     let timestamp: Date
@@ -787,11 +989,11 @@ private struct ScreenshotEnrichmentExport: Codable {
     }
 }
 
-private struct EvidenceIndexExport: Codable {
+private struct EvidenceIndexExport: Codable, Sendable {
     let screenshots: [EvidenceScreenshotExport]
 }
 
-private struct EvidenceScreenshotExport: Codable {
+private struct EvidenceScreenshotExport: Codable, Sendable {
     let screenshotID: UUID
     let timestamp: Date
     let displayIndex: Int
@@ -799,11 +1001,23 @@ private struct EvidenceScreenshotExport: Codable {
     let reason: String
 }
 
-private struct HourlySummaryExport: Codable {
+private struct ArchiveIndexExport: Codable, Sendable {
+    let screenshots: [ArchiveScreenshotExport]
+}
+
+private struct ArchiveScreenshotExport: Codable, Sendable {
+    let screenshotID: UUID
+    let timestamp: Date
+    let displayIndex: Int
+    let path: String
+}
+
+private struct HourlySummaryExport: Codable, Sendable {
     let startTime: Date
     let endTime: Date
     let durationSeconds: TimeInterval
     let dominantApp: String?
+    let dominantTitle: String?
     let focusScore: Double?
     let sessionLabels: [String]
     let annotationIDs: [UUID]

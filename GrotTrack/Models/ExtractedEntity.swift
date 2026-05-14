@@ -1,6 +1,6 @@
 import Foundation
 
-enum EntityType: String, Codable, CaseIterable {
+enum EntityType: String, Codable, CaseIterable, Sendable {
     case url
     case date
     case phoneNumber
@@ -13,7 +13,7 @@ enum EntityType: String, Codable, CaseIterable {
     case meetingLink    // zoom.us/j/*, meet.google.com/*
 }
 
-struct ExtractedEntity: Codable, Equatable {
+struct ExtractedEntity: Codable, Equatable, Sendable {
     let type: EntityType
     let value: String
 }

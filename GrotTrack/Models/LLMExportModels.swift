@@ -1,6 +1,6 @@
 import Foundation
 
-enum LLMExportScreenshotMode: String, Codable, CaseIterable, Identifiable {
+enum LLMExportScreenshotMode: String, Codable, CaseIterable, Identifiable, Sendable {
     case smartEvidence
     case smartEvidenceWithFullArchive
 
@@ -20,7 +20,7 @@ enum LLMExportScreenshotMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-struct LLMExportRequest {
+struct LLMExportRequest: Sendable {
     var startDate: Date
     var endDate: Date
     var destinationDirectory: URL
@@ -29,19 +29,20 @@ struct LLMExportRequest {
     var screenshotRangeCap: Int = 250
 }
 
-struct LLMExportResult {
+struct LLMExportResult: Sendable {
     let bundleURL: URL
     let manifest: LLMExportManifest
 }
 
-struct LLMExportWarning: Codable, Equatable {
+struct LLMExportWarning: Codable, Equatable, Sendable {
     let code: String
     let message: String
     let path: String?
 }
 
-struct LLMExportManifest: Codable {
+struct LLMExportManifest: Codable, Sendable {
     let schemaVersion: Int
+    let appVersion: String?
     let generatedAt: Date
     let dateRangeStart: Date
     let dateRangeEnd: Date
@@ -52,7 +53,7 @@ struct LLMExportManifest: Codable {
     let files: Files
     let warnings: [LLMExportWarning]
 
-    struct Counts: Codable {
+    struct Counts: Codable, Sendable {
         let activityEvents: Int
         let sessions: Int
         let annotations: Int
@@ -61,7 +62,7 @@ struct LLMExportManifest: Codable {
         let archiveScreenshots: Int
     }
 
-    struct Files: Codable {
+    struct Files: Codable, Sendable {
         let readme: String
         let activityEvents: String
         let sessions: String
@@ -71,6 +72,8 @@ struct LLMExportManifest: Codable {
         let hourlySummary: String
         let appSummary: String
         let evidenceIndex: String
+        let fullArchiveIndex: String?
+        let fullArchiveScreenshots: String?
     }
 }
 
