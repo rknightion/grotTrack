@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/rknightion/grotTrack/compare/v0.15.0...v0.15.1) (2026-05-30)
+
+
+### Miscellaneous
+
+* automerge Renovate vulnerability-fix PRs ([adecc1a](https://github.com/rknightion/grotTrack/commit/adecc1afc6041c2f70822caca5c90bf681ef5773))
+
 ## [0.15.0](https://github.com/rknightion/grotTrack/compare/v0.14.0...v0.15.0) (2026-05-14)
 
 
