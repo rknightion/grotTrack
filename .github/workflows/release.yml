@@ -31,10 +31,10 @@ jobs:
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Cache Homebrew bottles
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/Library/Caches/Homebrew/downloads
           key: brew-xcodegen-v1
@@ -46,7 +46,7 @@ jobs:
         run: xcodegen generate
 
       - name: Cache DerivedData
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
           key: deriveddata-${{ hashFiles('**/*.swift', 'project.yml') }}
@@ -68,10 +68,10 @@ jobs:
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Cache Homebrew bottles
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/Library/Caches/Homebrew/downloads
           key: brew-xcodegen-v1
@@ -83,7 +83,7 @@ jobs:
         run: xcodegen generate
 
       - name: Cache DerivedData
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
           key: deriveddata-${{ hashFiles('**/*.swift', 'project.yml') }}
@@ -155,7 +155,7 @@ jobs:
             build/GrotTrack.xcarchive/Products/Applications/GrotTrack.app \
             GrotTrack.zip
 
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: '24'
           cache: 'npm'
@@ -193,7 +193,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Download release artifact
         env:
@@ -258,9 +258,9 @@ jobs:
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: '24'
           cache: 'npm'
