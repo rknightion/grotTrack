@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.15.1](https://github.com/rknightion/grotTrack/compare/v0.15.0...v0.15.1) (2026-06-10)
+
+
+### Miscellaneous
+
+* automerge Renovate vulnerability-fix PRs ([adecc1a](https://github.com/rknightion/grotTrack/commit/adecc1afc6041c2f70822caca5c90bf681ef5773))
+* **deps:** update dependency @types/chrome to v0.1.43 ([#68](https://github.com/rknightion/grotTrack/issues/68)) ([67eb679](https://github.com/rknightion/grotTrack/commit/67eb679d15ec6e26e3710924758bc89145770588))
+* **deps:** update dependency sparkle to v2.9.2 ([#66](https://github.com/rknightion/grotTrack/issues/66)) ([dd3635e](https://github.com/rknightion/grotTrack/commit/dd3635ef76b48f65b8b4e796a68748dea1095f52))
+* **deps:** update dependency sparkle to v2.9.3 ([#69](https://github.com/rknightion/grotTrack/issues/69)) ([e4faa49](https://github.com/rknightion/grotTrack/commit/e4faa49120f7058af6f925149c161dee2efc8d1e))
+* **deps:** update dependency wxt to v0.20.26 ([#67](https://github.com/rknightion/grotTrack/issues/67)) ([cb6a86f](https://github.com/rknightion/grotTrack/commit/cb6a86fbd3b8e4a7bb740f6c019b7e1c3212c7bb))
+
 ## [0.15.0](https://github.com/rknightion/grotTrack/compare/v0.14.0...v0.15.0) (2026-05-14)
 
 
