@@ -4,6 +4,6 @@
     "generate-icons": "node scripts/generate-icons.mjs"
   },
   "devDependencies": {
-    "sharp": "^0.34.0"
+    "sharp": "^0.35.0"
   }
 }
