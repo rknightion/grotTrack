@@ -5,8 +5,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read # workflow default; write scopes granted per-job below
 
 concurrency:
   group: release-${{ github.ref }}
@@ -16,6 +15,9 @@ jobs:
   release-please:
     name: Create Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # release-please creates tags and GitHub releases
+      pull-requests: write # release-please opens and updates the release PR
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
@@ -31,10 +33,12 @@ jobs:
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Cache Homebrew bottles
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ~/Library/Caches/Homebrew/downloads
           key: brew-xcodegen-v1
@@ -46,7 +50,7 @@ jobs:
         run: xcodegen generate
 
       - name: Cache DerivedData
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ~/Library/Developer/Xcode/DerivedData
           key: deriveddata-${{ hashFiles('**/*.swift', 'project.yml') }}
@@ -67,14 +71,19 @@ jobs:
     needs: [release-please, test-gate]
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: macos-26
+    permissions:
+      contents: write # softprops/action-gh-release uploads assets to the GitHub release
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Cache Homebrew bottles
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ~/Library/Caches/Homebrew/downloads
           key: brew-xcodegen-v1
+          lookup-only: true
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -83,12 +92,13 @@ jobs:
         run: xcodegen generate
 
       - name: Cache DerivedData
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ~/Library/Developer/Xcode/DerivedData
           key: deriveddata-${{ hashFiles('**/*.swift', 'project.yml') }}
           restore-keys: |
             deriveddata-
+          lookup-only: true
 
       - name: Import signing certificate
         uses: apple-actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466 # v7
@@ -155,10 +165,10 @@ jobs:
             build/GrotTrack.xcarchive/Products/Applications/GrotTrack.app \
             GrotTrack.zip
 
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: '24'
-          cache: 'npm'
+          cache: false # zizmor: ignore[cache-poisoning] publishing job — poisoned cache could inject into release artifact
           cache-dependency-path: grot-track-extension/package-lock.json
 
       - name: Install icon dependencies
@@ -174,7 +184,7 @@ jobs:
           npx wxt zip
 
       - name: Upload Release Assets
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0 # zizmor: ignore[superfluous-actions] softprops provides richer asset-upload API than gh release (multi-glob, existing release update)
         with:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: |
@@ -193,13 +203,16 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Download release artifact
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEEDS_RELEASE_PLEASE_OUTPUTS_TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
         run: |
-          gh release download "${{ needs.release-please.outputs.tag_name }}" \
+          gh release download "${NEEDS_RELEASE_PLEASE_OUTPUTS_TAG_NAME}" \
             --pattern "GrotTrack.zip" --dir .
 
       - name: Install Sparkle tools
@@ -232,7 +245,7 @@ jobs:
 
       - name: Generate appcast entry
         run: |
-          VERSION="${{ needs.release-please.outputs.tag_name }}"
+          VERSION="${NEEDS_RELEASE_PLEASE_OUTPUTS_TAG_NAME}"
           VERSION="${VERSION#v}"  # strip leading 'v'
           mkdir -p _site
           # Restore previous appcast if it exists
@@ -240,8 +253,12 @@ jobs:
           cd _site
           ../scripts/update-appcast.sh \
             "$VERSION" \
-            "${{ steps.sign.outputs.signature }}" \
-            "${{ steps.sign.outputs.length }}"
+            "${STEPS_SIGN_OUTPUTS_SIGNATURE}" \
+            "${STEPS_SIGN_OUTPUTS_LENGTH}"
+        env:
+          NEEDS_RELEASE_PLEASE_OUTPUTS_TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+          STEPS_SIGN_OUTPUTS_SIGNATURE: ${{ steps.sign.outputs.signature }}
+          STEPS_SIGN_OUTPUTS_LENGTH: ${{ steps.sign.outputs.length }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
@@ -258,9 +275,11 @@ jobs:
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: '24'
           cache: 'npm'

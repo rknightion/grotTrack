@@ -7,17 +7,22 @@ on:
         description: 'Notarization submission ID'
         required: true
 
+permissions:
+  contents: read # read-only; uploads go to artifacts, not the repo
+
 jobs:
   fetch-log:
     runs-on: macos-latest
     steps:
       - name: Fetch notarization log
         run: |
-          xcrun notarytool log "${{ inputs.submission_id }}" \
+          xcrun notarytool log "${INPUTS_SUBMISSION_ID}" \
             --apple-id "${{ secrets.APPLE_ID }}" \
             --team-id "${{ secrets.APPLE_TEAM_ID }}" \
             --password "${{ secrets.NOTARY_PASSWORD }}" \
             notarization-log.json
+        env:
+          INPUTS_SUBMISSION_ID: ${{ inputs.submission_id }}
 
       - name: Upload log
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
