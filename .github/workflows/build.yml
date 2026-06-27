@@ -173,3 +173,19 @@ jobs:
           name: GrotTrack-Extension-${{ github.sha }}
           path: grot-track-extension/.output/chrome-mv3/
           retention-days: 2
+
+  # Single required status check (the branch ruleset requires only this). if: always() + an explicit
+  # failure check so a failed/cancelled leg fails the gate. Renovate automerge waits for this to go green.
+  ci-success:
+    name: ci-success
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [build-swift, build-extension]
+    steps:
+      - name: Fail if any required job did not pass
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "A required job failed or was cancelled: ${{ join(needs.*.result, ', ') }}"
+          exit 1
+      - name: All required jobs passed
+        run: echo "ci-success — ${{ join(needs.*.result, ', ') }}"
