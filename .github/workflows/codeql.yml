@@ -16,4 +16,6 @@ jobs:
       contents: read
     uses: rknightion/.github/.github/workflows/codeql.yml@main
     with:
-      languages: '[{"language":"swift","build-mode":"autobuild"},{"language":"javascript-typescript","build-mode":"none"},{"language":"actions","build-mode":"none"}]'
+      # Swift omitted: CodeQL Swift requires a real Xcode build that autobuild
+      # can't perform headlessly here. JS/TS + actions cover the rest.
+      languages: '[{"language":"javascript-typescript","build-mode":"none"},{"language":"actions","build-mode":"none"}]'
