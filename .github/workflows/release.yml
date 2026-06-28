@@ -224,7 +224,9 @@ jobs:
           tar xf Sparkle.tar.xz -C sparkle-tools
 
       - name: Verify Sparkle tools
-        run: ls sparkle-tools/bin/sign_update && ./sparkle-tools/bin/sign_update --help || true
+        run: |
+          # shellcheck disable=SC2015  # best-effort verification; step must never fail
+          ls sparkle-tools/bin/sign_update && ./sparkle-tools/bin/sign_update --help || true
 
       - name: Sign update with EdDSA
         id: sign
