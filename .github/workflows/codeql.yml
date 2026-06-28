@@ -1,0 +1,19 @@
+name: CodeQL
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '43 3 * * 3'
+permissions: {}
+jobs:
+  codeql:
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    uses: rknightion/.github/.github/workflows/codeql.yml@main
+    with:
+      languages: '[{"language":"swift","build-mode":"autobuild"},{"language":"javascript-typescript","build-mode":"none"},{"language":"actions","build-mode":"none"}]'
