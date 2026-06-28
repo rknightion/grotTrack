@@ -83,7 +83,7 @@ jobs:
                   sys.exit(0)
           print('N/A')
           ")
-            echo "### Code Coverage: ${COVERAGE}%" >> $GITHUB_STEP_SUMMARY
+            echo "### Code Coverage: ${COVERAGE}%" >> "$GITHUB_STEP_SUMMARY"
           fi
 
       # PRs: upload unsigned test build (secrets not available from forks)
