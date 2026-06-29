@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.15.1](https://github.com/rknightion/grotTrack/compare/v0.15.0...v0.15.1) (2026-06-29)
+
+
+### Miscellaneous
+
+* automerge Renovate vulnerability-fix PRs ([adecc1a](https://github.com/rknightion/grotTrack/commit/adecc1afc6041c2f70822caca5c90bf681ef5773))
+* **deps:** lock file maintenance ([#78](https://github.com/rknightion/grotTrack/issues/78)) ([d253bfe](https://github.com/rknightion/grotTrack/commit/d253bfee707a5e687e946041a4b86585f884ef0f))
+* **deps:** pin rknightion/.github action to 8629ccb ([#75](https://github.com/rknightion/grotTrack/issues/75)) ([f2292ef](https://github.com/rknightion/grotTrack/commit/f2292ef7d0a83c8383ff1b1235676e648917f9ce))
+* **deps:** update dependency @types/chrome to ^0.2.0 ([#72](https://github.com/rknightion/grotTrack/issues/72)) ([054e90c](https://github.com/rknightion/grotTrack/commit/054e90c0d4265c5a3f7bf3c00899e4601f7d445a))
+* **deps:** update dependency @types/chrome to v0.1.43 ([#68](https://github.com/rknightion/grotTrack/issues/68)) ([67eb679](https://github.com/rknightion/grotTrack/commit/67eb679d15ec6e26e3710924758bc89145770588))
+* **deps:** update dependency sharp to ^0.35.0 ([#73](https://github.com/rknightion/grotTrack/issues/73)) ([a41d29f](https://github.com/rknightion/grotTrack/commit/a41d29f93a7385401d1dda7fb4d88650d52f5aab))
+* **deps:** update dependency sparkle to v2.9.2 ([#66](https://github.com/rknightion/grotTrack/issues/66)) ([dd3635e](https://github.com/rknightion/grotTrack/commit/dd3635ef76b48f65b8b4e796a68748dea1095f52))
+* **deps:** update dependency sparkle to v2.9.3 ([#69](https://github.com/rknightion/grotTrack/issues/69)) ([e4faa49](https://github.com/rknightion/grotTrack/commit/e4faa49120f7058af6f925149c161dee2efc8d1e))
+* **deps:** update dependency wxt to v0.20.26 ([#67](https://github.com/rknightion/grotTrack/issues/67)) ([cb6a86f](https://github.com/rknightion/grotTrack/commit/cb6a86fbd3b8e4a7bb740f6c019b7e1c3212c7bb))
+* **deps:** update dependency wxt to v0.20.27 ([#70](https://github.com/rknightion/grotTrack/issues/70)) ([d01f56c](https://github.com/rknightion/grotTrack/commit/d01f56cdb1172cc26815744ffeb8d08e3db147a9))
+* **deps:** update github actions ([#71](https://github.com/rknightion/grotTrack/issues/71)) ([eacf3be](https://github.com/rknightion/grotTrack/commit/eacf3be21771e7eb4e4ee82897c078c9a7f8605e))
+* **deps:** update github actions ([#74](https://github.com/rknightion/grotTrack/issues/74)) ([7e39449](https://github.com/rknightion/grotTrack/commit/7e3944974ea2bc5c9f0df929c6d38d059a1320ee))
+* **deps:** update rknightion/.github digest to 0e80ff5 ([#77](https://github.com/rknightion/grotTrack/issues/77)) ([1639c00](https://github.com/rknightion/grotTrack/commit/1639c00188b373f90ab24453ed9cf405c3beaabb))
+* **deps:** update rknightion/.github digest to 17626c1 ([#76](https://github.com/rknightion/grotTrack/issues/76)) ([e7370aa](https://github.com/rknightion/grotTrack/commit/e7370aa230830e9b085170a44a46fb4bcbe0510c))
+* **renovate:** slim to repo-specific overrides ([0b66218](https://github.com/rknightion/grotTrack/commit/0b662183002b99453020e5a1dc9571939ea60e84))
+
 ## [0.15.0](https://github.com/rknightion/grotTrack/compare/v0.14.0...v0.15.0) (2026-05-14)
 
 
