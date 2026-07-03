@@ -1,5 +1,7 @@
 # GrotTrack
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/rknightion/grotTrack/badge)](https://scorecard.dev/viewer/?uri=github.com/rknightion/grotTrack)
+
 **Automatic time tracking for macOS** — Know exactly where your time goes. GrotTrack lives in your menu bar, silently tracking app usage, browser tabs, and screenshots, then turns it all into actionable focus reports. All data stays on your Mac.
 
 Built for Grafana Labs employees.
