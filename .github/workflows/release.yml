@@ -185,7 +185,7 @@ jobs:
           npx wxt zip
 
       - name: Upload Release Assets
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1 # zizmor: ignore[superfluous-actions] softprops provides richer asset-upload API than gh release (multi-glob, existing release update)
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2 # zizmor: ignore[superfluous-actions] softprops provides richer asset-upload API than gh release (multi-glob, existing release update)
         with:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: |
