@@ -9,7 +9,7 @@ options:
 packages:
   libwebp:
     url: https://github.com/SDWebImage/libwebp-Xcode.git
-    from: "1.5.0"
+    from: "1.6.0"
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle.git
     from: "2.9.4"
