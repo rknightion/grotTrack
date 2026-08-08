@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.16.0](https://github.com/rknightion/grotTrack/compare/v0.15.1...v0.16.0) (2026-08-08)
+
+
+### Features
+
+* mint release-please token from the OpenBao broker ([c9cdd16](https://github.com/rknightion/grotTrack/commit/c9cdd1615252b217fc5eff01d7f35f69dc2146f8))
+
+
+### Miscellaneous
+
+* **deps:** lock file maintenance ([#100](https://github.com/rknightion/grotTrack/issues/100)) ([481893c](https://github.com/rknightion/grotTrack/commit/481893c8a8778201f73528ef46b2767db6efac48))
+* **deps:** update dependency @types/chrome to v0.2.3 ([#97](https://github.com/rknightion/grotTrack/issues/97)) ([1e582c3](https://github.com/rknightion/grotTrack/commit/1e582c3bbed718c811a946cbbb44661454e340e9))
+* **deps:** update dependency @types/chrome to v0.2.4 ([#98](https://github.com/rknightion/grotTrack/issues/98)) ([f24aee8](https://github.com/rknightion/grotTrack/commit/f24aee89148f0caeefa5f44526a2e349d75f6c71))
+* **deps:** update dependency @types/chrome to v0.2.5 ([#99](https://github.com/rknightion/grotTrack/issues/99)) ([3d36efa](https://github.com/rknightion/grotTrack/commit/3d36efadc70adfc7f130e494e9d7baa66dd46ad4))
+* **deps:** update dependency libwebp to v1.6.0 ([#95](https://github.com/rknightion/grotTrack/issues/95)) ([49c089f](https://github.com/rknightion/grotTrack/commit/49c089f339a2236271a0aa76ace6fa1ea22b56be))
+* **deps:** update dependency sparkle to v2.9.5 ([#101](https://github.com/rknightion/grotTrack/issues/101)) ([d6450f0](https://github.com/rknightion/grotTrack/commit/d6450f03be761cbd9a635f110d1786a583b64760))
+* **deps:** update dependency wxt to v0.21.2 ([#93](https://github.com/rknightion/grotTrack/issues/93)) ([4d6c2c1](https://github.com/rknightion/grotTrack/commit/4d6c2c188b2dbd5a793767b3313306ed30c4bed2))
+* **deps:** update dependency wxt to v0.21.3 ([#96](https://github.com/rknightion/grotTrack/issues/96)) ([c3f6fef](https://github.com/rknightion/grotTrack/commit/c3f6fef178b4588a15104e783359bf34fae1d099))
+
 ## [0.15.1](https://github.com/rknightion/grotTrack/compare/v0.15.0...v0.15.1) (2026-07-27)
 
 
