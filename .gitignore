@@ -64,3 +64,6 @@ grot-track-extension/dist/
 *.tmp
 .superpowers/
 .claude/worktrees/
+
+# Superpowers scratch (specs/plans/audits) — never committed
+docs/superpowers/
