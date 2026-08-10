@@ -17,6 +17,24 @@ generic macOS time tracking with no dependency on any Grafana product.
 The source, issues and releases live on
 **[GitHub](https://github.com/rknightion/grotTrack)**.
 
+## Quickstart
+
+Built from source — there is no packaged download yet. Needs macOS 26 (Tahoe)
+and Xcode 26 or later:
+
+```bash
+brew install xcodegen
+
+git clone https://github.com/rknightion/grotTrack.git
+cd grotTrack
+xcodegen generate
+open GrotTrack.xcodeproj
+```
+
+Build and run in Xcode (Cmd+R). On first launch the onboarding wizard asks for
+Accessibility and Screen Recording permissions, both of which it needs to see
+what you are working on.
+
 ## Three components
 
 GrotTrack ships as three things that work together:
