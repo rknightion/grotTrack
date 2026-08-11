@@ -5,7 +5,7 @@
 [site]
 name = "grotTrack"
 description = "Automatic macOS time tracking: a menu bar app, a Chrome native messaging host, and a local-first SwiftData store. No data leaves the machine."
-author = "Rob Knighton"
+author = "Rob Knight"
 keywords = [
     "macos time tracking",
     "time tracking app",
