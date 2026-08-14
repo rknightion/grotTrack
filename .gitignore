@@ -64,11 +64,7 @@ grot-track-extension/dist/
 *.tmp
 .superpowers/
 
-# Everything else under .claude/ is per-machine state: worktrees, scheduler locks,
-# and settings.local.json.
-.claude/*
-!.claude/settings.json
-!.claude/hooks/
+.claude/
 
 # Superpowers scratch (specs/plans/audits) — never committed
 docs/superpowers/

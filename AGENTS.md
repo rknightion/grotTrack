@@ -127,8 +127,7 @@ shows both:
 
 They **silently replace** the whole section — another session's writes vanish with no warning and
 exit 0. This is an open upstream bug, not a misunderstanding. Use `--append-notes` and
-`--append-plan`. `.claude/hooks/backlog-guard.py` denies the unsafe forms at `PreToolUse`; its test
-is `.claude/hooks/backlog-guard_test.py` (`python3 .claude/hooks/backlog-guard_test.py`).
+`--append-plan`. A global `PreToolUse` hook in the agent config denies the unsafe forms.
 
 ### Never hand-edit task, draft, doc, decision or milestone markdown
 
