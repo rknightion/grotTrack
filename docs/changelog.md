@@ -1,6 +1,6 @@
 ---
 title: Changelog
-description: Release history for grotTrack
+description: Review grotTrack releases and changes across the macOS app, native messaging host, browser extension, and local data model.
 ---
 
 # Changelog

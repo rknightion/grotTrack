@@ -1,6 +1,6 @@
 ---
 title: FAQ
-description: Frequently asked technical questions about GrotTrack.
+description: Answers about grotTrack privacy, local storage, browser activity capture, screenshots, exports, and supported workflows.
 ---
 
 # FAQ
