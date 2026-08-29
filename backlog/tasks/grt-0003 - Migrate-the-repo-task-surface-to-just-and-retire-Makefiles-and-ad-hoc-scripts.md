@@ -1,10 +1,10 @@
 ---
 id: GRT-0003
 title: Migrate the repo task surface to just and retire Makefiles and ad-hoc scripts
-status: To Do
+status: Parked
 assignee: []
 created_date: '2026-08-28 19:21'
-updated_date: '2026-08-29 10:42'
+updated_date: '2026-08-29 14:32'
 labels:
   - 'wave:2-fleet'
 dependencies: []
@@ -480,15 +480,15 @@ tracker markdown" rule (list-valued keys can't be set through `backlog config se
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Top-level justfile exists with default, setup, fmt, fmt-check, lint, test, check plus typecheck, build, build-extension, gen, gen-check, xcodeproj, run, extension-dev, extension-zip, appcast, ci recipes, each with a doc comment and group
-- [ ] #2 just check passes locally on a clean checkout (fmt-check, lint, typecheck, gen-check, test)
-- [ ] #3 just --fmt --check passes with no diff
-- [ ] #4 just --list shows a # doc comment and a [group(...)] for every public recipe
-- [ ] #5 scripts/update-appcast.sh and scripts/generate-icons.mjs remain as files, reachable only via just appcast / just gen — no raw ./scripts/... invocation remains in workflows, README.md, AGENTS.md, or package.json
-- [ ] #6 .github/workflows/build.yml and release.yml call just for xcodegen generation, linting, testing, icon generation, extension build/typecheck/zip, and appcast update, each job preceded by a pinned extractions/setup-just step; ci-success's needs list and job names in build.yml are unchanged
-- [ ] #7 AGENTS.md and README.md no longer instruct running xcodegen generate, swiftlint lint, xcodebuild test, npm install && npx wxt build, or ./scripts/*.sh directly
-- [ ] #8 backlog/config.yml's definition_of_done lists just build, just test, just lint, just xcodeproj, just typecheck in place of the raw xcodebuild/swiftlint/xcodegen commands
-- [ ] #9 No Makefile is introduced (repo has none today) and no unstable just features are used
+- [ ] #1 just check passes locally on a clean checkout (fmt-check, lint, typecheck, gen-check, test)
+- [ ] #2 just --fmt --check passes with no diff
+- [ ] #3 just --list shows a # doc comment and a [group(...)] for every public recipe
+- [ ] #4 scripts/update-appcast.sh and scripts/generate-icons.mjs remain as files, reachable only via just appcast / just gen — no raw ./scripts/... invocation remains in workflows, README.md, AGENTS.md, or package.json
+- [ ] #5 .github/workflows/build.yml and release.yml call just for xcodegen generation, linting, testing, icon generation, extension build/typecheck/zip, and appcast update, each job preceded by a pinned extractions/setup-just step; ci-success's needs list and job names in build.yml are unchanged
+- [ ] #6 AGENTS.md and README.md no longer instruct running xcodegen generate, swiftlint lint, xcodebuild test, npm install && npx wxt build, or ./scripts/*.sh directly
+- [ ] #7 backlog/config.yml's definition_of_done lists just build, just test, just lint, just xcodeproj, just typecheck in place of the raw xcodebuild/swiftlint/xcodegen commands
+- [ ] #8 No Makefile is introduced (repo has none today) and no unstable just features are used
+- [ ] #9 Top-level justfile exists with default, setup, fmt, fmt-check, lint, test, check plus typecheck, build, build-extension, gen, gen-check, xcodeproj, run, extension-dev, extension-zip, appcast recipes, each with a doc comment and required group; no ci recipe is present because this repository has no Docker, service-container, or cross-compilation leg.
 <!-- AC:END -->
 
 ## Definition of Done
@@ -499,6 +499,26 @@ tracker markdown" rule (list-valued keys can't be set through `backlog config se
 - [ ] #4 xcodegen generate (run before the first build, and again after any project.yml change; GrotTrack.xcodeproj is generated and gitignored — never commit it)
 - [ ] #5 cd grot-track-extension && npx wxt prepare && npx tsc --noEmit (only if the extension changed)
 <!-- DOD:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Inventory the live task surface, workflow runners, shared-workflow calls, hook configuration, and all direct task/script references.
+2. Add a standards-compliant top-level justfile; validate every local, non-secret recipe and fix migration-exposed lint/config defects within scope.
+3. Route build/test/lint/generate CI through pinned `just` recipes while preserving shared reusable calls, signatures, job names, and secret-only release steps.
+4. Replace stale developer-facing command references with the task interface, run focused local and workflow gates, then review the named staged diff.
+5. Commit and push named paths to main; obtain a green repository CI run at the final SHA; finalize this task through the Backlog CLI.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Decision: the task originally required a ci recipe, but the ratified fleet amendment and its binding task comment prohibit ci without Docker, service-container, or cross-compilation work. This repository has none. Coverage remains in test/check so the build workflow retains TestResults.xcresult; the obsolete ci acceptance criterion was replaced through the CLI.
+
+Repaired the strict-lint refactor by separating export models/support and session helpers; strict lint is clean and the focused LLM export suite passed (8 tests). Added the standards-compliant just task surface, routed eligible workflow steps through it, and updated developer documentation and definition of done. Broader build, extension, appcast, workflow, and final review gates remain.
+
+Parked: the local implementation and workflow gates are complete, but the mandatory CodeRabbit review could not begin because its plan rate limit is exhausted and no on-demand review is available. Resume by retrying coderabbit review --agent --base main after review capacity is restored; fix any material findings, then commit the staged migration, push to main, wait for a successful CI run at that SHA, and finalize this task.
+<!-- SECTION:NOTES:END -->
 
 ## Comments
 
@@ -541,5 +561,11 @@ This supersedes the frozen wording *"`check` is the complete local gate and repr
 Eleven of the 42 lanes arrived at this shape independently before it was ratified, which is why it won.
 
 **If this repo has no such legs, it has no `ci` recipe at all** and `check` is the whole gate. Do not add an empty one.
+---
+
+author: campaign-execution
+created: 2026-08-29 13:58
+---
+Ratified standard applied: the stale ci requirement was removed from acceptance criteria. Coverage instrumentation stays in test/check; no ci recipe will be added because no permitted heavy leg exists.
 ---
 <!-- COMMENTS:END -->
