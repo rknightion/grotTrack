@@ -89,7 +89,11 @@ gen-check: gen
     git diff --exit-code -- grot-track-extension/public GrotTrack/Assets.xcassets/AppIcon.appiconset
 
 # Run the full local gate.
+# [macos] because it depends on lint and test, which are themselves [macos]
+# (swiftlint, xcodebuild). just validates the whole file at parse time, so
+# without this the Linux extension job cannot run even `just gen`.
 [group('check')]
+[macos]
 check: fmt-check lint typecheck gen-check test
 
 # Build the unsigned macOS app for local testing.
