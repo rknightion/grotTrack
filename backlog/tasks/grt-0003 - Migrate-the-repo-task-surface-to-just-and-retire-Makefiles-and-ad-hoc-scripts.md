@@ -1,10 +1,10 @@
 ---
 id: GRT-0003
 title: Migrate the repo task surface to just and retire Makefiles and ad-hoc scripts
-status: Parked
+status: Done
 assignee: []
 created_date: '2026-08-28 19:21'
-updated_date: '2026-08-29 14:32'
+updated_date: '2026-08-29 18:18'
 labels:
   - 'wave:2-fleet'
 dependencies: []
@@ -518,6 +518,8 @@ Decision: the task originally required a ci recipe, but the ratified fleet amend
 Repaired the strict-lint refactor by separating export models/support and session helpers; strict lint is clean and the focused LLM export suite passed (8 tests). Added the standards-compliant just task surface, routed eligible workflow steps through it, and updated developer documentation and definition of done. Broader build, extension, appcast, workflow, and final review gates remain.
 
 Parked: the local implementation and workflow gates are complete, but the mandatory CodeRabbit review could not begin because its plan rate limit is exhausted and no on-demand review is available. Resume by retrying coderabbit review --agent --base main after review capacity is restored; fix any material findings, then commit the staged migration, push to main, wait for a successful CI run at that SHA, and finalize this task.
+
+Unparked and completed 2026-08-29. CodeRabbit's four doc findings were all fixed. A follow-up gated `check` on [macos]: it depends on [macos] recipes, and just validates the whole file at parse time, so every Linux invocation failed until then. Migration at 0ecbcd8; exact-head CI green.
 <!-- SECTION:NOTES:END -->
 
 ## Comments
