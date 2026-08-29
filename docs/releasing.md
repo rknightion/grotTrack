@@ -33,7 +33,7 @@ All of the following jobs are gated on `needs.release-please.outputs.release_cre
 
 1. **`test-gate`** — runs the full `GrotTrackTests` suite (`macos-26` runner) before anything is
    built for shipping. A release does not proceed past this on a failing test.
-2. **`build-release`** — archives `GrotTrack` with `xcodebuild archive`, re-signs the embedded
+2. **`build-release`** — archives `GrotTrack` in its CI-only signing step, re-signs the embedded
    Sparkle framework's XPC services, `Autoupdate`, `Updater.app` and the framework itself
    (innermost-first) with the `Developer ID Application` identity, then re-signs the whole app
    with its entitlements, verifies with `codesign --verify --deep --strict`, notarizes via
@@ -55,8 +55,8 @@ The `update-appcast` job:
 2. Fetches Sparkle's `sign_update` tool (pinned version `2.6.4`) and signs the zip with the
    private EdDSA key held in the `SPARKLE_EDDSA_KEY` secret, extracting the signature and length
    from `sign_update`'s output.
-3. Downloads the currently-published `appcast.xml` (if any) and runs `scripts/update-appcast.sh`
-   with the version, signature and length to append the new release entry.
+3. Downloads the currently-published `appcast.xml` (if any) and runs `just appcast` with the
+   version, signature and length to append the new release entry.
 4. Publishes the updated `_site/appcast.xml` to GitHub Pages via `actions/deploy-pages`.
 
 Sparkle on a running GrotTrack instance polls that feed and verifies each update against
@@ -66,7 +66,7 @@ client-side regardless of where it was fetched from.
 ## Chrome Web Store publishing
 
 The `publish-extension` job runs `chrome-webstore-upload-cli@3` twice — `upload` then `publish` —
-against the zip produced by `npx wxt zip`, authenticating with four repository secrets:
+against the zip produced by `just extension-zip`, authenticating with four repository secrets:
 `CHROME_EXTENSION_ID`, `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, `CHROME_REFRESH_TOKEN`. This
 only works for versions *after* the first submission — Chrome Web Store requires a manual first
 upload and review before CI can publish subsequent versions automatically. If any of the four

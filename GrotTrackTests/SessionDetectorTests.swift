@@ -23,27 +23,27 @@ final class SessionDetectorTests: XCTestCase {
 
         let now = Date()
 
-        let e1 = ActivityEvent(appName: "Xcode", bundleID: "com.apple.dt.Xcode", windowTitle: "Main.swift")
-        e1.timestamp = now
-        e1.duration = 10
-        context.insert(e1)
+        let initialEvent = ActivityEvent(appName: "Xcode", bundleID: "com.apple.dt.Xcode", windowTitle: "Main.swift")
+        initialEvent.timestamp = now
+        initialEvent.duration = 10
+        context.insert(initialEvent)
 
-        let e2 = ActivityEvent(appName: "Xcode", bundleID: "com.apple.dt.Xcode", windowTitle: "Main.swift")
-        e2.timestamp = now.addingTimeInterval(10)
-        e2.duration = 10
-        context.insert(e2)
+        let continuingEvent = ActivityEvent(appName: "Xcode", bundleID: "com.apple.dt.Xcode", windowTitle: "Main.swift")
+        continuingEvent.timestamp = now.addingTimeInterval(10)
+        continuingEvent.duration = 10
+        context.insert(continuingEvent)
 
-        detector.processEvent(e1)
-        detector.processEvent(e2)
+        detector.processEvent(initialEvent)
+        detector.processEvent(continuingEvent)
 
         let sessions1 = try context.fetch(FetchDescriptor<ActivitySession>())
         XCTAssertEqual(sessions1.count, 0, "No session should be finalized while same app continues")
 
-        let e3 = ActivityEvent(appName: "Safari", bundleID: "com.apple.Safari", windowTitle: "Docs")
-        e3.timestamp = now.addingTimeInterval(20)
-        e3.duration = 10
-        context.insert(e3)
-        detector.processEvent(e3)
+        let appChangeEvent = ActivityEvent(appName: "Safari", bundleID: "com.apple.Safari", windowTitle: "Docs")
+        appChangeEvent.timestamp = now.addingTimeInterval(20)
+        appChangeEvent.duration = 10
+        context.insert(appChangeEvent)
+        detector.processEvent(appChangeEvent)
 
         let sessions2 = try context.fetch(FetchDescriptor<ActivitySession>())
         XCTAssertEqual(sessions2.count, 1)
@@ -59,18 +59,18 @@ final class SessionDetectorTests: XCTestCase {
 
         let now = Date()
 
-        let e1 = ActivityEvent(appName: "Xcode", bundleID: "com.apple.dt.Xcode", windowTitle: "File.swift")
-        e1.timestamp = now
-        e1.duration = 10
-        context.insert(e1)
-        detector.processEvent(e1)
+        let initialEvent = ActivityEvent(appName: "Xcode", bundleID: "com.apple.dt.Xcode", windowTitle: "File.swift")
+        initialEvent.timestamp = now
+        initialEvent.duration = 10
+        context.insert(initialEvent)
+        detector.processEvent(initialEvent)
 
         // Gap of 3+ minutes
-        let e2 = ActivityEvent(appName: "Xcode", bundleID: "com.apple.dt.Xcode", windowTitle: "File.swift")
-        e2.timestamp = now.addingTimeInterval(190)
-        e2.duration = 10
-        context.insert(e2)
-        detector.processEvent(e2)
+        let resumedEvent = ActivityEvent(appName: "Xcode", bundleID: "com.apple.dt.Xcode", windowTitle: "File.swift")
+        resumedEvent.timestamp = now.addingTimeInterval(190)
+        resumedEvent.duration = 10
+        context.insert(resumedEvent)
+        detector.processEvent(resumedEvent)
 
         let sessions = try context.fetch(FetchDescriptor<ActivitySession>())
         XCTAssertEqual(sessions.count, 1, "Idle gap should finalize previous session")
@@ -105,11 +105,11 @@ final class SessionDetectorTests: XCTestCase {
 
         let now = Date()
 
-        let e1 = ActivityEvent(appName: "Xcode", bundleID: "com.apple.dt.Xcode", windowTitle: "File.swift")
-        e1.timestamp = now
-        e1.duration = 60
-        context.insert(e1)
-        detector.processEvent(e1)
+        let initialEvent = ActivityEvent(appName: "Xcode", bundleID: "com.apple.dt.Xcode", windowTitle: "File.swift")
+        initialEvent.timestamp = now
+        initialEvent.duration = 60
+        context.insert(initialEvent)
+        detector.processEvent(initialEvent)
 
         detector.finalizeCurrentSession()
 
@@ -126,19 +126,19 @@ final class SessionDetectorTests: XCTestCase {
 
         let now = Date()
 
-        let e1 = ActivityEvent(appName: "Chrome", bundleID: "com.google.Chrome", windowTitle: "GitHub")
-        e1.browserTabURL = "https://github.com/rob/grotTrack"
-        e1.timestamp = now
-        e1.duration = 60
-        context.insert(e1)
-        detector.processEvent(e1)
+        let githubEvent = ActivityEvent(appName: "Chrome", bundleID: "com.google.Chrome", windowTitle: "GitHub")
+        githubEvent.browserTabURL = "https://github.com/rob/grotTrack"
+        githubEvent.timestamp = now
+        githubEvent.duration = 60
+        context.insert(githubEvent)
+        detector.processEvent(githubEvent)
 
-        let e2 = ActivityEvent(appName: "Chrome", bundleID: "com.google.Chrome", windowTitle: "Slack")
-        e2.browserTabURL = "https://app.slack.com/messages"
-        e2.timestamp = now.addingTimeInterval(60)
-        e2.duration = 60
-        context.insert(e2)
-        detector.processEvent(e2)
+        let domainChangeEvent = ActivityEvent(appName: "Chrome", bundleID: "com.google.Chrome", windowTitle: "Slack")
+        domainChangeEvent.browserTabURL = "https://app.slack.com/messages"
+        domainChangeEvent.timestamp = now.addingTimeInterval(60)
+        domainChangeEvent.duration = 60
+        context.insert(domainChangeEvent)
+        detector.processEvent(domainChangeEvent)
 
         let sessions = try context.fetch(FetchDescriptor<ActivitySession>())
         XCTAssertEqual(sessions.count, 1)

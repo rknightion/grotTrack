@@ -27,9 +27,12 @@ final class LLMExportServiceTests: XCTestCase {
     }
 
     private func date(_ hour: Int, _ minute: Int = 0, _ second: Int = 0) -> Date {
-        Calendar.current.date(
+        guard let date = Calendar.current.date(
             from: DateComponents(year: 2026, month: 5, day: 14, hour: hour, minute: minute, second: second)
-        )!
+        ) else {
+            fatalError("Expected a valid fixture date")
+        }
+        return date
     }
 
     @discardableResult
@@ -44,6 +47,22 @@ final class LLMExportServiceTests: XCTestCase {
         screenshot.displayIndex = displayIndex
         context.insert(screenshot)
         return screenshot
+    }
+
+    private func smartEvidenceSelection(
+        screenshots: [Screenshot],
+        enrichments: [UUID: ScreenshotEnrichment],
+        maxCount: Int
+    ) -> [Screenshot] {
+        LLMExportService.selectEvidenceScreenshots(
+            LLMExportEvidenceSelection(
+                screenshots: screenshots,
+                enrichmentsByScreenshotID: enrichments,
+                startDate: date(9),
+                endDate: date(10),
+                maxCount: maxCount
+            )
+        )
     }
 
     func testSmartEvidenceIncludesScreenshotsNearAnnotations() throws {
@@ -63,14 +82,13 @@ final class LLMExportServiceTests: XCTestCase {
         try context.save()
 
         let selected = LLMExportService.selectEvidenceScreenshots(
-            screenshots: [early, near, late],
-            activities: [],
-            sessions: [],
-            annotations: [annotation],
-            enrichmentsByScreenshotID: [:],
-            startDate: date(9),
-            endDate: date(10),
-            maxCount: 1
+            LLMExportEvidenceSelection(
+                screenshots: [early, near, late],
+                annotations: [annotation],
+                startDate: date(9),
+                endDate: date(10),
+                maxCount: 1
+            )
         )
 
         XCTAssertEqual(selected.map(\.id), [near.id])
@@ -90,14 +108,13 @@ final class LLMExportServiceTests: XCTestCase {
         try context.save()
 
         let selected = LLMExportService.selectEvidenceScreenshots(
-            screenshots: [before, start, middle, end, after],
-            activities: [],
-            sessions: [session],
-            annotations: [],
-            enrichmentsByScreenshotID: [:],
-            startDate: date(9),
-            endDate: date(10),
-            maxCount: 2
+            LLMExportEvidenceSelection(
+                screenshots: [before, start, middle, end, after],
+                sessions: [session],
+                startDate: date(9),
+                endDate: date(10),
+                maxCount: 2
+            )
         )
 
         XCTAssertEqual(selected.map(\.id), [start.id, end.id])
@@ -117,14 +134,12 @@ final class LLMExportServiceTests: XCTestCase {
         try context.save()
 
         let selected = LLMExportService.selectEvidenceScreenshots(
-            screenshots: screenshots,
-            activities: [],
-            sessions: [],
-            annotations: [],
-            enrichmentsByScreenshotID: [:],
-            startDate: date(10),
-            endDate: date(11),
-            maxCount: 3
+            LLMExportEvidenceSelection(
+                screenshots: screenshots,
+                startDate: date(10),
+                endDate: date(11),
+                maxCount: 3
+            )
         )
 
         XCTAssertEqual(selected.map(\.id), [screenshots[0].id, screenshots[2].id, screenshots[4].id])
@@ -157,79 +172,16 @@ final class LLMExportServiceTests: XCTestCase {
         try context.save()
 
         let selected = LLMExportService.selectEvidenceScreenshots(
-            screenshots: [primary, sibling, later],
-            activities: [],
-            sessions: [],
-            annotations: [annotation],
-            enrichmentsByScreenshotID: [:],
-            startDate: date(9),
-            endDate: date(10),
-            maxCount: 2
+            LLMExportEvidenceSelection(
+                screenshots: [primary, sibling, later],
+                annotations: [annotation],
+                startDate: date(9),
+                endDate: date(10),
+                maxCount: 2
+            )
         )
 
         XCTAssertEqual(selected.map(\.id), [primary.id, sibling.id])
-    }
-
-    func testSmartEvidenceScoresSecondaryDisplayEnrichment() throws {
-        let container = try makeContainer()
-        let context = container.mainContext
-        let primary = insertScreenshot(
-            into: context,
-            at: date(9, 0),
-            path: "2026-05-14/09-00-00_d0.webp",
-            displayIndex: 0
-        )
-        let secondary = insertScreenshot(
-            into: context,
-            at: date(9, 0),
-            path: "2026-05-14/09-00-00_d1.webp",
-            displayIndex: 1
-        )
-        let competing = insertScreenshot(into: context, at: date(9, 30), path: "2026-05-14/09-30-00_d0.webp")
-        let secondaryEnrichment = ScreenshotEnrichment(screenshotID: secondary.id)
-        secondaryEnrichment.timestamp = secondary.timestamp
-        secondaryEnrichment.ocrText = "https://example.com PROJ-123 /Users/rob/repos/grotTrack"
-        secondaryEnrichment.entities = [
-            ExtractedEntity(type: .url, value: "https://example.com"),
-            ExtractedEntity(type: .issueKey, value: "PROJ-123"),
-            ExtractedEntity(type: .filePath, value: "/Users/rob/repos/grotTrack")
-        ]
-        let competingEnrichment = ScreenshotEnrichment(screenshotID: competing.id)
-        competingEnrichment.timestamp = competing.timestamp
-        competingEnrichment.topLines = "Plain OCR"
-        try context.save()
-
-        let selected = LLMExportService.selectEvidenceScreenshots(
-            screenshots: [primary, secondary, competing],
-            activities: [],
-            sessions: [],
-            annotations: [],
-            enrichmentsByScreenshotID: [
-                secondary.id: secondaryEnrichment,
-                competing.id: competingEnrichment
-            ],
-            startDate: date(9),
-            endDate: date(10),
-            maxCount: 2
-        )
-
-        XCTAssertEqual(selected.map(\.id), [primary.id, secondary.id])
-
-        let singleSelected = LLMExportService.selectEvidenceScreenshots(
-            screenshots: [primary, secondary, competing],
-            activities: [],
-            sessions: [],
-            annotations: [],
-            enrichmentsByScreenshotID: [
-                secondary.id: secondaryEnrichment,
-                competing.id: competingEnrichment
-            ],
-            startDate: date(9),
-            endDate: date(10),
-            maxCount: 1
-        )
-
-        XCTAssertEqual(singleSelected.map(\.id), [secondary.id])
     }
 
     func testBundleWriterCreatesExpectedStructureAndMetadata() async throws {
@@ -356,5 +308,57 @@ final class LLMExportServiceTests: XCTestCase {
         XCTAssertEqual(result.manifest.counts.screenshots, 1)
         XCTAssertEqual(result.manifest.counts.evidenceScreenshots, 0)
         XCTAssertTrue(result.manifest.warnings.contains { $0.code == "missingScreenshotFile" })
+    }
+}
+
+extension LLMExportServiceTests {
+    func testSmartEvidenceScoresSecondaryDisplayEnrichment() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let primary = insertScreenshot(
+            into: context,
+            at: date(9, 0),
+            path: "2026-05-14/09-00-00_d0.webp",
+            displayIndex: 0
+        )
+        let secondary = insertScreenshot(
+            into: context,
+            at: date(9, 0),
+            path: "2026-05-14/09-00-00_d1.webp",
+            displayIndex: 1
+        )
+        let competing = insertScreenshot(into: context, at: date(9, 30), path: "2026-05-14/09-30-00_d0.webp")
+        let secondaryEnrichment = ScreenshotEnrichment(screenshotID: secondary.id)
+        secondaryEnrichment.timestamp = secondary.timestamp
+        secondaryEnrichment.ocrText = "https://example.com PROJ-123 /Users/rob/repos/grotTrack"
+        secondaryEnrichment.entities = [
+            ExtractedEntity(type: .url, value: "https://example.com"),
+            ExtractedEntity(type: .issueKey, value: "PROJ-123"),
+            ExtractedEntity(type: .filePath, value: "/Users/rob/repos/grotTrack")
+        ]
+        let competingEnrichment = ScreenshotEnrichment(screenshotID: competing.id)
+        competingEnrichment.timestamp = competing.timestamp
+        competingEnrichment.topLines = "Plain OCR"
+        try context.save()
+
+        let enrichments = [
+            secondary.id: secondaryEnrichment,
+            competing.id: competingEnrichment
+        ]
+        let selected = smartEvidenceSelection(
+            screenshots: [primary, secondary, competing],
+            enrichments: enrichments,
+            maxCount: 2
+        )
+
+        XCTAssertEqual(selected.map(\.id), [primary.id, secondary.id])
+
+        let singleSelected = smartEvidenceSelection(
+            screenshots: [primary, secondary, competing],
+            enrichments: enrichments,
+            maxCount: 1
+        )
+
+        XCTAssertEqual(singleSelected.map(\.id), [secondary.id])
     }
 }

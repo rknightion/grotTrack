@@ -5,54 +5,23 @@ The canonical instruction file for this repository. Claude Code reads it through
 
 The file `arch.txt` contains all architecture and design principles and must be respected. If an architecture decision is changed or updated, `arch.txt` must be kept in sync.
 
-## Build & Development
+## Task interface
 
-The Xcode project is generated from `project.yml` using XcodeGen. After changing `project.yml`, regenerate before opening Xcode:
+This repository's task surface is a `justfile`. Discover it; do not guess it:
 
-```bash
-xcodegen generate
-```
+    just --list                        # human-readable
+    just --dump --dump-format json     # machine-readable
+    just --show <recipe>               # inspect a recipe
 
-**Build (unsigned, for local testing):**
-```bash
-xcodebuild build \
-  -project GrotTrack.xcodeproj \
-  -scheme GrotTrack \
-  -destination 'platform=macOS' \
-  CODE_SIGN_IDENTITY="-" CODE_SIGNING_ALLOWED=NO
-```
-
-**Lint:**
-```bash
-swiftlint lint
-```
-
-**Run all tests:**
-```bash
-xcodebuild test \
-  -project GrotTrack.xcodeproj \
-  -scheme GrotTrackTests \
-  -destination 'platform=macOS' \
-  CODE_SIGN_IDENTITY="-" CODE_SIGNING_ALLOWED=NO
-```
-
-**Run a single test class or method:**
-```bash
-xcodebuild test \
-  -project GrotTrack.xcodeproj \
-  -scheme GrotTrackTests \
-  -destination 'platform=macOS' \
-  -only-testing GrotTrackTests/ActivityTrackerTests \
-  CODE_SIGN_IDENTITY="-" CODE_SIGNING_ALLOWED=NO
-```
-
-**Chrome extension (in `grot-track-extension/`):**
-```bash
-npm ci
-npx wxt prepare   # generates .wxt/tsconfig.json needed for type-check
-npx tsc --noEmit  # type-check
-npx wxt build     # output in .output/chrome-mv3/
-```
+- `just check` is the full local gate and must pass before committing.
+- Prefer `just <recipe>` over its underlying tool. Use `just build`, `just test`, and `just lint`
+  instead of invoking XcodeBuild or SwiftLint directly. Pass a target to `just test` to narrow a
+  test run.
+- `just setup` installs the local toolchain and dependencies, then regenerates the Xcode project.
+  Re-run `just xcodeproj` after changing `project.yml`.
+- Run `just` with stdin from `/dev/null`. No recipe is currently confirmation-gated; if one is
+  added, stop and ask before running it rather than passing a non-interactive approval flag.
+- If a needed task is absent, add a documented, grouped recipe instead of a bare tool invocation.
 
 ## Architecture
 
@@ -63,7 +32,11 @@ npx wxt build     # output in .output/chrome-mv3/
 
 ### App entry point & wiring
 
-`GrotTrackApp.swift` contains two things: `AppCoordinator` (an `@Observable @MainActor` class that owns all services) and `GrotTrackApp` (`@main` App struct). `AppCoordinator` is the single root — it creates and connects `ActivityTracker`, `ScreenshotManager`, `BrowserTabService`, `IdleDetector`, and `TimeBlockAggregator`. The SwiftData `ModelContext` is injected into services after the container is ready in the `.task` modifier.
+`GrotTrackApp.swift` defines `AppCoordinator` (an `@Observable @MainActor` class that owns all
+services), while `GrotTrackApp+Scene.swift` declares the `@main` `GrotTrackApp` scene.
+`AppCoordinator` is the single root — it creates and connects `ActivityTracker`,
+`ScreenshotManager`, `BrowserTabService`, `IdleDetector`, and `TimeBlockAggregator`. The SwiftData
+`ModelContext` is injected into services after the container is ready in the `.task` modifier.
 
 ### Data flow
 

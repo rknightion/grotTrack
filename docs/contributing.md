@@ -35,12 +35,12 @@ arch.txt                    Hand-maintained architecture document
 - **MVVM with `@Observable`.** New UI state goes in an `@Observable` view model, not directly on a
   View. `AppCoordinator` is the single composition root — services are constructed and wired there,
   not scattered across views.
-- **SwiftLint** governs style; run `swiftlint lint` before submitting (see
-  [Building](building.md#linting)). CI runs it as a non-blocking annotation pass, so a lint issue
-  will not fail your PR's required check, but fix it anyway.
-- **Regenerate the Xcode project** with `xcodegen generate` after adding, removing or moving
-  source files, or after editing `project.yml`, and commit the resulting project file changes if
-  any are tracked.
+- **SwiftLint** governs style. Run `just check` before committing or submitting (see
+  [Building](building.md#linting)) — it covers formatting, linting, extension typecheck,
+  generated-asset drift and tests. CI treats a lint failure as a failed required build.
+- **Regenerate the Xcode project** with `just xcodeproj` after adding, removing or moving source
+  files, or after editing `project.yml`. `GrotTrack.xcodeproj` is generated and gitignored; never
+  commit it.
 - **Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)**
   (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `perf:`, `test:`) — release-please parses these
   to generate the changelog and decide the next version. See [Releasing](releasing.md).
@@ -54,7 +54,7 @@ The `test-gate` job in the release workflow runs the full suite before any relea
 
 ## Chrome extension changes
 
-Extension changes should type-check (`npx tsc --noEmit`) and build (`npx wxt build`) cleanly — see
+Extension changes should pass `just typecheck` and `just build-extension` — see
 [Building](building.md#building-the-chrome-extension). If you touch the native messaging message
 shape or the host manifest, update both sides together: `grot-track-extension/entrypoints/background.ts`
 and `GrotTrack/Services/NativeMessageHost.swift` share an implicit contract that nothing currently

@@ -44,17 +44,17 @@ final class ReportGeneratorTests: XCTestCase {
 
         // Pick a known Monday (2026-03-30 is a Monday)
         let calendar = Calendar.current
-        let monday = calendar.date(from: DateComponents(year: 2026, month: 3, day: 30))!
+        let monday = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 3, day: 30)))
 
         // Insert 3 one-hour TimeBlocks on Monday and 2 on Tuesday
         for hour in 9..<12 {
-            let start = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: monday)!
+            let start = try XCTUnwrap(calendar.date(bySettingHour: hour, minute: 0, second: 0, of: monday))
             insertTimeBlock(into: context, startTime: start, dominantApp: "Xcode")
         }
 
-        let tuesday = calendar.date(byAdding: .day, value: 1, to: monday)!
+        let tuesday = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: monday))
         for hour in 10..<12 {
-            let start = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: tuesday)!
+            let start = try XCTUnwrap(calendar.date(bySettingHour: hour, minute: 0, second: 0, of: tuesday))
             insertTimeBlock(into: context, startTime: start, dominantApp: "Safari")
         }
 
@@ -75,7 +75,7 @@ final class ReportGeneratorTests: XCTestCase {
 
         // Use a week with no data
         let calendar = Calendar.current
-        let monday = calendar.date(from: DateComponents(year: 2026, month: 3, day: 23))!
+        let monday = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 3, day: 23)))
 
         let report = try generator.generateWeeklyReport(weekOf: monday, context: context)
 
@@ -89,8 +89,8 @@ final class ReportGeneratorTests: XCTestCase {
         let generator = ReportGenerator()
 
         let calendar = Calendar.current
-        let monday = calendar.date(from: DateComponents(year: 2026, month: 3, day: 30))!
-        let start = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: monday)!
+        let monday = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 3, day: 30)))
+        let start = try XCTUnwrap(calendar.date(bySettingHour: 9, minute: 0, second: 0, of: monday))
         insertTimeBlock(into: context, startTime: start, dominantApp: "Xcode")
         try context.save()
 
@@ -110,11 +110,11 @@ final class ReportGeneratorTests: XCTestCase {
 
         let calendar = Calendar.current
         // Insert blocks across March 2026
-        let march1 = calendar.date(from: DateComponents(year: 2026, month: 3, day: 1))!
+        let march1 = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 3, day: 1)))
 
         for day in 1...3 {
             guard let date = calendar.date(byAdding: .day, value: day - 1, to: march1) else { continue }
-            let start = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: date)!
+            let start = try XCTUnwrap(calendar.date(bySettingHour: 10, minute: 0, second: 0, of: date))
             insertTimeBlock(into: context, startTime: start, dominantApp: "Xcode", multitaskingScore: 0.2)
         }
 
@@ -134,7 +134,7 @@ final class ReportGeneratorTests: XCTestCase {
         let generator = ReportGenerator()
 
         let calendar = Calendar.current
-        let feb1 = calendar.date(from: DateComponents(year: 2026, month: 2, day: 1))!
+        let feb1 = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 1)))
 
         let report = try generator.generateMonthlyReport(monthOf: feb1, context: context)
 

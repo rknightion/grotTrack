@@ -91,14 +91,14 @@ The Timeline export menu also includes **Export for LLM...**, which writes a loc
 ### Prerequisites
 - macOS 26.0 (Tahoe) or later
 - Xcode 26+
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen): `brew install xcodegen`
-- Node.js 20+ (for Chrome extension): `brew install node`
+- Homebrew and [just](https://github.com/casey/just): `brew install just`
+- Node.js 20+ (for the Chrome extension)
 
 ### Build & Run
 ```bash
 git clone <repo-url>
 cd grotTrack
-xcodegen generate
+just setup
 open GrotTrack.xcodeproj
 ```
 Build and run (**Cmd+R**) in Xcode.
@@ -176,9 +176,7 @@ The Chrome extension pushes active tab data to GrotTrack via Chrome's Native Mes
 
 ### Building
 ```bash
-cd grot-track-extension
-npm install
-npx wxt build
+just build-extension
 ```
 Output: `.output/chrome-mv3/`
 
@@ -239,24 +237,20 @@ grotTrack/
 ## Development
 
 ### Project Generation
-The Xcode project is generated from `project.yml` using XcodeGen:
+The Xcode project is generated from `project.yml`:
 ```bash
-xcodegen generate
+just xcodeproj
 ```
 Re-run after adding or removing source files.
 
 ### Running Tests
 ```bash
-xcodebuild test \
-  -project GrotTrack.xcodeproj \
-  -scheme GrotTrackTests \
-  -destination 'platform=macOS' \
-  CODE_SIGN_IDENTITY="-" CODE_SIGNING_ALLOWED=NO
+just test
 ```
 
 ### Linting
 ```bash
-swiftlint lint
+just lint
 ```
 
 ---

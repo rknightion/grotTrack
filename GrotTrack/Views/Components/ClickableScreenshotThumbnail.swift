@@ -26,8 +26,7 @@ struct ClickableScreenshotThumbnail: View {
     var body: some View {
         if let nsImage = NSImage(contentsOf: thumbnailURL) {
             Image(nsImage: nsImage)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
+                .resizable().scaledToFit()
                 .frame(maxWidth: maxWidth, maxHeight: maxHeight)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
                 .overlay(
@@ -56,13 +55,11 @@ struct ClickableScreenshotThumbnail: View {
         VStack(spacing: 8) {
             if let fullImage = NSImage(contentsOf: fullImageURL) {
                 Image(nsImage: fullImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+                    .resizable().scaledToFit()
                     .frame(maxWidth: 400, maxHeight: 300)
             } else {
                 Image(nsImage: thumbnail)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+                    .resizable().scaledToFit()
                     .frame(maxWidth: 400, maxHeight: 300)
             }
 
@@ -77,12 +74,10 @@ struct ClickableScreenshotThumbnail: View {
         VStack(spacing: 12) {
             if let fullImage = NSImage(contentsOf: fullImageURL) {
                 Image(nsImage: fullImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+                    .resizable().scaledToFit()
             } else if let thumbnail = NSImage(contentsOf: thumbnailURL) {
                 Image(nsImage: thumbnail)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+                    .resizable().scaledToFit()
             }
 
             Button("Close") { showFullScreen = false }
@@ -105,8 +100,7 @@ struct ClickableScreenshotView: View {
         Group {
             if let nsImage = NSImage(contentsOfFile: screenshot.thumbnailPath) {
                 Image(nsImage: nsImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+                    .resizable().scaledToFit()
                     .frame(height: 80)
                     .clipShape(RoundedRectangle(cornerRadius: 4))
                     .overlay(
@@ -144,8 +138,7 @@ struct ClickableScreenshotView: View {
         VStack(spacing: 8) {
             if let nsImage = NSImage(contentsOfFile: screenshot.filePath) {
                 Image(nsImage: nsImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+                    .resizable().scaledToFit()
                     .frame(maxWidth: 400, maxHeight: 300)
             }
             Text("Double-click for full size")
@@ -159,8 +152,7 @@ struct ClickableScreenshotView: View {
         VStack(spacing: 12) {
             if let nsImage = NSImage(contentsOfFile: screenshot.filePath) {
                 Image(nsImage: nsImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+                    .resizable().scaledToFit()
             }
             Text(screenshot.timestamp, format: .dateTime)
             Button("Close") { showFullScreen = false }

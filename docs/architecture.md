@@ -30,7 +30,7 @@ statement).
 - **`GrotTrackTests`** — a `bundle.unit-test` target that runs against the `GrotTrack` app as its
   test host.
 
-Regenerate the Xcode project with `xcodegen generate` after any change to `project.yml` or after
+Regenerate the Xcode project with `just xcodeproj` after any change to `project.yml` or after
 adding/removing source files — see [Building](building.md).
 
 ## MVVM with `@Observable`
@@ -38,7 +38,8 @@ adding/removing source files — see [Building](building.md).
 The app follows MVVM: SwiftUI `Views/` read from `@Observable` view models
 (`ViewModels/AppState.swift`, `TimelineViewModel.swift`, `TrendReportViewModel.swift`), which in
 turn read from the service layer and SwiftData. `GrotTrackApp.swift` defines `AppCoordinator`, an
-`@Observable @MainActor` class that is the single composition root: it constructs
+`@Observable @MainActor` class that is the single composition root, and `GrotTrackApp+Scene.swift`
+declares the app scene. `AppCoordinator` constructs
 `ActivityTracker`, `ScreenshotManager`, `BrowserTabService`, `IdleDetector` and
 `TimeBlockAggregator`, and wires the SwiftData `ModelContext` into each service once the
 `ModelContainer` is ready in the app's `.task` modifier.

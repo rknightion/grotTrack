@@ -22,6 +22,10 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: '1.58.0'
+
       - name: Cache Homebrew bottles
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -32,7 +36,7 @@ jobs:
         run: brew install xcodegen swiftlint
 
       - name: Generate Xcode project
-        run: xcodegen generate
+        run: just xcodeproj
 
       - name: Cache DerivedData
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -43,30 +47,10 @@ jobs:
             deriveddata-
 
       - name: Lint
-        run: swiftlint lint --reporter github-actions-logging
-        continue-on-error: true
+        run: just lint
 
-      - name: Build for Testing
-        run: |
-          xcodebuild build-for-testing \
-            -project GrotTrack.xcodeproj \
-            -scheme GrotTrackTests \
-            -destination 'platform=macOS' \
-            -derivedDataPath ./build \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_ALLOWED=NO
-
-      - name: Run Tests
-        run: |
-          xcodebuild test-without-building \
-            -project GrotTrack.xcodeproj \
-            -scheme GrotTrackTests \
-            -destination 'platform=macOS' \
-            -derivedDataPath ./build \
-            -resultBundlePath TestResults.xcresult \
-            -enableCodeCoverage YES \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_ALLOWED=NO
+      - name: Build and Test
+        run: just test
 
       - name: Coverage Summary
         if: always()
@@ -133,13 +117,14 @@ jobs:
   build-extension:
     name: Build & Check Chrome Extension
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: grot-track-extension
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: '1.58.0'
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -147,25 +132,14 @@ jobs:
           cache: 'npm'
           cache-dependency-path: grot-track-extension/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install icon dependencies
-        run: npm ci
-        working-directory: .
-
       - name: Generate icons
-        run: node scripts/generate-icons.mjs
-        working-directory: .
-
-      - name: Prepare WXT types
-        run: npx wxt prepare
+        run: just gen
 
       - name: Type check
-        run: npx tsc --noEmit
+        run: just typecheck
 
       - name: Build extension
-        run: npx wxt build
+        run: just build-extension
 
       - name: Upload Chrome Extension
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -245,8 +245,7 @@ private struct ScreenshotRow: View {
         let url = viewModel.thumbnailURL(for: screenshot)
         if let nsImage = ThumbnailImageCache.image(for: url) {
             Image(nsImage: nsImage)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
+                .resizable().scaledToFill()
                 .frame(width: 72, height: 44)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
         } else {

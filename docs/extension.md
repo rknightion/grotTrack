@@ -55,10 +55,8 @@ for the exact permission-justification text submitted to the Chrome Web Store re
 ## Packaging
 
 ```sh
-cd grot-track-extension
-npm ci
-npx wxt build     # unpacked output: .output/chrome-mv3/
-npx wxt zip        # upload-ready zip in .output/
+just build-extension # unpacked output: grot-track-extension/.output/chrome-mv3/
+just extension-zip   # upload-ready zip in grot-track-extension/.output/
 ```
 
 The extension's own version lives in two places kept in sync by release-please:
@@ -67,14 +65,13 @@ The extension's own version lives in two places kept in sync by release-please:
 `project.yml`). Chrome Web Store versions must strictly increase, so both files are listed as
 `extra-files` in `release-please-config.json` and bumped together on every release.
 
-Icons are generated separately, not checked in as source: `npm run generate-icons` (at the repo
-root) runs `scripts/generate-icons.mjs` to produce `icon-16.png`, `icon-48.png` and
+Icons are generated separately, not checked in as source: `just gen` produces `icon-16.png`, `icon-48.png` and
 `icon-128.png` in `grot-track-extension/public/` from `assets/icon.svg`, which `wxt.config.ts`
 then references for both the extension icon set and the toolbar action icon.
 
 ## Installing for development
 
-1. Build the extension (`npx wxt build`).
+1. Build the extension (`just build-extension`).
 2. Open `chrome://extensions`, enable Developer Mode.
 3. **Load unpacked** and select `grot-track-extension/.output/chrome-mv3/`.
 4. Note the extension ID Chrome assigns.

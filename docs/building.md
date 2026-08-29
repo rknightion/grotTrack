@@ -1,6 +1,6 @@
 ---
 title: Building
-description: Building GrotTrack from source — XcodeGen project generation, the Xcode build, the Chrome extension build, and running the test suite.
+description: Building GrotTrack from source with the repository's just task surface.
 ---
 
 # Building
@@ -8,9 +8,11 @@ description: Building GrotTrack from source — XcodeGen project generation, the
 ## Prerequisites
 
 - macOS 26.0 (Tahoe) or later, Xcode 26+
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen): `brew install xcodegen`
-- Node.js 20+ (for the Chrome extension): `brew install node`
-- [SwiftLint](https://github.com/realm/SwiftLint) if you want to lint locally: `brew install swiftlint`
+- Homebrew and [just](https://github.com/casey/just): `brew install just`
+- Node.js 20+ (for the Chrome extension)
+
+Run `just setup` once after cloning. It installs XcodeGen and SwiftLint, installs both Node
+dependency sets, and creates the local Xcode project.
 
 ## Generate and open the Xcode project
 
@@ -18,7 +20,7 @@ The Xcode project (`GrotTrack.xcodeproj`) is generated from `project.yml` — it
 Re-run this any time `project.yml` changes or files are added/removed under a target's `sources`:
 
 ```sh
-xcodegen generate
+just xcodeproj
 open GrotTrack.xcodeproj
 ```
 
@@ -31,32 +33,19 @@ messaging host CLI tool, embedded into the app bundle as a build dependency), an
 Build and run with **Cmd+R** in Xcode, or from the command line:
 
 ```sh
-xcodebuild build \
-  -project GrotTrack.xcodeproj \
-  -scheme GrotTrack \
-  -destination 'platform=macOS' \
-  CODE_SIGN_IDENTITY="-" CODE_SIGNING_ALLOWED=NO
+just build
 ```
 
 ## Running the tests
 
 ```sh
-xcodebuild test \
-  -project GrotTrack.xcodeproj \
-  -scheme GrotTrackTests \
-  -destination 'platform=macOS' \
-  CODE_SIGN_IDENTITY="-" CODE_SIGNING_ALLOWED=NO
+just test
 ```
 
 To run a single test class or method, add `-only-testing`:
 
 ```sh
-xcodebuild test \
-  -project GrotTrack.xcodeproj \
-  -scheme GrotTrackTests \
-  -destination 'platform=macOS' \
-  -only-testing GrotTrackTests/ActivityTrackerTests \
-  CODE_SIGN_IDENTITY="-" CODE_SIGNING_ALLOWED=NO
+just test GrotTrackTests/ActivityTrackerTests
 ```
 
 `GrotTrackTests` covers, among others, `ActivityTrackerTests`, `MultitaskingDetectorTests`,
@@ -69,20 +58,17 @@ test host (`BUNDLE_LOADER` / `TEST_HOST` in `project.yml`).
 ## Linting
 
 ```sh
-swiftlint lint
+just lint
 ```
 
-CI runs this with `--reporter github-actions-logging` and `continue-on-error: true` — lint
-failures are surfaced as annotations but do not fail the build.
+CI runs the same strict lint recipe and treats a failure as a failed build.
 
 ## Building the Chrome extension
 
 ```sh
-cd grot-track-extension
-npm ci
-npx wxt prepare   # generates .wxt/tsconfig.json, needed before type-checking
-npx tsc --noEmit  # type-check
-npx wxt build     # unpacked output in .output/chrome-mv3/
+just typecheck
+just build-extension # unpacked output in grot-track-extension/.output/chrome-mv3/
+just extension-zip   # upload-ready zip in grot-track-extension/.output/
 ```
 
 See [Extension](extension.md#installing-for-development) for loading the unpacked build into
@@ -101,4 +87,4 @@ Two workflows cover ordinary development:
   [Releasing](releasing.md).
 
 Both cache Homebrew bottles and Xcode `DerivedData` keyed on `project.yml` and the Swift sources
-to keep `xcodegen generate` and subsequent builds fast.
+to keep project generation and subsequent builds fast.

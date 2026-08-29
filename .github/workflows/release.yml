@@ -34,7 +34,7 @@ jobs:
       # failure here is infrastructure, not the commit.
       - name: Mint a scoped release token
         id: bao
-        uses: rknightion/.github/.github/actions/broker-token@bc58399e49a8d8131a379f530fffe8c9659667f9
+        uses: rknightion/.github/.github/actions/broker-token@bc58399e49a8d8131a379f530fffe8c9659667f9 # v1.9.4
         with:
           permission-set: release-please-grotTrack
           tailscale-client-id: ${{ secrets.TS_WIF_CLIENT_ID }}
@@ -55,6 +55,10 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: '1.58.0'
+
       - name: Cache Homebrew bottles
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -65,7 +69,7 @@ jobs:
         run: brew install xcodegen
 
       - name: Generate Xcode project
-        run: xcodegen generate
+        run: just xcodeproj
 
       - name: Cache DerivedData
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -76,13 +80,7 @@ jobs:
             deriveddata-
 
       - name: Run Tests
-        run: |
-          xcodebuild test \
-            -project GrotTrack.xcodeproj \
-            -scheme GrotTrackTests \
-            -destination 'platform=macOS' \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_ALLOWED=NO
+        run: just test
 
   build-release:
     name: Build Release Artifacts
@@ -96,6 +94,10 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: '1.58.0'
+
       - name: Cache Homebrew bottles
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -107,7 +109,7 @@ jobs:
         run: brew install xcodegen
 
       - name: Generate Xcode project
-        run: xcodegen generate
+        run: just xcodeproj
 
       - name: Cache DerivedData
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -189,17 +191,8 @@ jobs:
           cache: false # zizmor: ignore[cache-poisoning] publishing job — poisoned cache could inject into release artifact
           cache-dependency-path: grot-track-extension/package-lock.json
 
-      - name: Install icon dependencies
-        run: npm ci
-
-      - name: Generate icons
-        run: node scripts/generate-icons.mjs
-
       - name: Build Chrome Extension
-        run: |
-          cd grot-track-extension
-          npm ci
-          npx wxt zip
+        run: just extension-zip
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2 # zizmor: ignore[superfluous-actions] softprops provides richer asset-upload API than gh release (multi-glob, existing release update)
@@ -224,6 +217,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: '1.58.0'
 
       - name: Download release artifact
         env:
@@ -270,11 +267,7 @@ jobs:
           mkdir -p _site
           # Restore previous appcast if it exists
           curl -fsSL "https://rknightion.github.io/grotTrack/appcast.xml" -o _site/appcast.xml 2>/dev/null || true
-          cd _site
-          ../scripts/update-appcast.sh \
-            "$VERSION" \
-            "${STEPS_SIGN_OUTPUTS_SIGNATURE}" \
-            "${STEPS_SIGN_OUTPUTS_LENGTH}"
+          just appcast "$VERSION" "${STEPS_SIGN_OUTPUTS_SIGNATURE}" "${STEPS_SIGN_OUTPUTS_LENGTH}"
         env:
           NEEDS_RELEASE_PLEASE_OUTPUTS_TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
           STEPS_SIGN_OUTPUTS_SIGNATURE: ${{ steps.sign.outputs.signature }}
@@ -299,23 +292,18 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: '1.58.0'
+
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
           cache: 'npm'
           cache-dependency-path: grot-track-extension/package-lock.json
 
-      - name: Install icon dependencies
-        run: npm ci
-
-      - name: Generate icons
-        run: node scripts/generate-icons.mjs
-
       - name: Build extension zip
-        working-directory: grot-track-extension
-        run: |
-          npm ci
-          npx wxt zip
+        run: just extension-zip
 
       - name: Upload to Chrome Web Store
         working-directory: grot-track-extension

@@ -8,7 +8,7 @@ Complete documentation for submitting and maintaining the **GrotTrack Tab Tracke
 
 - **Chrome Developer Account**: One-time $5 registration fee at <https://chrome.google.com/webstore/devconsole/>. You need a Google account to sign up.
 - **Google Cloud Project**: Required for OAuth 2.0 credentials used by the automated CI publishing pipeline. See [Section 6](#6-api-credentials-setup-for-ci-publishing) for setup instructions.
-- **Extension built and zipped**: Run `npx wxt zip` inside `grot-track-extension/` to produce the upload-ready zip in `.output/`.
+- **Extension built and zipped**: Run `just extension-zip` at the repository root to produce the upload-ready zip in `grot-track-extension/.output/`.
 
 ---
 
@@ -58,7 +58,7 @@ English
 
 ### Icons (auto-generated)
 
-Icons are generated from `assets/icon.svg` via `npm run generate-icons` (or `node scripts/generate-icons.mjs`) and placed in `grot-track-extension/public/`:
+Icons are generated from `assets/icon.svg` via `just gen` and placed in `grot-track-extension/public/`:
 
 - [x] `icon-16.png` (16x16) -- toolbar icon
 - [x] `icon-48.png` (48x48) -- extensions management page
@@ -77,7 +77,7 @@ Suggested screenshots:
 3. **Extension icon in the Chrome toolbar** -- shows users what to expect after installation
 
 To capture these:
-- Install the extension locally via `chrome://extensions` (Developer mode, Load unpacked from `.output/chrome-mv3/`)
+- Install the extension locally via `chrome://extensions` (Developer mode, Load unpacked from `grot-track-extension/.output/chrome-mv3/`)
 - Use macOS Screenshot (Cmd+Shift+4) or Chrome DevTools device toolbar to get exact dimensions
 - Crop/resize to 1280x800
 
@@ -211,11 +211,9 @@ The first version must be uploaded manually. Subsequent versions can be automate
 
 1. **Build the extension zip**
    ```bash
-   cd grot-track-extension
-   npm ci
-   npx wxt zip
+   just extension-zip
    ```
-   The zip file is created at `.output/grot-track-extension-1.0.0-chrome.zip` (filename includes version).
+   The zip file is created at `grot-track-extension/.output/grot-track-extension-1.0.0-chrome.zip` (filename includes version).
 
 2. **Go to the Chrome Developer Dashboard**
    - Open <https://chrome.google.com/webstore/devconsole/>
@@ -263,8 +261,7 @@ After the first manual submission, all subsequent versions are published automat
    - `build-release` -- builds the macOS app, notarizes it, builds the Chrome extension zip, and uploads both as GitHub Release assets
    - `publish-extension` -- runs after `build-release` completes:
      - Checks out the repo
-     - Installs dependencies and generates icons
-     - Runs `npx wxt zip` to build the extension
+     - Runs `just extension-zip` to install dependencies, generate icons, and build the extension
      - Uses `chrome-webstore-upload-cli@3` to **upload** the new zip to the Chrome Web Store
      - Uses `chrome-webstore-upload-cli@3` to **publish** the uploaded version
 
@@ -286,7 +283,7 @@ If any secret is missing, the job will fail but will not block the macOS app rel
 |------------------|--------|-------|
 | Missing privacy policy | Covered | `PRIVACY.md` in repo, URL provided in dashboard |
 | Excessive permissions | Covered | Only `tabs` + `nativeMessaging`, both justified with specific explanations |
-| Missing or incorrect icons | Covered | Auto-generated from `assets/icon.svg` via `scripts/generate-icons.mjs`; 16, 48, 128px all present |
+| Missing or incorrect icons | Covered | Auto-generated from `assets/icon.svg` via `just gen`; 16, 48, 128px all present |
 | Blank or misleading description | Covered | Accurate description explains exactly what the extension does and its local-only nature |
 | No visible functionality | Covered | Popup UI shows connection status ("Connected to GrotTrack" / "GrotTrack not running") |
 | Remote code loading | Covered | All logic is bundled locally; no `eval()`, no remote script loading, no CDN imports |

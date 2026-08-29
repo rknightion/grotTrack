@@ -141,8 +141,7 @@ struct ScreenshotGridView: View {
         let url = viewModel.thumbnailURL(for: screenshot)
         if let nsImage = ThumbnailImageCache.image(for: url) {
             Image(nsImage: nsImage)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
+                .resizable().scaledToFill()
         } else {
             Rectangle()
                 .fill(Color.gray.opacity(0.15))

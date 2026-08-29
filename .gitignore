@@ -47,6 +47,7 @@ grot-track-extension/dist/
 *.zip
 *.pkg
 *.dmg
+/TestResults.xcresult/
 
 # IDE
 .vscode/

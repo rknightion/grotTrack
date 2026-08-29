@@ -9,7 +9,7 @@ final class ActivityTrackerTests: XCTestCase {
         let tracker = ActivityTracker(appState: appState)
         XCTAssertFalse(appState.isTracking)
         XCTAssertNil(appState.trackingStartTime)
-        // TODO: Add more tests as ActivityTracker is implemented
+        XCTAssertNotNil(tracker)
     }
 
     @MainActor

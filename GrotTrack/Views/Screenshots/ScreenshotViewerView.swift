@@ -77,8 +77,7 @@ struct ScreenshotViewerView: View {
                 ZStack(alignment: .topLeading) {
                     if let nsImage = NSImage(contentsOf: url) {
                         Image(nsImage: nsImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
+                            .resizable().scaledToFit()
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         placeholderImage
@@ -446,8 +445,7 @@ private struct ZoomableScreenshotImage: View {
             let displaySize = CGSize(width: baseSize.width * scale, height: baseSize.height * scale)
 
             Image(nsImage: image)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
+                .resizable().scaledToFit()
                 .frame(width: displaySize.width, height: displaySize.height)
                 .offset(offset)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
