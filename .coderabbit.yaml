@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# Product-specific additions to the central CodeRabbit defaults.
+# Keep inheritance enabled; shared review policy lives in the owner/coderabbit repository.
+inheritance: true
+reviews:
+  path_instructions:
+  - path: GrotTrack/**/*.swift
+    instructions: >-
+      Review the menu-bar app under Swift 6 complete strict concurrency. AppCoordinator is the single
+      @MainActor composition root; preserve actor isolation, service ownership, cancellation and ModelContext
+      injection timing. For accessibility polling, ScreenCaptureKit and SwiftData, check privacy permissions,
+      bounded retention, partial writes, duplicate aggregation, local-only data handling, and cleanup.
+      Schema changes must keep the registered models and Codable JSON fields compatible with existing
+      stores.
+  - path: GrotTrackNativeHost/**/*.swift
+    instructions: >-
+      Treat stdin/stdout native messaging as an external untrusted IPC boundary. Preserve exact length
+      framing and JSON response shape, validate action and payload values, keep stdout protocol-clean,
+      bound message sizes, and ensure the embedded host shares constants/protocol code with the app. Check
+      that errors cannot desynchronise subsequent frames or expose local activity data.
+  - path: grot-track-extension/**
+    instructions: >-
+      Keep the Chrome extension and Swift native host protocol synchronized. Review permissions and host
+      matching narrowly, validate native responses at runtime, handle service-worker lifecycle and disconnects,
+      and avoid exposing browsing data beyond the local host contract.
+  - path: project.yml
+    instructions: >-
+      This is the XcodeGen source of truth. Preserve both app and native-host target wiring, shared Swift
+      sources, entitlements, hardened runtime, embedded executable destination, deployment target and
+      package links. Do not request edits to the ignored generated .xcodeproj; changes here must regenerate
+      it through the repository task surface.
