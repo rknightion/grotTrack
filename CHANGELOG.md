@@ -1,5 +1,84 @@
 # Changelog
 
+## [0.16.0](https://github.com/rknightion/grotTrack/compare/v0.15.1...v0.16.0) (2026-09-05)
+
+
+### Features
+
+* mint release-please token from the OpenBao broker ([c9cdd16](https://github.com/rknightion/grotTrack/commit/c9cdd1615252b217fc5eff01d7f35f69dc2146f8))
+
+
+### Bug Fixes
+
+* author is Rob Knight, not Rob Knighton ([356cde6](https://github.com/rknightion/grotTrack/commit/356cde6c670f121ebdd92e7af298b3880f4daa39))
+* **just:** gate check on macos so the Linux jobs can parse the justfile ([93ed4d3](https://github.com/rknightion/grotTrack/commit/93ed4d34711406918b7823d8bf08eeb373b1fda9))
+
+
+### Miscellaneous
+
+* align CodeRabbit review configuration ([67d7757](https://github.com/rknightion/grotTrack/commit/67d77570f9e7e0dfa62a2b668647355549539af9))
+* **backlog:** add GRT-0003 — migrate the repo task surface to just ([85e5c4c](https://github.com/rknightion/grotTrack/commit/85e5c4c8d950dac9ea04d3ec1a2e8ffa73dc05ee))
+* **backlog:** close the just migration task ([d7ab180](https://github.com/rknightion/grotTrack/commit/d7ab180110cbf560fe0429b4a4c559c7eab179b0))
+* **backlog:** ratify ci as the sanctioned superset of check ([d194e24](https://github.com/rknightion/grotTrack/commit/d194e24d2c0447941599aea956d09ed4960b983e))
+* **backlog:** wire the fleet migration ordering into this task ([27e5c49](https://github.com/rknightion/grotTrack/commit/27e5c49bc9005b9b9b77d8da0567768f4994d09b))
+* **build:** migrate the task surface to just ([0ecbcd8](https://github.com/rknightion/grotTrack/commit/0ecbcd86542fc4aa44292b1ea9f4dd8e75d937dd))
+* **deps:** lock file maintenance ([#100](https://github.com/rknightion/grotTrack/issues/100)) ([481893c](https://github.com/rknightion/grotTrack/commit/481893c8a8778201f73528ef46b2767db6efac48))
+* **deps:** lock file maintenance ([#102](https://github.com/rknightion/grotTrack/issues/102)) ([e3fdb75](https://github.com/rknightion/grotTrack/commit/e3fdb755e7e5a155f64723173704579de2badd51))
+* **deps:** lock file maintenance ([#105](https://github.com/rknightion/grotTrack/issues/105)) ([d309396](https://github.com/rknightion/grotTrack/commit/d3093963bd704e103e0435ae5a6c4c850f85cb48))
+* **deps:** lock file maintenance ([#108](https://github.com/rknightion/grotTrack/issues/108)) ([7d6ac75](https://github.com/rknightion/grotTrack/commit/7d6ac755b2dd268536c3864b3d8ed1c9cb92a23d))
+* **deps:** lock file maintenance ([#121](https://github.com/rknightion/grotTrack/issues/121)) ([8c34783](https://github.com/rknightion/grotTrack/commit/8c34783933f39e03a1531e4444c72a2a1918c680))
+* **deps:** update dependency @types/chrome to v0.2.3 ([#97](https://github.com/rknightion/grotTrack/issues/97)) ([1e582c3](https://github.com/rknightion/grotTrack/commit/1e582c3bbed718c811a946cbbb44661454e340e9))
+* **deps:** update dependency @types/chrome to v0.2.4 ([#98](https://github.com/rknightion/grotTrack/issues/98)) ([f24aee8](https://github.com/rknightion/grotTrack/commit/f24aee89148f0caeefa5f44526a2e349d75f6c71))
+* **deps:** update dependency @types/chrome to v0.2.5 ([#99](https://github.com/rknightion/grotTrack/issues/99)) ([3d36efa](https://github.com/rknightion/grotTrack/commit/3d36efadc70adfc7f130e494e9d7baa66dd46ad4))
+* **deps:** update dependency @types/chrome to v0.2.6 ([#104](https://github.com/rknightion/grotTrack/issues/104)) ([c9320ef](https://github.com/rknightion/grotTrack/commit/c9320ef1ff5b83169c95969e03150720401ed9b5))
+* **deps:** update dependency @types/chrome to v0.2.7 ([#107](https://github.com/rknightion/grotTrack/issues/107)) ([0bca445](https://github.com/rknightion/grotTrack/commit/0bca44572ba294aea415133ac6ae3ff7f5ea2b00))
+* **deps:** update dependency @types/chrome to v0.2.8 ([#123](https://github.com/rknightion/grotTrack/issues/123)) ([e320edf](https://github.com/rknightion/grotTrack/commit/e320edf9c27e61e4f0b8f198482ae9a915c1938f))
+* **deps:** update dependency libwebp to v1.6.0 ([#95](https://github.com/rknightion/grotTrack/issues/95)) ([49c089f](https://github.com/rknightion/grotTrack/commit/49c089f339a2236271a0aa76ace6fa1ea22b56be))
+* **deps:** update dependency sharp to v0.35.4 ([#109](https://github.com/rknightion/grotTrack/issues/109)) ([79499c4](https://github.com/rknightion/grotTrack/commit/79499c4f7dd245f5144436a35ecc5bf06558fc44))
+* **deps:** update dependency sparkle to v2.9.5 ([#101](https://github.com/rknightion/grotTrack/issues/101)) ([d6450f0](https://github.com/rknightion/grotTrack/commit/d6450f03be761cbd9a635f110d1786a583b64760))
+* **deps:** update dependency sparkle to v2.9.6 ([#106](https://github.com/rknightion/grotTrack/issues/106)) ([363ab70](https://github.com/rknightion/grotTrack/commit/363ab70b42fb546e78c9a6fe4b14e08f867e2ad8))
+* **deps:** update dependency wxt to v0.21.2 ([#93](https://github.com/rknightion/grotTrack/issues/93)) ([4d6c2c1](https://github.com/rknightion/grotTrack/commit/4d6c2c188b2dbd5a793767b3313306ed30c4bed2))
+* **deps:** update dependency wxt to v0.21.3 ([#96](https://github.com/rknightion/grotTrack/issues/96)) ([c3f6fef](https://github.com/rknightion/grotTrack/commit/c3f6fef178b4588a15104e783359bf34fae1d099))
+* **deps:** update dependency wxt to v0.21.4 ([#103](https://github.com/rknightion/grotTrack/issues/103)) ([347835e](https://github.com/rknightion/grotTrack/commit/347835e391d3a2bb0ab9989709216079edd537f4))
+* **deps:** update rknightion/.github action to v1.10.0 ([#113](https://github.com/rknightion/grotTrack/issues/113)) ([33dfacd](https://github.com/rknightion/grotTrack/commit/33dfacd1451054a8267812c81d2fc8abe8ac7086))
+* **deps:** update rknightion/.github action to v1.11.0 ([#114](https://github.com/rknightion/grotTrack/issues/114)) ([15ace6a](https://github.com/rknightion/grotTrack/commit/15ace6a00a7599df614bdd3ffb822565aaf3fb1e))
+* **deps:** update rknightion/.github action to v1.13.0 ([#115](https://github.com/rknightion/grotTrack/issues/115)) ([1424444](https://github.com/rknightion/grotTrack/commit/142444480046b5f52bfde622b470362c33eab3c6))
+* **deps:** update rknightion/.github action to v1.15.0 ([#116](https://github.com/rknightion/grotTrack/issues/116)) ([b315f20](https://github.com/rknightion/grotTrack/commit/b315f2099b324dc072fe6a8cd49fa318e7ef5733))
+* **deps:** update rknightion/.github action to v1.15.1 ([#117](https://github.com/rknightion/grotTrack/issues/117)) ([04590cc](https://github.com/rknightion/grotTrack/commit/04590cc0ce94680df5b91701f3d28b4bb84a3397))
+* **deps:** update rknightion/.github action to v1.17.0 ([#118](https://github.com/rknightion/grotTrack/issues/118)) ([bfe6313](https://github.com/rknightion/grotTrack/commit/bfe6313731d34ba14b06b62482e8f972207bb2a8))
+* **deps:** update rknightion/.github action to v1.17.1 ([#119](https://github.com/rknightion/grotTrack/issues/119)) ([0921567](https://github.com/rknightion/grotTrack/commit/092156761fb42bb0bd19eefcc2ab305ee963e5f9))
+* **deps:** update rknightion/.github action to v1.18.0 ([#122](https://github.com/rknightion/grotTrack/issues/122)) ([26127ea](https://github.com/rknightion/grotTrack/commit/26127ea1d33d277605c90835763ba7b5eefe127d))
+* **deps:** update rknightion/.github action to v1.20.0 ([#124](https://github.com/rknightion/grotTrack/issues/124)) ([0df76d7](https://github.com/rknightion/grotTrack/commit/0df76d74edca2a22b97b5aaaaa742ebbf50a0f23))
+* **deps:** update rknightion/.github action to v1.9.10 ([#112](https://github.com/rknightion/grotTrack/issues/112)) ([ed17f9e](https://github.com/rknightion/grotTrack/commit/ed17f9e9e5b068dc3ecf03ed9e9d631632b19049))
+* **deps:** update rknightion/.github action to v1.9.8 ([#110](https://github.com/rknightion/grotTrack/issues/110)) ([d97834f](https://github.com/rknightion/grotTrack/commit/d97834f654647e12b341463370f75c7777b30c06))
+* **deps:** update rknightion/.github action to v1.9.9 ([#111](https://github.com/rknightion/grotTrack/issues/111)) ([5891862](https://github.com/rknightion/grotTrack/commit/5891862f528792de1a6c3f15e3a8a19107229707))
+* **deps:** update softprops/action-gh-release action to v3.0.3 ([#120](https://github.com/rknightion/grotTrack/issues/120)) ([e9e8c9e](https://github.com/rknightion/grotTrack/commit/e9e8c9e1b2739519e306e238f5224915e5bf12dc))
+* drop the per-repo Backlog.md guard, now global in the agent config ([39d8b53](https://github.com/rknightion/grotTrack/commit/39d8b53349814462e04bce3d7bb7d8f2ff6bb000))
+* migrate to Backlog.md and adopt the agent fan-out model ([f14c42f](https://github.com/rknightion/grotTrack/commit/f14c42fc140cb79812dc3fac0f4a794a01c2f53f))
+* park GRT-0003 ([0430df5](https://github.com/rknightion/grotTrack/commit/0430df5690866facabc1a9ffdf9461ae929c051f))
+* untrack docs/superpowers scratch and ignore it ([3065389](https://github.com/rknightion/grotTrack/commit/3065389317c515c8cc018eb320c12d57ce4b017e))
+
+
+### Documentation
+
+* **backlog:** sync fan-out protocol — CodeRabbit review gate ([c0f603b](https://github.com/rknightion/grotTrack/commit/c0f603bddd5c989e10c5cdf5a3bf1c10815fb712))
+* **backlog:** sync fan-out protocol — success criteria vs write authority ([1928e27](https://github.com/rknightion/grotTrack/commit/1928e27bd1365e57e5e58702691a70871e2fa397))
+* improve search result descriptions ([cb26d1a](https://github.com/rknightion/grotTrack/commit/cb26d1a6a923d9bb77f855d50ce34182b651c1ed))
+* publish a documentation site and join the m7kni.io fleet ([d7d36bd](https://github.com/rknightion/grotTrack/commit/d7d36bda3453637fed8baddd2d78f5554b173b53))
+* put a copy-paste quickstart on the landing page ([553cbbb](https://github.com/rknightion/grotTrack/commit/553cbbbcd400d906d25b978e9f4eac69562dfa5f))
+* re-import fan-out protocol (context-cost rules) ([aea6f44](https://github.com/rknightion/grotTrack/commit/aea6f44a36f1c8d39195f90d3b6498e015cd597a))
+* re-import the fan-out protocol at c1e6cb0 ([2256124](https://github.com/rknightion/grotTrack/commit/225612484a68742b586e9f62bfcb717e54c45d21))
+* re-render the fan-out protocol from agent-docs ([9d6a3e5](https://github.com/rknightion/grotTrack/commit/9d6a3e5663ad70f3a01e7e970782eb06dc347a0b))
+* re-render the fan-out protocol from agent-docs 711db6c ([4e26eeb](https://github.com/rknightion/grotTrack/commit/4e26eebcd37c831e0bad1116055076590163a5a5))
+* re-render the fan-out protocol from agent-docs b0d76d8 ([a98bd32](https://github.com/rknightion/grotTrack/commit/a98bd32a736ade15e4c919db46d414447da6cdef))
+* sync agent-docs, a wave's launch message is a file not a chat block ([f5e63a2](https://github.com/rknightion/grotTrack/commit/f5e63a2b3e5f9ab3ca619cf7d57604387032232b))
+* sync Astra routing and default wave reports to files ([3309278](https://github.com/rknightion/grotTrack/commit/3309278b66c373213adfc5d776009647e630bf1f))
+* sync optional Astra fan-out routing and run contracts ([e2c0ae9](https://github.com/rknightion/grotTrack/commit/e2c0ae928debe3acbd462a8e4901b83089194bb5))
+* **tracker:** align canonical fan-out protocol ([be3fb28](https://github.com/rknightion/grotTrack/commit/be3fb288d65903ba500f68394cb57c3a454931bd))
+* **tracker:** correct the canonical owner in the rendered header ([11b40e5](https://github.com/rknightion/grotTrack/commit/11b40e536f9d12e9d7755aaa7d0e84272bee59d1))
+* **tracker:** re-import the fan-out protocol from canonical ([5038fea](https://github.com/rknightion/grotTrack/commit/5038fea48e68b9d1e4e998d6ddb303b973151d85))
+* **tracker:** render agent documents from the canonical source ([041f2ad](https://github.com/rknightion/grotTrack/commit/041f2add65c951a28f32fc78eea7735996861d5f))
+
 ## [0.15.1](https://github.com/rknightion/grotTrack/compare/v0.15.0...v0.15.1) (2026-07-27)
 
 
