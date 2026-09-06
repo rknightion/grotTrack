@@ -7,6 +7,8 @@ is not finished until `arch.txt` is in sync with it.
 
 ## Build
 
+- `just check` is the gate and must pass before committing. It is `[macos]`-only, so a Linux runner
+  cannot run it.
 - `GrotTrack.xcodeproj` is generated from `project.yml` and gitignored. `just setup` installs the
   toolchain and generates it; re-run `just xcodeproj` after any `project.yml` change. Never edit or
   commit the project file.
