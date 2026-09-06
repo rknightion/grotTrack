@@ -37,6 +37,10 @@ block update cannot silently drop them.
 - **Never pass `--notes` or `--plan` bare.** They replace the whole section at exit 0 and another
   session's writes vanish with no warning. Use `--append-notes` and `--append-plan`. A global
   `PreToolUse` hook denies the unsafe forms.
+- **`backlog doc view --plain` drops the tail of a long document when its output is piped**, cut on
+  a 64 KiB pipe-buffer boundary at exit 0, intermittently - one clean run proves nothing. The
+  fan-out protocol doc is over 100 KB. Redirect to a file or read `backlog/docs/` directly, and
+  compare byte counts.
 - **Hand-editing task, draft, doc, decision or milestone markdown is silently destructive.** Section
   boundaries are HTML comment markers; break one and the section is dropped at exit 0 - the data
   stays in the file but is invisible to the CLI until the next write destroys it for real. There is
