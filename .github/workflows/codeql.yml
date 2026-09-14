@@ -12,7 +12,7 @@ jobs:
       packages: read
       actions: read
       contents: read
-    uses: rknightion/.github/.github/workflows/codeql.yml@81fc55183265da0b21e92e690f70d679b20ed822 # v1.21.0
+    uses: rknightion/.github/.github/workflows/codeql.yml@e5fb83e8b9fac5d9bcca87c9f189ec3ea946de84 # v1.21.1
     with:
       # Swift omitted: CodeQL Swift requires a real Xcode build that autobuild
       # can't perform headlessly here. JS/TS + actions cover the rest.
