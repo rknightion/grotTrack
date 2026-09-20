@@ -73,9 +73,3 @@ name = "GitHub Repository"
 "Native Messaging" = "native-messaging"
 Privacy = "privacy"
 macOS = "macos"
-[backlog]
-enabled = true
-title = "Backlog"
-include_completed = true
-include_docs = true
-include_decisions = true
