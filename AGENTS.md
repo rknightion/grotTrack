@@ -5,10 +5,10 @@ A macOS menu bar app that tracks activity, plus a Chrome extension that feeds it
 `arch.txt` holds the architecture and design principles and is authoritative. An architecture change
 is not finished until `arch.txt` is in sync with it.
 
-## Build
+## Task interface
 
-- `just check` is the gate and must pass before committing. It is `[macos]`-only, so a Linux runner
-  cannot run it.
+- `just check` is the gate and must pass before committing. There is no `just ci` recipe. `check` is
+  `[macos]`-only, so a Linux runner cannot run it.
 - `GrotTrack.xcodeproj` is generated from `project.yml` and gitignored. `just setup` installs the
   toolchain and generates it; re-run `just xcodeproj` after any `project.yml` change. Never edit or
   commit the project file.
